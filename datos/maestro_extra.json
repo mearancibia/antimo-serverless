@@ -1,0 +1,372 @@
+[
+ {
+  "pos": "QUILMES 1L",
+  "cat": "CERVEZAS",
+  "canon": "Quilmes 1L",
+  "tipo": "botella",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Insumo: Cerveza Quilmes 1L",
+  "nota": ""
+ },
+ {
+  "pos": "HEINEKEN 1 LT",
+  "cat": "CERVEZAS",
+  "canon": "Heineken 1L",
+  "tipo": "botella",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Insumo: Cerveza Heineken (1L/Chica)",
+  "nota": ""
+ },
+ {
+  "pos": "HEINIKEN CHICA",
+  "cat": "CERVEZAS",
+  "canon": "Heineken Chica",
+  "tipo": "botella",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Insumo: Cerveza Heineken Chica",
+  "nota": "Botella 330ml, costo propio"
+ },
+ {
+  "pos": "VERMOUT + SODA",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Vermut + Soda",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: VERMOUT + SODA",
+  "nota": ""
+ },
+ {
+  "pos": "CARPANO ROSSO + SIFON DE SODA",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Carpano + Soda",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: VERMOUT + SODA",
+  "nota": "Vermouth Carpano"
+ },
+ {
+  "pos": "CAIPIRINHA",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Caipirinha",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: CAIPIRINHA",
+  "nota": ""
+ },
+ {
+  "pos": "2 X 1 CAIPIRINHA",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "2x1 Caipirinha",
+  "tipo": "promo_2x1",
+  "factor": 2,
+  "rend": null,
+  "costeo": "Receta: CAIPIRINHA",
+  "nota": ""
+ },
+ {
+  "pos": "CYNAR JULEP",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Cynar Julep",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: CYNAR JULEP",
+  "nota": ""
+ },
+ {
+  "pos": "Smirnoff + Sprite",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Smirnoff + Sprite",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: SMIRNOFF + SPRITE",
+  "nota": ""
+ },
+ {
+  "pos": "SMIRNOFF FRUTOS ROJOS+SPEED",
+  "cat": "1 MODO BOLICHE",
+  "canon": "Smirnoff FR + Speed",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: SMIRNOFF + SPEED",
+  "nota": "Variante sabor"
+ },
+ {
+  "pos": "PLASTICO FERNET+COCA",
+  "cat": "1 MODO BOLICHE",
+  "canon": "Fernet+Coca plastico",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: FERNET",
+  "nota": ""
+ },
+ {
+  "pos": "VASO PLASTICO SMIRNOFF+SPEED",
+  "cat": "1 MODO BOLICHE",
+  "canon": "Smirnoff+Speed plastico",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: SMIRNOFF + SPEED",
+  "nota": ""
+ },
+ {
+  "pos": "BEEFEATER + TONICA",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Beefeater + Tonica",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: GIN TONIC",
+  "nota": "Gin Beefeater"
+ },
+ {
+  "pos": "Gin Tanqueray",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Gin Tanqueray vaso",
+  "tipo": "pour",
+  "factor": 1,
+  "rend": 60,
+  "costeo": "Insumo: Gin Tanqueray",
+  "nota": ""
+ },
+ {
+  "pos": "Gin Brighton",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Gin Brighton vaso",
+  "tipo": "pour",
+  "factor": 1,
+  "rend": 60,
+  "costeo": "Insumo: Gin Brighton",
+  "nota": ""
+ },
+ {
+  "pos": "GIN BRIGTON",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Gin Brighton vaso",
+  "tipo": "pour",
+  "factor": 1,
+  "rend": 60,
+  "costeo": "Insumo: Gin Brighton",
+  "nota": "POS con typo"
+ },
+ {
+  "pos": "LIMONADA POMELADA",
+  "cat": "BEBIDAS SIN ALCHOHOL",
+  "canon": "Limonada Pomelada",
+  "tipo": "pour",
+  "factor": 1,
+  "rend": 300,
+  "costeo": "Insumo: Limonada base",
+  "nota": ""
+ },
+ {
+  "pos": "FANTA",
+  "cat": "BEBIDAS SIN ALCHOHOL",
+  "canon": "Fanta 600cc",
+  "tipo": "directo",
+  "factor": 1,
+  "rend": 600,
+  "costeo": "Insumo: Fanta",
+  "nota": ""
+ },
+ {
+  "pos": "BOTELLA VINO",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Botella de Vino",
+  "tipo": "botella",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Insumo: Vino Blanco / Tinto (Botella/Copa)",
+  "nota": ""
+ },
+ {
+  "pos": "BOTELLA FERNET",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Botella de Fernet",
+  "tipo": "botella",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Insumo: Fernet Branca",
+  "nota": ""
+ },
+ {
+  "pos": "BOTELLA DE FERNET",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Botella de Fernet",
+  "tipo": "botella",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Insumo: Fernet Branca",
+  "nota": ""
+ },
+ {
+  "pos": "shot de baileys",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Shot de Baileys",
+  "tipo": "pour",
+  "factor": 1,
+  "rend": 45,
+  "costeo": "Insumo: Baileys",
+  "nota": ""
+ },
+ {
+  "pos": "ENSALADA CESAR",
+  "cat": "ENSALADAS",
+  "canon": "Ensalada Cesar",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: ENSALADA CESAR",
+  "nota": ""
+ },
+ {
+  "pos": "POKE BOWL",
+  "cat": "ENSALADAS",
+  "canon": "Poke Bowl",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: POKE BOWL",
+  "nota": ""
+ },
+ {
+  "pos": "NUGGETS",
+  "cat": "PARA PICAR Y PAPAS",
+  "canon": "Nuggets",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: NUGGETS",
+  "nota": ""
+ },
+ {
+  "pos": "SAND. KENTUCKY",
+  "cat": "HAMBURGUESAS Y SANDWICH",
+  "canon": "Sandwich Kentucky",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: SAND. KENTUCKY",
+  "nota": ""
+ },
+ {
+  "pos": "BROWNIE",
+  "cat": "POSTRES",
+  "canon": "Brownie",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: BROWNIE",
+  "nota": ""
+ },
+ {
+  "pos": "Smirnoff + Red Bull",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Smirnoff + Red Bull",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: SMIRNOFF + SPEED",
+  "nota": "PROXY energizante Red Bull con Speed"
+ },
+ {
+  "pos": "ABSOLUT FRUTOS ROJOS+ REDBULL",
+  "cat": "1 MODO BOLICHE",
+  "canon": "Absolut FR + Red Bull",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: ABSOLUT + SPEED / RED BULL",
+  "nota": "Variante sabor"
+ },
+ {
+  "pos": "VASO PLASTICO ABSOLUT+RED BULL",
+  "cat": "1 MODO BOLICHE",
+  "canon": "Absolut+RedBull plastico",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: ABSOLUT + SPEED / RED BULL",
+  "nota": ""
+ },
+ {
+  "pos": "SERNOVA + 4 ENERGIZANTES",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Sernova + 4 Energizantes",
+  "tipo": "combo",
+  "factor": 1,
+  "rend": null,
+  "costeo": "1 bot. Vodka Sernova + 4 Speed",
+  "nota": ""
+ },
+ {
+  "pos": "SUSHI 8 PIEZAS",
+  "cat": "PROMOS",
+  "canon": "Sushi 8 Piezas",
+  "tipo": "receta",
+  "factor": 1.0,
+  "rend": null,
+  "costeo": "Receta: ROLL NEW YORK",
+  "nota": "SUPUESTO 8 piezas=1 roll New York; confirmar piezas/roll y tipo de roll"
+ },
+ {
+  "pos": "SUSHI 12 PIEZAS",
+  "cat": "PROMOS",
+  "canon": "Sushi 12 Piezas",
+  "tipo": "receta",
+  "factor": 1.5,
+  "rend": null,
+  "costeo": "Receta: ROLL NEW YORK",
+  "nota": "SUPUESTO 8 piezas=1 roll New York; confirmar piezas/roll y tipo de roll"
+ },
+ {
+  "pos": "SUSHI 15 PIEZAS",
+  "cat": "PROMOS",
+  "canon": "Sushi 15 Piezas",
+  "tipo": "receta",
+  "factor": 1.875,
+  "rend": null,
+  "costeo": "Receta: ROLL NEW YORK",
+  "nota": "SUPUESTO 8 piezas=1 roll New York; confirmar piezas/roll y tipo de roll"
+ },
+ {
+  "pos": "SUSHI 24 PIEZAS",
+  "cat": "PROMOS",
+  "canon": "Sushi 24 Piezas",
+  "tipo": "receta",
+  "factor": 3.0,
+  "rend": null,
+  "costeo": "Receta: ROLL NEW YORK",
+  "nota": "SUPUESTO 8 piezas=1 roll New York; confirmar piezas/roll y tipo de roll"
+ },
+ {
+  "pos": "ABSOLUT + 4 ENERGIZANTES",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Absolut + 4 Energizantes",
+  "tipo": "combo",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Combo definido en app",
+  "nota": "1 botella Vodka Absolut + 4 latas Speed"
+ },
+ {
+  "pos": "SMIRNOFF + 4 ENERGIZANTES",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Smirnoff + 4 Energizantes",
+  "tipo": "combo",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Combo definido en app",
+  "nota": "1 botella Vodka Smirnoff + 4 latas Speed"
+ }
+]

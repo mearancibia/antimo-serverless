@@ -1,0 +1,194 @@
+[
+ {
+  "cat": "Infraestructura",
+  "item": "Alquiler del Local",
+  "cantidad": 1,
+  "unitario": 660000
+ },
+ {
+  "cat": "Infraestructura",
+  "item": "Mantenimiento Preventivo",
+  "cantidad": 1,
+  "unitario": 120000
+ },
+ {
+  "cat": "Infraestructura",
+  "item": "Fumigación y Control",
+  "cantidad": 1,
+  "unitario": 100000
+ },
+ {
+  "cat": "Infraestructura",
+  "item": "Limpieza Profunda Externa",
+  "cantidad": 1,
+  "unitario": 120000
+ },
+ {
+  "cat": "Servicios Públicos",
+  "item": "Energía Eléctrica",
+  "cantidad": 1,
+  "unitario": 1000000
+ },
+ {
+  "cat": "Servicios Públicos",
+  "item": "Agua",
+  "cantidad": 1,
+  "unitario": 50000
+ },
+ {
+  "cat": "Servicios Públicos",
+  "item": "Gas",
+  "cantidad": 1,
+  "unitario": 100000
+ },
+ {
+  "cat": "Servicios Públicos",
+  "item": "Gas",
+  "cantidad": 1,
+  "unitario": 160000
+ },
+ {
+  "cat": "Servicios Públicos",
+  "item": "Internet",
+  "cantidad": 1,
+  "unitario": 60000
+ },
+ {
+  "cat": "Servicios Públicos",
+  "item": "Telefonía Móvil/Fija",
+  "cantidad": 1,
+  "unitario": 0
+ },
+ {
+  "cat": "Personal Fijo",
+  "item": "Sueldo: Encargado/Gerente",
+  "cantidad": 2,
+  "unitario": 1500000
+ },
+ {
+  "cat": "Personal Fijo",
+  "item": "Sueldo: Auxiliar Barra",
+  "cantidad": 1,
+  "unitario": 400000
+ },
+ {
+  "cat": "Personal Fijo",
+  "item": "Sueldo: Jefe de Barra",
+  "cantidad": 1,
+  "unitario": 820000
+ },
+ {
+  "cat": "Personal Fijo",
+  "item": "Sueldo:Auxiliar Cocina",
+  "cantidad": 1,
+  "unitario": 480000
+ },
+ {
+  "cat": "Personal Fijo",
+  "item": "Sueldo:Auxiliar Cocina",
+  "cantidad": 1,
+  "unitario": 600000
+ },
+ {
+  "cat": "Personal Fijo",
+  "item": "Sueldo: Jefe de Cocina",
+  "cantidad": 1,
+  "unitario": 800000
+ },
+ {
+  "cat": "Personal Fijo",
+  "item": "Sueldo: Personal de Salón (Mozos)",
+  "cantidad": 8,
+  "unitario": 225000
+ },
+ {
+  "cat": "Personal Fijo",
+  "item": "Sueldo: Limpieza",
+  "cantidad": 2,
+  "unitario": 240000
+ },
+ {
+  "cat": "Personal Fijo",
+  "item": "Cargas Sociales",
+  "cantidad": 1,
+  "unitario": 800000
+ },
+ {
+  "cat": "Personal Fijo",
+  "item": "Honorarios Contador",
+  "cantidad": 1,
+  "unitario": 400000
+ },
+ {
+  "cat": "Impuestos y Seguros",
+  "item": "Tasas Municipales",
+  "cantidad": 1,
+  "unitario": 150000
+ },
+ {
+  "cat": "Impuestos y Seguros",
+  "item": "Seguro de Comercio",
+  "cantidad": 1,
+  "unitario": 10000
+ },
+ {
+  "cat": "Impuestos y Seguros",
+  "item": "ART",
+  "cantidad": 1,
+  "unitario": 120000
+ },
+ {
+  "cat": "Impuestos y Seguros",
+  "item": "Seguro Vida Obligatorio",
+  "cantidad": 1,
+  "unitario": 50000
+ },
+ {
+  "cat": "Impuestos y Seguros",
+  "item": "Derechos Musicales",
+  "cantidad": 1,
+  "unitario": 50000
+ },
+ {
+  "cat": "Sistemas y Marketing",
+  "item": "Sistema POS",
+  "cantidad": 1,
+  "unitario": 80000
+ },
+ {
+  "cat": "Sistemas y Marketing",
+  "item": "Facturación Electrónica",
+  "cantidad": 1,
+  "unitario": 0
+ },
+ {
+  "cat": "Sistemas y Marketing",
+  "item": "Alquiler Posnet",
+  "cantidad": 1,
+  "unitario": 0
+ },
+ {
+  "cat": "Sistemas y Marketing",
+  "item": "Agencia Marketing",
+  "cantidad": 1,
+  "unitario": 850000
+ },
+ {
+  "cat": "Sistemas y Marketing",
+  "item": "Pauta Publicitaria",
+  "cantidad": 1,
+  "unitario": 0
+ },
+ {
+  "cat": "Otros",
+  "item": "Movilidad",
+  "cantidad": 1,
+  "unitario": 50000
+ },
+ {
+  "cat": "Otros",
+  "item": "Fondo Contingencia",
+  "cantidad": 1,
+  "unitario": 0
+ }
+]

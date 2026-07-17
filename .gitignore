@@ -1,0 +1,26 @@
+# Credenciales y datos sensibles — NUNCA subir
+datos/bistro_config.json
+datos/bistro_debug.json
+
+# Generados automáticamente (se regeneran)
+dashboard_ANTIMO.html
+datos_dashboard.json
+datos_general_actualizado.xlsx
+
+# Ventas/cajas (datos reales del negocio, no código) — de la API o cargadas a mano
+entrada/api_ventas_*.xlsx
+entrada/archivo_manual/
+entrada/*.pdf
+datos/cajas_api.json
+
+# Config local de Claude Code (permisos de sesion, no es parte del proyecto)
+**/.claude/settings.local.json
+
+# Backups y temporales
+datos/*backup*.xlsx
+datos/_backups/
+__pycache__/
+_viejo/
+_dbg.py
+*.pyc
+.DS_Store

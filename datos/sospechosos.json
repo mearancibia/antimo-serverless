@@ -1,0 +1,22 @@
+{
+ "FERNET": {
+  "estado": "no",
+  "motivo": "",
+  "ts": "2026-07-17T10:52:54"
+ },
+ "BOTELLA FERNET": {
+  "estado": "no",
+  "motivo": "",
+  "ts": "2026-07-17T10:54:39"
+ },
+ "BOTELLA DE FERNET": {
+  "estado": "no",
+  "motivo": "",
+  "ts": "2026-07-17T10:54:45"
+ },
+ "APEROL PLASTICO": {
+  "estado": "no",
+  "motivo": "",
+  "ts": "2026-07-17T10:53:26"
+ }
+}

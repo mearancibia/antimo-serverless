@@ -1,0 +1,299 @@
+# ANTIMO — Panel de gestión de bar (app local)
+
+> Este archivo es el contexto del proyecto para Claude Code. Estás trabajando dentro de la
+> carpeta `ANTIMO/` en una MacBook. **El sistema es 100% local**: corre con Python del sistema
+> y se usa desde **Chrome** en la misma Mac. No hay servidor en la nube, no hay frameworks, no
+> hay build tools. Mantené SIEMPRE esa premisa: todo tiene que seguir funcionando con doble clic
+> y navegador local.
+
+---
+
+## 1. Qué es
+
+Un panel de rentabilidad, compras y gestión para un bar/restaurante (razón social **ANTIMO**).
+Toma las ventas del POS **Bistrosoft** (vía su API), las costea contra recetas/insumos, y muestra
+rentabilidad por producto, matriz de menú (BCG), lista de compras, control de caja y OPEX. Además
+permite **editar recetas, costos, OPEX y crear productos** desde el propio tablero, y recalcula al
+instante.
+
+**Objetivo del dueño:** que sea fiel a la realidad, automático y editable, sin depender de nadie,
+gratis y local.
+
+---
+
+## 2. Cómo se usa (local, Chrome, MacBook)
+
+- **`run_ANTIMO_app.command`** (doble clic) → arranca `app_antimo.py`, un servidor local con la
+  librería estándar de Python (`http.server`) en `http://127.0.0.1:8733` (si está ocupado prueba
+  8734…8740), y abre el navegador. **En este modo el tablero es editable** (aparece el badge
+  "✏️ Modo edición"). La ventana de Terminal debe quedar abierta; cerrarla apaga la app.
+- **`actualizar_ANTIMO.command`** (doble clic) → corre el conector (trae ventas de Bistrosoft) y
+  regenera el tablero, sin levantar el servidor. Modo rápido.
+- Abrir `dashboard_ANTIMO.html` directo (sin la app) → funciona en **modo lectura** (sin editar).
+- Requisitos en la Mac: Python 3 (Command Line Tools) + `pip install --user openpyxl requests
+  pdfplumber` (los `.command` lo hacen solos). La API de Bistrosoft necesita internet normal.
+
+**Detección de modo:** el tablero, al cargar, hace `fetch('/api/ping')`. Si responde
+`{app:true}` → modo edición y trae datos de `/api/data`. Si falla (archivo abierto directo) →
+modo lectura con los datos embebidos.
+
+---
+
+## 3. Stack y principios (NO romper)
+
+- **Backend:** `app_antimo.py`, solo librería estándar de Python (`http.server`,
+  `socketserver`). Sin Flask ni dependencias web.
+- **Motor:** `actualizar_antimo.py`, un único script autocontenido (~500 líneas). Usa `openpyxl`
+  (Excel), `pdfplumber` (PDF de caja, opcional), `datetime`, `json`, `re`. **Editar este archivo
+  directamente.**
+- **Conector:** `conector_bistrosoft.py`, usa `requests`.
+- **Frontend:** `dashboard_tpl.html` — un solo archivo con HTML + CSS + **JavaScript vanilla**
+  (sin React, sin librerías, sin CDN). Se genera `dashboard_ANTIMO.html` reemplazando el token
+  `@@DATA@@` por el JSON de datos. **Editar la plantilla `dashboard_tpl.html`, no el HTML
+  generado.**
+- **Reglas de oro (respetarlas siempre):**
+  1. **Regla #0 — honestidad de datos:** nunca inventar costos ni márgenes. Si a un producto le
+     falta receta o costo → queda **N/D** (no se fuerza a la matriz, no se recomienda eliminarlo).
+  2. **NO escribir `datos/datos_general.xlsx` por código:** al re-guardarlo con openpyxl se
+     rompen los valores cacheados de las fórmulas de la hoja `Costo_Base`. Los cambios del usuario
+     van a **archivos override JSON** que el motor fusiona (ver sección 6). El "Excel completo"
+     se genera aparte (`datos_general_actualizado.xlsx`) aplicando los overrides a una copia.
+  3. **Agrupación por noche de caja:** una noche de bar cruza la medianoche. Se agrupa por
+     **fecha de cierre** (corte 08:00: lo que pasa entre 00:00 y 07:59 cuenta para la noche que
+     cerró esa madrugada). Coincide con cómo rotula Bistrosoft. Ver `business_ddmm_ym` en el
+     conector.
+     ⚠️ **Corolario: los rótulos van corridos +1 respecto de la noche coloquial.** El bar abre de
+     miércoles a domingo a la noche, pero esas noches figuran como **Jue, Vie, Sáb, Dom y Lun**
+     (la noche del sábado cierra el domingo → figura "Dom"). Verificado en los datos: Lun 5/5 y
+     Dom 5/5 con datos, Mar 0/5 y Mie 1/5. **Nunca hardcodear los días de apertura** — se infieren
+     del histórico con `patronApertura()` en el front (dow con datos en ≥50% de sus fechas).
+     Por el mismo corrimiento, "findes" (Resumen → tarjeta Findes vs. Semana) **no** se define
+     hardcodeando las etiquetas Sáb/Dom/Lun: se calcula restando 1 día a la fecha etiquetada
+     (`nocheReal()` en el front) y comparando contra Vie/Sáb/Dom reales. Así el código no depende
+     de que el lector recuerde el corrimiento — es autoexplicativo. **Ojo con tildes:** `DOWN`
+     usa `'Sab'` sin tilde; un `Set` con `'Sáb'` (con tilde) no matchea nunca y rompe la
+     clasificación en silencio (pasó una vez en desarrollo — visible sólo comparando contra los
+     números reales, no a simple vista).
+  4. **Comandas anuladas (status VOID):** Bistrosoft ya manda la comanda anulada y su reversa
+     (mismo monto, signo opuesto, mismo `ticketNumber`) — verificado sobre datos reales: siempre
+     suman neto $0, nunca cruzan de una noche a otra. Por eso el total vendido **nunca estuvo
+     inflado** por anulaciones en los datos históricos (a diferencia de lo que se sospechaba
+     originalmente). Aun así, `parse_items` en el conector excluye explícitamente por
+     `ticketNumber` en vez de confiar en la cancelación implícita: si se corre el conector a
+     mitad de un turno, la reversa de una anulación reciente puede no haber llegado todavía y
+     quedaría plata de más contada un rato. `--mock` ejercita este camino con un ticket anulado.
+  4. **Todo local y sin dependencias nuevas** salvo openpyxl/requests/pdfplumber. Nada de npm,
+     bundlers, ni servicios externos.
+
+---
+
+## 4. Flujo de datos
+
+```
+Bistrosoft API ──(conector_bistrosoft.py)──▶ entrada/api_ventas_YYYY-MM.xlsx  (ranking de ventas)
+                                          └─▶ datos/cajas_api.json            (cierres de caja)
+
+datos/datos_general.xlsx (maestro: recetas, costos, OPEX base)
+        + overrides JSON (ediciones del usuario)
+        + entrada/api_ventas_*.xlsx + datos/cajas_api.json
+                          │
+                          ▼
+              actualizar_antimo.py  (motor de costeo)
+                          │
+          ┌───────────────┴───────────────┐
+          ▼                               ▼
+  datos_dashboard.json            dashboard_ANTIMO.html
+  (DATA calculada)                (plantilla + DATA embebida)
+```
+
+`app_antimo.py` orquesta: sirve el HTML, expone la API de edición, y cada edición **escribe el
+override correspondiente y vuelve a correr `actualizar_antimo.py`** (subproceso), devolviendo la
+DATA nueva.
+
+---
+
+## 5. Modelo de datos (`datos_dashboard.json` / objeto `DATA` en el front)
+
+```jsonc
+{
+  "generado": "2026-07-14",
+  "logo": "data:image/png;base64,…",        // logo embebido si existe datos/logo.png o ANTIMO/logo.png
+  "opex": 13310000,                          // total OPEX mensual
+  "opex_pend": 0,                            // rubros en $0 no confirmados
+  "opex_detalle": [ {"cat","item","cantidad","unitario","monto","confirmado_cero"} ],
+  "dias": [ {"fecha":"DD-MM","iso":"YYYY-MM-DD","dow":"Mie"} ],   // ordenados
+  "productos": [
+    {
+      "pos": "CUARTO DE LIBRA", "key": "CUARTO DE LIBRA",   // key = identidad estable (ver abajo)
+      "cat": "HAMBURGUESAS Y SANDWICH", "grupo": "COMIDA",
+      "nd": false, "tipo": "receta", "costo": 7584, "nota": "",
+      "susp": "si", "susp_motivo": "…",                     // solo si el dueño lo marcó
+      "breakdown": [ {"insumo","qty","unidad","cxu","sub"} ],     // desglose por unidad
+      "byday": { "DD-MM": [unidades, monto] },                    // ventas por día
+      "receta_nombre": "CUARTO DE LIBRA",                          // solo receta/promo
+      "receta_ings": [ ["Ingrediente","115g"] ],                  // receta cruda editable
+      "combo_comp": [ ["Insumo", 700, "ml"] ],                    // solo combo
+      "editable": true
+      // si nd:true → { "nd":true, "motivo", "falta", "donde" } en vez de costo/breakdown
+    }
+  ],
+  "insumos": { "Nombre": {"cxu","precio","cant_base","present","unidad","cb_cat","grupo","compartido"} },
+  "consumo_dia": { "DD-MM": { "Insumo": cantidad_base } },        // para compras/reposición
+  "cajas": [ {"fecha","iso","total_vendido","efectivo","tarjetas","qr","descuentos","retiros",
+              "comensales","detalle_retiros":[{"concepto","monto","user","hora"}],
+              "detalle_descuentos":[…],"fecha_dia","fecha_key"} ],
+  "dias_cerrados": { "YYYY-MM-DD": "motivo" }          // noches que el dueño marcó sin apertura
+}
+```
+
+Cada producto lleva `key` (nombre normalizado + unificado): es su **identidad estable** para guardar
+marcas del dueño, porque `pos` es la grafía cruda del POS y puede variar. Cada caja lleva `iso`: las
+cajas se **deduplican por fecha** (un cierre puede llegar por PDF y por API a la vez; gana la de la
+API, que trae comensales y detalle por operador).
+
+---
+
+## 6. Sistema de overrides (dónde se guardan las ediciones) — carpeta `datos/`
+
+`datos_general.xlsx` es la **base** (no se toca). El motor la carga y **fusiona por encima**:
+
+| Archivo | Qué guarda | Se edita desde |
+|---|---|---|
+| `maestro_extra.json` | productos nuevos / remapeos (POS→tipo, factor, rend, costeo, nota) | "Nuevo producto" |
+| `recetas_extra.json` | recetas nuevas o editadas `{nombre: [[ing, cant],…]}` | editor de recetas |
+| `insumos_extra.json` | insumos nuevos `[{nombre,precio,pres,cant_base,unidad,cxu,cb_cat}]` | (manual / crear) |
+| `precios_override.json` | precios de insumos cambiados `{insumo: precio}` (recalcula cxu) | solapa Costos |
+| `combos_extra.json` | composición de combos `{POS: [[insumo,cant,unidad],…]}` | editor de combos |
+| `opex.json` | OPEX editable `[{cat,item,cantidad,unitario,confirmado_cero}]` (monto = cant×unit) | solapa OPEX |
+| `opex_cero_confirmado.json` | rubros OPEX confirmados en $0 (no cuentan como pendientes) | — |
+| `sospechosos.json` | marca de precio/costo mal cargado `{key: {estado:"si"\|"no", motivo, ts}}` | modal de producto |
+| `dias_cerrados.json` | noches sin apertura `{"YYYY-MM-DD": motivo}` (no cuentan como dato faltante) | tarjeta Completitud |
+| `pours_extra.json` | rendimiento (ml) de pours editado `{key: ml}`, override parcial sobre `MAESTRO[key]["rend"]` | modal de producto (Recetas) |
+| `stock.json` | conteos manuales de insumos vigilados `{insumo: {cant, fecha, umbral_dias?}}` — **no** es inventario perpetuo, ver más abajo | modal Stock (Costos / tarjeta Resumen) |
+| `bistro_config.json` | credenciales Bistrosoft `{base,username,password,shopCode}` (**sensible**) | manual |
+| `cajas_api.json`, `bistro_debug.json` | los genera el conector | — |
+| `_backups/` | copias automáticas de cada override antes de pisarlo (últimas 20 c/u) | — |
+
+**Backups:** `app_antimo._save()` respalda la versión previa en `datos/_backups/<archivo>.<YYYYMMDD-HHMMSS>.json`
+antes de sobreescribir, conservando las últimas `BACKUP_KEEP` (20). `bistro_config.json` está **excluido a
+propósito** (`NO_BACKUP`): es el único archivo con credenciales en claro y no conviene multiplicar copias.
+Si el respaldo falla, avisa por Terminal pero nunca bloquea el guardado.
+
+**Precios sospechosos:** el tablero **sugiere** revisar todo producto con margen ≥ `SUSP_THR` (90%, constante en
+`dashboard_tpl.html`), pero solo el dueño **confirma** (`estado:"si"`) o **descarta** (`estado:"no"`) desde el modal.
+Coherente con la Regla #0: la marca **no altera ningún costo, margen, KPI ni el P&L** — solo etiqueta y, con el
+toggle "⚠️ Sin sospechosos", saca los confirmados de la tabla de Rentabilidad, la matriz BCG y las alertas
+(se excluyen *antes* de `classify()` para no correr los promedios del BCG). La causa puede ser el precio del POS
+**o** el costo del insumo desactualizado/proxy.
+
+`opex.json` se **siembra automáticamente** de la hoja OPEX del Excel la primera vez, preservando el
+total. Desde ahí, es la fuente editable del OPEX.
+
+**Stock (alertas de quiebre):** decisión de diseño explícita, no un inventario perpetuo. Un inventario
+perpetuo (restar cada venta, sumar cada compra) da un saldo exacto solo si **todas** las compras se
+cargan siempre — si se salta una, el número queda mal y lo sigue estando hasta el próximo conteo manual
+(peor que no tener alerta: una que dice "hay stock" cuando no hay). En cambio: el dueño carga un conteo
+puntual (`stock.json`), y `stockCalc()` en el front resta el **consumo real** (`consumo_dia`, ya exacto)
+desde esa fecha — sin necesidad de registrar compras. El ritmo para proyectar hacia adelante se promedia
+sobre **toda la historia** (no solo desde el conteo, que puede ser poca muestra), pero el `restante` en sí
+usa solo consumo real desde el conteo, sin estimar. Como el número se desactualiza si compran sin
+recontar, siempre se muestra "hace cuántas noches fue el último conteo" para que se sepa cuánto confiar
+en la proyección. Ver `STOCK_UMBRAL_DEFAULT` (3 noches) en `dashboard_tpl.html`, ajustable por insumo.
+
+## 7. Motor de costeo (dentro de `actualizar_antimo.py`)
+
+Cada producto vendido se busca en el Maestro por su nombre POS → `Tipo_venta`:
+- **receta**: suma ingredientes × costo por unidad base (convierte unidades no métricas).
+- **promo_2x1**: receta base × `factor` (2 → consume doble).
+- **pour**: `rendimiento_ml / contenido_botella × precio` (X ml del insumo).
+- **botella**: costo 1:1 de la botella entera.
+- **directo**: costo del insumo por porción.
+- **combo**: mini-receta (botella + N latas) — vive en un dict `COMBOS` en el código + `combos_extra.json`.
+- **sin_datos** / sin mapear → **N/D**.
+
+Detalles: hay un diccionario `ALIAS` que mapea nombres de ingredientes de receta a insumos de
+`Costo_Base`; si un ingrediente ya es un nombre exacto de `Costo_Base`, se usa directo (fallback).
+`parse_qty` interpreta cantidades (`120g`, `60 ml`, `1 unidad`, `4 lata`, `A gusto`, `1 cucharada`,
+etc.) usando la hoja de Equivalencias. Hay **supuestos documentados** (pesos de pieza para
+panes/medallón/masa/aceitunas, proxies como gin tonic con Gin Brighton, aguas 500ml). La
+clasificación BCG (estrella/vaca/interrogante/perro) se calcula en el **frontend** sobre el rango
+de fechas elegido.
+
+---
+
+## 8. Conector Bistrosoft (`conector_bistrosoft.py`)
+
+- API: `POST /api/v1/Token` (JWT) → `GET /api/v1/TransactionDetailReport?startDate&endDate&shopCode&pageNumber`.
+- Tipos de transacción reales: `- ITEM` / `- COMBO` (productos → ranking), `Comanda`/`Comanda (Multipago)`/
+  `(Pago parcial)` (venta con medio de pago y comensales → caja), `- ITEM DESCUENTO`, `CAJA (RETIRO)`,
+  `CAJA (DEPOSITO)`. Se ignoran `CAJA (CIERRE/APERTURA/AJUSTE)`.
+- Agrupa por **noche de caja** (fecha de cierre, corte 08:00) y escribe `entrada/api_ventas_YYYY-MM.xlsx`
+  (uno por mes, **se sobreescriben**) + `datos/cajas_api.json`.
+- Rango por defecto: del 1 del mes anterior a mañana. `--mock` autotest sin API: escribe en un
+  directorio temporal (`write_outputs(entrada=,datos=)`), **nunca** en las carpetas reales.
+- ⚠️ **Estos archivos son los únicos sin backup automático** (los escribe el conector, no
+  `app_antimo._save()`). Si se pierden, se recuperan corriendo el conector con el rango deseado:
+  `python3 conector_bistrosoft.py 2026-06-01 2026-07-16`. Son datos de la API, no ediciones del dueño.
+
+---
+
+## 9. Endpoints de la app (`app_antimo.py`)
+
+`GET /` (dashboard), `GET /api/data`, `GET /api/ping`, `GET /api/config`.
+`POST`: `/api/receta`, `/api/precio`, `/api/pour`, `/api/combo`, `/api/producto`, `/api/sospechoso`,
+`/api/dia_cerrado`, `/api/stock`, `/api/opex_save`, `/api/opex_vigencia`, `/api/config`,
+`/api/pull` (trae de Bistrosoft), `/api/excel` (genera `datos_general_actualizado.xlsx`). Cada POST escribe el
+override (con backup previo) y re-corre el motor.
+⚠️ `/api/opex` (escribe `opex_override.json`) quedó **sin uso** desde que se agregaron las vigencias
+de OPEX — el frontend ya solo llama `/api/opex_save`/`/api/opex_vigencia`. No se borró todavía.
+
+---
+
+## 10. Solapas del tablero
+
+Resumen (KPIs con delta vs período anterior, alertas automáticas, punto de equilibrio, cascada
+P&L, tendencia por día), Rentabilidad (tabla + heatmap de margen + matriz BCG scatter, click =
+desglose de lectura), **Recetas** (editor: crear/editar recetas, combos; filtros grupo/categoría/
+tipo/buscar), Compras (consumo real vs reposición Mié→Dom, exportable), Caja (por noche, con
+detalle de retiros/descuentos), Costos (precios de insumos editables), OPEX (CRUD con
+cantidad×unitario, filtros). Selector de fechas Desde/Hasta (calendario), comparar dos rangos,
+persistencia en localStorage, botón imprimir/PDF.
+
+---
+
+## 11. Estado actual y pendientes
+
+**N/D (faltan datos del dueño):** Combo cumpleaños, Combo Cumpleaños Premium, Jack Daniels, Rabas.
+También: RED LABEL / BLACK LABEL cuestan como *Whisky Ballantines* vía alias (margen ~93% falso —
+no es precio mal cargado, es el insumo mal mapeado); "Gin Brighton" y "GIN BRIGTON" son el mismo
+trago con dos grafías sin unificar en `UNIFICAR`.
+
+**Roadmap del backlog original — completo:**
+- ✅ Backups automáticos de overrides (§6).
+- ✅ Precios sospechosos: umbral sugiere, dueño confirma (`sospechosos.json`).
+- ✅ Control de completitud de datos + noches cerradas (`dias_cerrados.json`).
+- ✅ OPEX con vigencia por fecha (`opex_periodos`, §5).
+- ✅ Rendimiento de pours editable (`pours_extra.json`).
+- ✅ Agregar/quitar componentes de combos (con guardia server-side contra insumo inexistente:
+  `costear_combo`/`explotar_producto` dan N/D en vez de crashear el pipeline entero).
+- ✅ Orden por columna en Recetas, Compras, Costos, OPEX (Rentabilidad ya lo tenía).
+- ✅ Manejo de anulaciones: el conector excluye por `ticketNumber` los `status:"VOID"` — **verificado
+  que Bistrosoft ya manda pares que se cancelan solos** (no había overcounting real en los datos
+  históricos, a diferencia de lo que se sospechaba originalmente; el filtro es defensivo para
+  pulls a mitad de turno, no una corrección de un bug existente).
+- ✅ Punto de equilibrio por día de semana (findes vs. semana, tarjeta en Resumen).
+- ✅ Alertas de quiebre de stock: conteo periódico + proyección por consumo real, **no** inventario
+  perpetuo (decisión de diseño explícita, ver §6).
+
+**Pendiente:** `git init` del proyecto (repo aún no versionado a fecha de este documento).
+
+---
+
+## 12. Qué necesito de vos (Claude Code)
+
+Mantené y extendé este sistema **sin romper las reglas de oro** (sección 3). Cualquier cambio debe
+seguir funcionando **local, con doble clic y Chrome en la MacBook**, sin dependencias nuevas ni
+servicios en la nube. Cuando edites el tablero, tocá `dashboard_tpl.html` (no el HTML generado) y
+validá el JavaScript. Cuando edites el motor, tocá `actualizar_antimo.py`. Después de cualquier
+cambio, corré `python3 actualizar_antimo.py` para verificar que genera bien, y probá los endpoints
+levantando `python3 app_antimo.py`. Nunca escribas `datos/datos_general.xlsx` por código.

@@ -1,0 +1,20 @@
+[
+ {
+  "nombre": "Alga Nori",
+  "precio": 40249,
+  "pres": "100 hojas",
+  "cant_base": 100,
+  "unidad": "u",
+  "cxu": 402.49,
+  "cb_cat": "Comidas - Sushi"
+ },
+ {
+  "nombre": "Cerveza Heineken Chica",
+  "precio": 3500,
+  "pres": "330ml",
+  "cant_base": 330,
+  "unidad": "ml",
+  "cxu": 10.606060606060606,
+  "cb_cat": "Bebidas - Cervezas"
+ }
+]

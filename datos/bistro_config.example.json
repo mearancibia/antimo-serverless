@@ -1,0 +1,6 @@
+{
+  "base": "https://ar-api.bistrosoft.com",
+  "username": "TU_USUARIO@ejemplo.com",
+  "password": "TU_CONTRASEÑA",
+  "shopCode": "TU_CODIGO_DE_TIENDA"
+}
