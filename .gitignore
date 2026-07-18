@@ -9,8 +9,6 @@ datos_general_actualizado.xlsx
 
 # Ventas/cajas (datos reales del negocio, no código) — de la API o cargadas a mano
 entrada/api_ventas_*.xlsx
-entrada/archivo_manual/
-entrada/*.pdf
 datos/cajas_api.json
 
 # Config local de Claude Code (permisos de sesion, no es parte del proyecto)
@@ -20,7 +18,11 @@ datos/cajas_api.json
 datos/*backup*.xlsx
 datos/_backups/
 __pycache__/
-_viejo/
 _dbg.py
 *.pyc
 .DS_Store
+
+# Archivo: legado pre-ANTIMO y cosas superadas por mejoras posteriores.
+# _archivo/docs_superados/ SÍ se versiona (valor histórico, son .md chicos).
+_archivo/viejo/
+_archivo/datos_sin_uso/

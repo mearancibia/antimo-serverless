@@ -37,6 +37,14 @@ gratis y local.
 `{app:true}` → modo edición y trae datos de `/api/data`. Si falla (archivo abierto directo) →
 modo lectura con los datos embebidos.
 
+**Carpeta `_archivo/`:** todo lo que ningún script lee, agrupado y sacado del camino (no se borra
+nada, por las dudas). `_archivo/viejo/` = legado de antes de que existiera esta versión de ANTIMO.
+`_archivo/docs_superados/` = docs reemplazadas por otras más nuevas (**sí** se versiona en git,
+tiene valor histórico). `_archivo/datos_sin_uso/` = Excel manuales y un PDF de caja que ya cubre
+la API, más un backup viejo del Excel base (**no** se versiona, son datos/binarios). Verificado
+antes de mover: `entrada/archivo_manual/` nunca lo leía el motor (el glob de `entrada/*patrón*`
+no entra a subcarpetas); el PDF sobrevivía a la deduplicación 0 veces (su noche ya la trae la API).
+
 ---
 
 ## 3. Stack y principios (NO romper)
