@@ -208,6 +208,27 @@ usa solo consumo real desde el conteo, sin estimar. Como el número se desactual
 recontar, siempre se muestra "hace cuántas noches fue el último conteo" para que se sepa cuánto confiar
 en la proyección. Ver `STOCK_UMBRAL_DEFAULT` (3 noches) en `dashboard_tpl.html`, ajustable por insumo.
 
+**`stock.json["cant"]` está en UNIDADES DE PRESENTACIÓN, no en la unidad base con la que se
+costea.** Ej.: "Cerveza Corona Porrón 710ml" — 1 unidad = 1 botella (710ml), `cant:7` significa
+7 botellas, no 7 ml. La conversión usa `insumos[x].cant_base` (la misma que ya usa Compras para
+decir "comprá 3 botellas" en vez de "comprá 2130 ml") — `stockCalc()` multiplica por `cant_base`
+para restar contra `consumo_dia` (que sí está en unidad base) y divide de vuelta para mostrar.
+El ratio "noches restantes" no cambia con esta conversión (el `cant_base` se cancela). **Ojo si
+se toca este código:** los 119 insumos tienen `cant_base`/`present` válidos, verificado — no hay
+casos especiales que rompan la conversión, pero cualquier insumo nuevo sin esos campos sí la
+rompería (división por 1 por defecto, silenciosa).
+
+**Exportar/importar stock en bloque:** botones en Costos (`stkExport`/`stkImport`), APP-only.
+Exporta los 119 insumos completos (no solo los vigilados) como CSV con columnas
+`Insumo;Presentacion;Cantidad_actual;Umbral_noches` — así el dueño hace un conteo físico general
+una vez y decide ahí mismo cuáles vigilar. El import usa una **sola fecha para todo el lote**
+(un `prompt()`, default hoy), no una por fila. Fila vacía **o con 0 explícito** → no se toca ese
+insumo (decisión explícita: un 0 accidental en la planilla — autocompletado, arrastre de fórmula —
+no debe borrar un insumo que sí se estaba vigilando; para dejar de vigilar hay que usar el botón
+"Dejar de vigilar" del modal individual). Endpoint `/api/stock_bulk`, separado de `/api/stock`
+(que sigue sirviendo para cargar/recontar un insumo a la vez). El parser de CSV (`parseCSV()`)
+espera el mismo formato que ya generan `exportCSV()`/`exportStockCSV()`: BOM + `;` + comillas.
+
 ## 7. Motor de costeo (dentro de `actualizar_antimo.py`)
 
 Cada producto vendido se busca en el Maestro por su nombre POS → `Tipo_venta`:
@@ -232,6 +253,16 @@ de fechas elegido.
 ## 8. Conector Bistrosoft (`conector_bistrosoft.py`)
 
 - API: `POST /api/v1/Token` (JWT) → `GET /api/v1/TransactionDetailReport?startDate&endDate&shopCode&pageNumber`.
+  Es un reporte de **detalle de transacciones** (una fila por movimiento), no un resumen ya
+  sumarizado — separado del sistema que genera el PDF de cierre de caja en el momento.
+- ⚠️ **Desfasaje de sincronización conocido:** este reporte puede tardar varias horas en reflejar
+  la noche más reciente, aunque la caja ya haya cerrado. Si un número de ANTIMO no coincide con
+  Bistrosoft para la noche más reciente (y solo para esa), **antes de sospechar de un bug**
+  revisar el último `timestamp` que trae la API para esa fecha (`fetch_all` + tomar el máximo) y
+  compararlo contra la hora de cierre real de esa noche. Si el timestamp más reciente es anterior
+  al cierre, es sync lag de Bistrosoft — probar de nuevo más tarde, no hay nada para arreglar del
+  lado de ANTIMO. Paginación: confirmado que no es un bug propio (se probó página por página, la
+  API misma devuelve una página vacía cuando no hay más datos). Page size observado: 5000 items.
 - Tipos de transacción reales: `- ITEM` / `- COMBO` (productos → ranking), `Comanda`/`Comanda (Multipago)`/
   `(Pago parcial)` (venta con medio de pago y comensales → caja), `- ITEM DESCUENTO`, `CAJA (RETIRO)`,
   `CAJA (DEPOSITO)`. Se ignoran `CAJA (CIERRE/APERTURA/AJUSTE)`.
@@ -242,6 +273,16 @@ de fechas elegido.
 - ⚠️ **Estos archivos son los únicos sin backup automático** (los escribe el conector, no
   `app_antimo._save()`). Si se pierden, se recuperan corriendo el conector con el rango deseado:
   `python3 conector_bistrosoft.py 2026-06-01 2026-07-16`. Son datos de la API, no ediciones del dueño.
+- ⚠️ **`datos/cajas_api.json` se SOBREESCRIBE entero en cada corrida** (no es acumulativo, a
+  diferencia de `entrada/api_ventas_*.xlsx` que solo pisa el mes correspondiente). Si se hizo un
+  backfill largo (ej. desde el 30/4) y después alguien aprieta "🔄 Traer ventas" (rango por
+  defecto, "1ro del mes pasado a mañana"), **ese pull más angosto va a hacer desaparecer las
+  cajas de los meses viejos** de `cajas_api.json` — aunque las ventas de esos meses (en los
+  `api_ventas_*.xlsx`) sigan intactas y se sigan sumando en Productos. Pasó una vez en desarrollo:
+  un backfill 30/4→hoy dio 48 noches, y una corrida posterior con rango por defecto lo bajó a 32
+  (perdiendo mayo). Si se necesita mantener historial largo de cajas, hay que repetir el pull con
+  el rango completo después de cualquier "Traer ventas" con rango por defecto — no hay protección
+  automática contra esto todavía.
 
 ---
 

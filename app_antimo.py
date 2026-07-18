@@ -195,6 +195,27 @@ class H(http.server.SimpleHTTPRequestHandler):
                         except (TypeError,ValueError): pass
                     s[insumo]=entry
                 _save("stock.json",s)
+            elif path=="/api/stock_bulk":
+                # importacion masiva desde el CSV exportado. Una sola fecha para todo el lote
+                # (el conteo fisico se hace un dia puntual). Filas invalidas se saltean, no
+                # aborta todo el import por una fila mal formada.
+                fecha=str(data.get("fecha") or "").strip()
+                if not re.match(r"^\d{4}-\d{2}-\d{2}$",fecha): fecha=datetime.date.today().isoformat()
+                s=_load("stock.json",{}); aplicadas=0
+                for row in (data.get("items") or []):
+                    insumo=str(row.get("insumo","")).strip()
+                    cant=row.get("cantidad")
+                    if not insumo or cant in (None,"",0,"0"): continue
+                    try: cant=float(cant)
+                    except (TypeError,ValueError): continue
+                    if cant<=0: continue
+                    entry={"cant":cant,"fecha":fecha}
+                    umb=row.get("umbral_dias")
+                    if umb not in (None,"",0,"0"):
+                        try: entry["umbral_dias"]=float(umb)
+                        except (TypeError,ValueError): pass
+                    s[insumo]=entry; aplicadas+=1
+                _save("stock.json",s)
             elif path=="/api/sospechoso":
                 # marca manual de precio mal cargado en el POS. estado: "si" | "no" | "" (limpiar)
                 key=str(data.get("key","")).strip()

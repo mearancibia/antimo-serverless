@@ -132,7 +132,10 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 
 <div id="tab-costos" class="tab-pane hidden">
   <div class="card"><div class="h3">💲 Costos de insumos <span class="mut" id="costoshint" style="font-weight:400"></span>
-     <input type="search" id="fCostBuscar" placeholder="buscar insumo" style="margin-left:auto"></div>
+     <button class="btn hidden" id="stkExport" style="margin-left:auto">⬇ Exportar stock</button>
+     <button class="btn hidden" id="stkImport">⬆ Importar stock</button>
+     <input type="file" id="stkImportFile" accept=".csv" class="hidden">
+     <input type="search" id="fCostBuscar" placeholder="buscar insumo"></div>
    <div class="scroll"><table id="tCostos"></table></div></div>
 </div>
 <div id="tab-opex" class="tab-pane hidden">
@@ -179,23 +182,30 @@ function suspRango(){const v=prodView(rangeDias(st.desde,st.hasta)).filter(x=>!x
 // pueden ser pocas y no representativas). Si compran mercaderia sin recontar, el numero se
 // desactualiza — por eso siempre se muestra "hace cuantas noches fue el ultimo conteo".
 const STOCK_UMBRAL_DEFAULT=3;
+// El dueño carga "cuantos ENVASES tengo" (botellas/paquetes/bolsas), no la unidad base con la
+// que se costea (ml/g). 1 envase = insumos[x].cant_base unidades base — la MISMA conversion que
+// ya usa Compras para decir "comprá 3 botellas" en vez de "comprá 2130 ml". entry.cant SIEMPRE
+// esta en envases; el consumo real (consumo_dia) esta en unidad base, por eso se convierte aca.
 function stockCalc(insumo){
  const entry=(DATA.stock||{})[insumo];if(!entry||!DIAS.length)return null;
+ const m=DATA.insumos[insumo];if(!m)return null;
+ const cb=m.cant_base||1;
  const ult=DIAS[DIAS.length-1].iso;
- let consumidoDesde=0,consumidoTotal=0;
- DIAS.forEach(d=>{const c=(DATA.consumo_dia[d.fecha]||{})[insumo]||0;consumidoTotal+=c;if(d.iso>=entry.fecha)consumidoDesde+=c;});
- const ritmo=consumidoTotal/DIAS.length;
- const restante=entry.cant-consumidoDesde;
- const nochesRestantes=ritmo>0?restante/ritmo:null;
+ let consumidoDesdeBase=0,consumidoTotalBase=0;
+ DIAS.forEach(d=>{const c=(DATA.consumo_dia[d.fecha]||{})[insumo]||0;consumidoTotalBase+=c;if(d.iso>=entry.fecha)consumidoDesdeBase+=c;});
+ const ritmoBase=consumidoTotalBase/DIAS.length;
+ const restanteBase=entry.cant*cb-consumidoDesdeBase;
+ const restante=restanteBase/cb;                              // de vuelta a envases, para mostrar
+ const nochesRestantes=ritmoBase>0?restanteBase/ritmoBase:null; // el cb se cancela en la razon
  const diasDesdeConteo=Math.max(0,Math.round((dOf(ult)-dOf(entry.fecha))/864e5));
  const umbral=entry.umbral_dias||STOCK_UMBRAL_DEFAULT;
  const critico=nochesRestantes!=null&&nochesRestantes<=umbral;
- return {insumo,entry,restante,ritmo,nochesRestantes,diasDesdeConteo,umbral,critico};
+ return {insumo,entry,restante,ritmo:ritmoBase/cb,nochesRestantes,diasDesdeConteo,umbral,critico};
 }
 function stockList(){return Object.keys(DATA.stock||{}).sort().map(stockCalc).filter(Boolean);}
-// muestra "0 (agotado según el conteo)" en vez de gramos negativos: la resta puede dar negativa
-// si compraron sin recontar, pero un numero negativo de "queda" no es intuitivo para nadie.
-function fRestante(c,unidad){return c.restante<0?`0 ${unidad} <span class="mut">(agotado según el conteo)</span>`:`${(+c.restante.toFixed(1))} ${unidad}`;}
+// muestra "0 (agotado según el conteo)" en vez de un numero negativo de envases: la resta puede
+// dar negativa si compraron sin recontar, pero eso no es intuitivo mostrado tal cual.
+function fRestante(c){return c.restante<0?`0 <span class="mut">(agotado según el conteo)</span>`:`${(+c.restante.toFixed(1))}`;}
 const fM=n=>{n=n||0;return Math.abs(n)>=1e6?('$'+(n/1e6).toFixed(2)+'M'):Math.abs(n)>=1e3?('$'+Math.round(n/1e3)+'k'):f0(n);};
 // ----- encabezado de tabla ordenable: clic para asc/desc (reutilizado en Recetas/Compras/Costos/OPEX) -----
 function thS(label,key,curKey,curDir,numeric){
@@ -386,7 +396,7 @@ function renderAlerts(){
  const v=curItems(),ci=v.filter(x=>!x.nd),A=[];
  ci.filter(x=>x.mgu<0).sort((a,b)=>a.mgu-b.mgu).slice(0,2).forEach(x=>A.push(['#c85a54','📉',`${x.pos} pierde ${f0(-x.mgu)}/u`,`${x.u} vendidas · ${x.mgpct}%. Subí precio o revisá receta.`]));
  const stkCrit=stockList().filter(c=>c.critico).sort((a,b)=>a.nochesRestantes-b.nochesRestantes);
- stkCrit.slice(0,2).forEach(c=>A.push(['#c85a54','📦',`${c.insumo}: quedan ~${Math.max(0,c.nochesRestantes).toFixed(1)} noches`,`${fRestante(c,DATA.insumos[c.insumo].unidad||'')} al ritmo actual. Último conteo hace ${c.diasDesdeConteo}d.`]));
+ stkCrit.slice(0,2).forEach(c=>A.push(['#c85a54','📦',`${c.insumo}: quedan ~${Math.max(0,c.nochesRestantes).toFixed(1)} noches`,`${fRestante(c)} u. (${DATA.insumos[c.insumo].present||''} c/u) al ritmo actual. Último conteo hace ${c.diasDesdeConteo}d.`]));
  const days=dayTotals();if(days.length){const b=days.slice().sort((a,b)=>b.ventas-a.ventas)[0];A.push(['#4a9d7f','🏆',`Mejor día: ${b.dow} ${b.fecha}`,`${f0(b.ventas)} · ${f0(b.margen)} de margen.`]);}
  const nd=v.filter(x=>x.nd);if(nd.length){A.push(['#e8a54a','❓',`${nd.length} productos sin costear (${fM(nd.reduce((s,x)=>s+x.monto,0))})`,`Ver pestaña Caja › N/D.`]);}
  // se calcula aparte de curItems(): si el toggle los excluye, la alerta igual tiene que verse
@@ -425,14 +435,15 @@ function renderStock(){
  const host=document.getElementById('stockHost');if(!host)return;
  const list=stockList();
  if(!list.length){host.innerHTML='';return;}
- const row=c=>`<tr><td>${esc(c.insumo)}${c.critico?' <span class="sflag" title="Por debajo del umbral de '+c.umbral+' noches">⚠️</span>':''}</td>
-  <td class="n">${fRestante(c,esc(DATA.insumos[c.insumo].unidad||''))}</td>
+ const row=c=>{const m=DATA.insumos[c.insumo]||{};return `<tr><td>${esc(c.insumo)}${c.critico?' <span class="sflag" title="Por debajo del umbral de '+c.umbral+' noches">⚠️</span>':''}</td>
+  <td class="mut">${esc(m.present||'')}</td>
+  <td class="n">${fRestante(c)} u.</td>
   <td class="n" style="${c.critico?'color:var(--neg);font-weight:600':''}">${c.nochesRestantes==null?'—':Math.max(0,c.nochesRestantes).toFixed(1)}</td>
   <td class="mut">hace ${c.diasDesdeConteo}d</td>
-  <td>${APP?`<button class="btn" data-stk="${esc(c.insumo)}" style="padding:2px 8px;font-size:11.5px">recontar</button>`:''}</td></tr>`;
+  <td>${APP?`<button class="btn" data-stk="${esc(c.insumo)}" style="padding:2px 8px;font-size:11.5px">recontar</button>`:''}</td></tr>`;};
  const host2=`<div class="card"><div class="h3">📦 Stock vigilado</div>
-  <table><tr><th>Insumo</th><th class="n">Queda</th><th class="n">Noches</th><th>Conteo</th><th></th></tr>${list.map(row).join('')}</table>
-  <div class="legend" style="margin-top:6px">Proyección desde el último conteo restando el consumo real. Si comprás sin recontar, este número se desactualiza — por eso se muestra hace cuánto fue.</div></div>`;
+  <table><tr><th>Insumo</th><th>Presentación</th><th class="n">Queda (u.)</th><th class="n">Noches</th><th>Conteo</th><th></th></tr>${list.map(row).join('')}</table>
+  <div class="legend" style="margin-top:6px">"Queda" está en unidades de presentación (botellas/paquetes), no en ml/g. Proyección desde el último conteo restando el consumo real. Si comprás sin recontar, este número se desactualiza — por eso se muestra hace cuánto fue.</div></div>`;
  host.innerHTML=host2;
  if(APP)host.querySelectorAll('button[data-stk]').forEach(b=>b.onclick=()=>stockModal(b.dataset.stk));
 }
@@ -633,6 +644,61 @@ function exportCSV(){const rows=comprasRows();const out=[['Rubro','Insumo','Comp
  const csv='﻿'+out.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download='compras_ANTIMO_'+st.desde+'_'+st.hasta+'_'+st.compras+'.csv';document.body.appendChild(a);a.click();a.remove();}
 
+// ---------- STOCK: exportar/importar en bloque ----------
+// Exporta TODOS los insumos (no solo los vigilados): permite un conteo fisico general de una
+// sola vez y decidir ahi mismo cuales vigilar, completando solo esas filas. Cantidad en unidades
+// de presentacion (mismo criterio que el resto de stock), no en ml/g.
+function exportStockCSV(){
+ const rows=[['Insumo','Presentacion','Cantidad_actual','Umbral_noches']];
+ Object.keys(DATA.insumos).sort().forEach(nm=>{
+  const m=DATA.insumos[nm],c=(DATA.stock||{})[nm];
+  rows.push([nm, m.present||'', c?c.cant:'', c&&c.umbral_dias?c.umbral_dias:'']);
+ });
+ const csv='﻿'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+ a.download='stock_ANTIMO_'+isoOf(new Date())+'.csv';document.body.appendChild(a);a.click();a.remove();
+}
+// parser CSV minimo: comillas + ';' + CRLF, el mismo formato que ya generan las exportaciones.
+function parseCSV(text){
+ text=text.replace(/^﻿/,'');
+ const rows=[];let row=[],field='',inQ=false;
+ for(let i=0;i<text.length;i++){
+  const ch=text[i];
+  if(inQ){ if(ch==='"'){ if(text[i+1]==='"'){field+='"';i++;} else inQ=false; } else field+=ch; }
+  else if(ch==='"') inQ=true;
+  else if(ch===';'){row.push(field);field='';}
+  else if(ch==='\r'){/*ignorar*/}
+  else if(ch==='\n'){row.push(field);rows.push(row);row=[];field='';}
+  else field+=ch;
+ }
+ if(field||row.length){row.push(field);rows.push(row);}
+ return rows.filter(r=>!(r.length===1&&r[0]===''));
+}
+async function importStockFile(file){
+ const text=await file.text();
+ const rows=parseCSV(text);
+ if(rows.length<2){toast('Archivo vacío o con formato inesperado');return;}
+ const hdr=rows[0].map(h=>h.trim().toLowerCase());
+ const iIns=hdr.indexOf('insumo'),iCant=hdr.indexOf('cantidad_actual'),iUmb=hdr.indexOf('umbral_noches');
+ if(iIns<0||iCant<0){toast('El archivo debe tener columnas Insumo y Cantidad_actual');return;}
+ const items=[];
+ for(let i=1;i<rows.length;i++){
+  const r=rows[i],insumo=(r[iIns]||'').trim(),cantRaw=(r[iCant]||'').trim().replace(',','.');
+  // vacio o 0 explicito -> no tocar: nunca se deja de vigilar un insumo por accidente via import.
+  if(!insumo||!cantRaw) continue;
+  const cant=parseFloat(cantRaw); if(!(cant>0)) continue;
+  const item={insumo,cantidad:cant};
+  if(iUmb>=0){const u=(r[iUmb]||'').trim().replace(',','.');if(u&&+u>0)item.umbral_dias=+u;}
+  items.push(item);
+ }
+ if(!items.length){toast('No se encontraron filas con cantidad válida');return;}
+ const hoy=isoOf(new Date());
+ const fecha=prompt(`¿Fecha del conteo para estas ${items.length} filas? (AAAA-MM-DD)`,hoy);
+ if(!fecha) return;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha.trim())){toast('Fecha inválida. Usá AAAA-MM-DD');return;}
+ await apiPost('/api/stock_bulk',{items,fecha:fecha.trim()});
+}
+
 // ---------- CAJA ----------
 function renderCaja(){
  const el=document.getElementById('caja'),sel=document.getElementById('fCaja'),cajas=DATA.cajas;
@@ -742,8 +808,8 @@ function renderCostos(){
  let h='<tr>'+thS('Insumo','insumo',st.csSort,st.csDir,false)+thS('Rubro','cb_cat',st.csSort,st.csDir,false)+thS('Presentación',null,null,null,false)+thS('Precio','precio',st.csSort,st.csDir,true)+thS('$/u base','cxu',st.csSort,st.csDir,true)+'<th>📦 Stock</th></tr>';
  ins.forEach(([nm,m])=>{const pc=APP?`<input type="number" class="prin" data-ins="${nm.replace(/"/g,'&quot;')}" value="${Math.round(m.precio||0)}" style="width:110px;text-align:right;background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 6px">`:f0(m.precio);
   const c=stockCalc(nm);
-  const stk=!APP?(c?fRestante(c,m.unidad||''):'—')
-   :c?`<button class="btn" data-stk="${nm.replace(/"/g,'&quot;')}" style="padding:2px 8px;font-size:11.5px;${c.critico?'border-color:var(--neg);color:var(--neg)':''}">${Math.max(0,c.restante).toFixed(1)} ${m.unidad||''} · ${c.nochesRestantes==null?'—':Math.max(0,c.nochesRestantes).toFixed(1)+'n'}</button>`
+  const stk=!APP?(c?fRestante(c)+' u.':'—')
+   :c?`<button class="btn" data-stk="${nm.replace(/"/g,'&quot;')}" style="padding:2px 8px;font-size:11.5px;${c.critico?'border-color:var(--neg);color:var(--neg)':''}">${Math.max(0,c.restante).toFixed(1)}u · ${c.nochesRestantes==null?'—':Math.max(0,c.nochesRestantes).toFixed(1)+'n'}</button>`
    :`<button class="btn" data-stk="${nm.replace(/"/g,'&quot;')}" style="padding:2px 8px;font-size:11.5px">+ vigilar</button>`;
   h+=`<tr><td>${nm}</td><td class="mut">${m.cb_cat||''}</td><td class="mut">${m.present||''}</td><td class="n">${pc}</td><td class="n mut">${(m.cxu||0).toFixed(2)}/${m.unidad||''}</td><td>${stk}</td></tr>`;});
  el.innerHTML=h;
@@ -753,7 +819,7 @@ function renderCostos(){
   el.querySelectorAll('button[data-stk]').forEach(b=>b.onclick=()=>stockModal(b.dataset.stk));
  }
 }
-function updateAppUI(){['appbadge','pullbtn','excelbtn','cfgbtn','newRec','opAdd','opVigAdd'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.toggle('hidden',!APP);});
+function updateAppUI(){['appbadge','pullbtn','excelbtn','cfgbtn','newRec','opAdd','opVigAdd','stkExport','stkImport'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.toggle('hidden',!APP);});
  const d=document.getElementById('opVigDel');if(d)d.classList.toggle('hidden',!APP||(DATA.opex_periodos||[]).length<2);}
 function newProductModal(){
  if(!APP){toast('Abrí la app (run_ANTIMO_app) para crear productos');return;}
@@ -820,12 +886,12 @@ function stockModal(insumo){
  if(!APP){toast('Abrí la app (run_ANTIMO_app) para cargar stock');return;}
  const c=stockCalc(insumo),m=DATA.insumos[insumo]||{};
  const hoy=isoOf(new Date());
- const estado=c?`<div class="mini" style="grid-template-columns:repeat(3,1fr);margin:10px 0"><div><span class="ml">Quedan</span><div class="mv">${fRestante(c,m.unidad||'')}</div></div><div><span class="ml">Noches de cobertura</span><div class="mv" style="color:${c.critico?'var(--neg)':'var(--pos)'}">${c.nochesRestantes==null?'—':Math.max(0,c.nochesRestantes).toFixed(1)}</div></div><div><span class="ml">Último conteo</span><div class="mv">hace ${c.diasDesdeConteo}d</div></div></div>`:'';
+ const estado=c?`<div class="mini" style="grid-template-columns:repeat(3,1fr);margin:10px 0"><div><span class="ml">Quedan</span><div class="mv">${fRestante(c)} u.</div></div><div><span class="ml">Noches de cobertura</span><div class="mv" style="color:${c.critico?'var(--neg)':'var(--pos)'}">${c.nochesRestantes==null?'—':Math.max(0,c.nochesRestantes).toFixed(1)}</div></div><div><span class="ml">Último conteo</span><div class="mv">hace ${c.diasDesdeConteo}d</div></div></div>`:'';
  const html=`<div class="ovl" id="ovl"><div class="modal" style="max-width:440px"><span class="mclose" id="mx">✕</span>
   <h2>📦 Stock — ${esc(insumo)}</h2>
-  <div class="legend" style="margin:6px 0">Cargá cuánto tenés hoy. Desde esta fecha, ANTIMO va a ir restando el consumo real para avisarte cuando se acerque a acabarse.</div>
+  <div class="legend" style="margin:6px 0">Cargá cuánto tenés hoy, en <b>unidades de presentación</b> (botellas, paquetes, bolsas — no en ${m.unidad==='ml'?'mililitros':m.unidad==='g'?'gramos':'unidad base'}). Desde esta fecha, ANTIMO va a ir restando el consumo real para avisarte cuando se acerque a acabarse.</div>
   ${estado}
-  <div class="ml">Cantidad actual (${m.unidad||'unidad'})</div><input id="stkCant" type="number" step="any" value="${c?c.entry.cant:''}" style="${EDINP};width:100%">
+  <div class="ml">Cantidad de envases <span class="mut">— cada uno = ${esc(m.present||'1 unidad')}</span></div><input id="stkCant" type="number" step="any" value="${c?c.entry.cant:''}" style="${EDINP};width:100%">
   <div class="ml" style="margin-top:8px">Fecha del conteo</div><input id="stkFecha" type="date" value="${c?c.entry.fecha:hoy}" max="${hoy}" style="${EDINP};width:100%">
   <div class="ml" style="margin-top:8px">Avisar cuando falten menos de (noches) <span class="mut">— opcional, default ${STOCK_UMBRAL_DEFAULT}</span></div><input id="stkUmb" type="number" step="any" value="${c&&c.entry.umbral_dias?c.entry.umbral_dias:''}" placeholder="${STOCK_UMBRAL_DEFAULT}" style="${EDINP};width:100%">
   <div style="margin-top:16px"><button class="btn on" id="stkSave">Guardar</button> <button class="btn" id="stkCancel">Cancelar</button>${c?' <button class="btn" id="stkClear">Dejar de vigilar</button>':''}</div>
@@ -888,6 +954,9 @@ document.getElementById('pullbtn').onclick=pull;
 document.getElementById('cfgbtn').onclick=configModal;
 document.getElementById('excelbtn').onclick=async()=>{toast('Generando Excel…');const r=await fetch('/api/excel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const j=await r.json();toast(j.ok?('Listo: '+j.file+' en la carpeta ANTIMO'):'Error generando Excel');};
 const _fcb=document.getElementById('fCostBuscar');if(_fcb)_fcb.oninput=()=>renderCostos();
+document.getElementById('stkExport').onclick=exportStockCSV;
+document.getElementById('stkImport').onclick=()=>document.getElementById('stkImportFile').click();
+document.getElementById('stkImportFile').onchange=async(e)=>{const f=e.target.files[0];if(f)await importStockFile(f);e.target.value='';};
 fetch('/api/ping').then(r=>r.json()).then(j=>{if(j&&j.app){APP=true;fetch('/api/data').then(r=>r.json()).then(d=>applyData(d)).catch(()=>rerender());}}).catch(()=>{});
 rerender();
 </script></body></html>
