@@ -281,10 +281,6 @@ def costear_producto(k):
             return {"costo":COSTO[real]["precio"],"tipo":t}
         return {"nd":True,"motivo":f"directo sin insumo:{ins}"}
     return {"nd":True,"motivo":f"tipo desconocido:{t}"}
-UNIFICAR={norm("speed"):norm("SPEED"),norm("redbull"):norm("REDBULL"),
- norm("Gin aconcagua vaso"):norm("Gin Aconcagua"),
- norm("VASO LIMONADA FRUTOS ROJOS"):norm("LIMONADA FRUTOS ROJOS"),
- norm("VASO LIMONADA FR"):norm("LIMONADA FRUTOS ROJOS")}
 # ===== EXPLOSION DE CONSUMO (reposicion) =====
 def qty_ingrediente(ing,qty):
     ing=str(ing).strip()
@@ -347,7 +343,8 @@ import re as _re
 UNIFICAR={norm("speed"):norm("SPEED"),norm("redbull"):norm("REDBULL"),
  norm("Gin aconcagua vaso"):norm("Gin Aconcagua"),
  norm("VASO LIMONADA FRUTOS ROJOS"):norm("LIMONADA FRUTOS ROJOS"),
- norm("VASO LIMONADA FR"):norm("LIMONADA FRUTOS ROJOS")}
+ norm("VASO LIMONADA FR"):norm("LIMONADA FRUTOS ROJOS"),
+ norm("GIN BRIGTON"):norm("Gin Brighton")}  # typo del POS, confirmado por el dueño: mismo producto
 FOOD_CATS={"HAMBURGUESAS Y SANDWICH","PARA PICAR Y PAPAS","PIZZAS","ENSALADAS","SIN TACC Y VEGGIE","POSTRES"}
 def grupo_cat(cat): return "COMIDA" if str(cat).upper() in FOOD_CATS else "BEBIDA"
 DOW=["Lun","Mar","Mie","Jue","Vie","Sab","Dom"]

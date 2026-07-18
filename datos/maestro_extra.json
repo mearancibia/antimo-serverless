@@ -150,16 +150,6 @@
   "nota": ""
  },
  {
-  "pos": "GIN BRIGTON",
-  "cat": "BEBIDAS CON ALCOHOL",
-  "canon": "Gin Brighton vaso",
-  "tipo": "pour",
-  "factor": 1,
-  "rend": 60,
-  "costeo": "Insumo: Gin Brighton",
-  "nota": "POS con typo"
- },
- {
   "pos": "LIMONADA POMELADA",
   "cat": "BEBIDAS SIN ALCHOHOL",
   "canon": "Limonada Pomelada",

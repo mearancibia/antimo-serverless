@@ -282,9 +282,12 @@ insumos nuevos en `insumos_extra.json` y se redirigió el `costeo` de ambos prod
 Margen real: Red Label 63.4%, Black Label 36.7% (antes ~93% falso, ya no aparecen como
 sospechosos por umbral).
 
-**Pendiente, sin decidir todavía:** "Gin Brighton" y "GIN BRIGTON" son el mismo trago con dos
-grafías sin unificar en `UNIFICAR` — falta confirmación del dueño de que es un typo antes de
-fusionar sus ventas.
+**Resuelto:** "Gin Brighton" y "GIN BRIGTON" eran el mismo trago con dos grafías (el dueño lo
+confirmó). Se unificaron en `UNIFICAR` (clave `norm("GIN BRIGTON") → norm("Gin Brighton")`),
+igual que ya se hacía con "speed"/"redbull"/limonadas. De paso se sacó una entrada duplicada de
+`UNIFICAR` que quedaba pisada sin efecto (dos definiciones idénticas, solo la segunda contaba) y
+la fila de "GIN BRIGTON" en `maestro_extra.json`, que quedó inalcanzable tras la unificación
+(esa clave nunca vuelve a aparecer en `prods`, se resuelve todo bajo "Gin Brighton").
 
 **Roadmap del backlog original — completo:**
 - ✅ Backups automáticos de overrides (§6).
