@@ -523,8 +523,8 @@ function renderTrend(){
 }
 // ---------- RENTABILIDAD ----------
 function mgColor(p){if(p==null)return '';if(p<0)return 'background:rgba(200,90,84,.35)';const g=Math.min(p,80)/80;return `background:rgba(${Math.round(230-140*g)},${Math.round(160+40*g)},100,.28)`;}
-// Precio de lista (hoja "Lista de Precios" del Excel base) vs PVP promedio real de venta.
-// Es complementario, no reemplaza al PVP: cuando difieren >5% suele ser una señal (descuento,
+// Precio de lista (hoja "Lista de Precios" del Excel base) vs el promedio real de venta.
+// Es complementario, no lo reemplaza: cuando difieren >5% suele ser una señal (descuento,
 // aumento de precio a mitad de período, o el precio del POS mal cargado) — se resalta, no se oculta.
 const PRECIO_LISTA_UMBRAL=5;
 function fPrecioLista(precioLista,pv){
@@ -532,11 +532,11 @@ function fPrecioLista(precioLista,pv){
  if(!pv) return f0(precioLista);
  const difPct=(pv/precioLista-1)*100;
  if(Math.abs(difPct)<PRECIO_LISTA_UMBRAL) return f0(precioLista);
- return `<span style="color:var(--accent)" title="El PVP real vendido difiere ${difPct>0?'+':''}${difPct.toFixed(1)}% del precio de lista">${f0(precioLista)} ⚠</span>`;
+ return `<span style="color:var(--accent)" title="El promedio real de venta difiere ${difPct>0?'+':''}${difPct.toFixed(1)}% del precio de lista">${f0(precioLista)} ⚠</span>`;
 }
 function renderRent(){
  let v=curItems().filter(x=>!x.nd);const maxU=Math.max(...v.map(x=>x.u),1);
- const cols=[['pos','Producto'],['u','U'],['pv','PV'],['precioLista','Lista'],['costo','Costo'],['mgpct','Mg%'],['mgtot','Mg total']];
+ const cols=[['pos','Producto'],['u','U'],['pv','Prom. venta'],['precioLista','Lista'],['costo','Costo'],['mgpct','Mg%'],['mgtot','Mg total']];
  v.sort((a,b)=>{const k=st.sort;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*st.dir;});
  let h='<tr>'+cols.map(c=>`<th class="${c[0]==='pos'?'':'n'}" data-k="${c[0]}">${c[1]}${st.sort===c[0]?(st.dir<0?' ▾':' ▴'):''}</th>`).join('')+'</tr>';
  v.forEach((x,i)=>{h+=`<tr class="clik" data-i="${i}"><td><span style="color:${CLCOL[x.clase]}" title="${x.clase}">${CLAB[x.clase]}</span> ${x.pos}${suspBadge(x)}</td><td class="n">${x.u}<span class="ubar" style="width:${(x.u/maxU*26).toFixed(0)}px"></span></td><td class="n">${f0(x.pv)}</td><td class="n">${fPrecioLista(x.precioLista,x.pv)}</td><td class="n">${f0(x.costo)}</td><td class="n" style="${mgColor(x.mgpct)}">${x.mgpct}%</td><td class="n">${f0(x.mgtot)}</td></tr>`;});
@@ -595,7 +595,7 @@ function showModal(x,allowEdit){
  const html=`<div class="ovl" id="ovl"><div class="modal"><span class="mclose" id="mx">✕</span>
   <h2><span style="color:${CLCOL[x.clase]||'#888'}">${CLAB[x.clase]||''}</span> ${x.pos}</h2>
   <div class="mut" style="font-size:12px">${x.cat} · ${x.tipo||''} · ${x.u} vendidas en el período</div>
-  ${x.nd?'':`<div class="mini" style="grid-template-columns:repeat(3,1fr)"><div><span class="ml">PVP (prom)</span><div class="mv">${f0(x.pv)}</div></div><div><span class="ml">Costo</span><div class="mv">${f0(x.costo)}</div></div><div><span class="ml">Margen</span><div class="mv" style="color:${x.mgu<0?'var(--neg)':'var(--pos)'}">${f0(x.mgu)} (${x.mgpct}%)</div></div></div>
+  ${x.nd?'':`<div class="mini" style="grid-template-columns:repeat(3,1fr)"><div><span class="ml">Prom. venta</span><div class="mv">${f0(x.pv)}</div></div><div><span class="ml">Costo</span><div class="mv">${f0(x.costo)}</div></div><div><span class="ml">Margen</span><div class="mv" style="color:${x.mgu<0?'var(--neg)':'var(--pos)'}">${f0(x.mgu)} (${x.mgpct}%)</div></div></div>
   <div class="h3" style="margin-top:14px">Desglose de costo (por unidad)</div>
   <table><tr><th>Insumo</th><th class="n">Cantidad</th><th class="n">$/unidad</th><th class="n">Subtotal</th></tr>${rows||'<tr><td colspan=4 class="mut">Sin receta.</td></tr>'}<tr style="font-weight:700"><td>Costo total</td><td></td><td></td><td class="n">${f0(x.costo)}</td></tr></table>`}
   ${x.nota&&!x.nd?`<div class="warn" style="margin-top:10px">⚠️ ${x.nota}</div>`:''}
@@ -664,7 +664,7 @@ function renderRecetas(){
  const rk=st.rSort||'pos',rd=st.rSort?st.rDir:1;
  list.sort((a,b)=>(a.cat<b.cat?-1:a.cat>b.cat?1:0)||(cmpVals(a[rk]??'',b[rk]??'')*rd));
  window._recList=list;
- let h='<tr>'+thS('Producto','pos',st.rSort,st.rDir,false)+thS('Tipo','tipo',st.rSort,st.rDir,false)+thS('Costo','costo',st.rSort,st.rDir,true)+thS('PVP','pv',st.rSort,st.rDir,true)+thS('Lista','precio_lista',st.rSort,st.rDir,true)+thS('Mg%','mgpct',st.rSort,st.rDir,true)+'<th></th></tr>';
+ let h='<tr>'+thS('Producto','pos',st.rSort,st.rDir,false)+thS('Tipo','tipo',st.rSort,st.rDir,false)+thS('Costo','costo',st.rSort,st.rDir,true)+thS('Prom. venta','pv',st.rSort,st.rDir,true)+thS('Lista','precio_lista',st.rSort,st.rDir,true)+thS('Mg%','mgpct',st.rSort,st.rDir,true)+'<th></th></tr>';
  let cc='';
  list.forEach((p,i)=>{if(p.cat!==cc){cc=p.cat;h+=`<tr class="grpsub"><td colspan="7">${isFood(p.cat)?'🍔':'🍹'} ${p.cat}</td></tr>`;}
   const editable=!p.nd&&(p.tipo==='receta'||p.tipo==='promo_2x1'||p.tipo==='combo'||p.tipo==='pour');

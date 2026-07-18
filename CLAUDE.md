@@ -161,18 +161,26 @@ cajas se **deduplican por fecha** (un cierre puede llegar por PDF y por API a la
 API, que trae comensales y detalle por operador).
 
 **`precio_lista`:** viene de la hoja **"Lista de Precios"** de `datos/datos_general.xlsx` (existe en
-el Excel base desde siempre, nadie la usaba). Es el precio **oficial**, complementario al PVP
-promedio real que se calcula de las ventas (`byday`) — no lo reemplaza. Match **solo por nombre
-normalizado EXACTO** (`PRECIO_LISTA` en `actualizar_antimo.py`) — nunca fuzzy-match, para no
-arriesgar cruzar dos productos distintos por error (Regla #0): de 105 items en la lista, 78
-matchean así; el resto son diferencias de formato (espacios, puntuación) o typos ya conocidos
-("CORONA 330" vs "CORONA 33O", "HEINEKEN" vs "HEINIKEN" en el POS) que no se intenta adivinar.
-En Rentabilidad y Recetas se muestra junto al PVP (`fPrecioLista()`), resaltado en naranja
-cuando difiere más de `PRECIO_LISTA_UMBRAL` (5%) — eso puede señalar un descuento, un cambio de
-precio a mitad de período, o algo mal cargado en el POS. Ya reveló algo interesante: BEEFEATER +
-TONICA (lista $80.000, PVP real $50.000, -37.5%) es uno de los productos marcados como
-"sospechoso" por margen falso (Fase 1) — además del costo mal mapeado, el precio real vendido
-también se aleja bastante del oficial.
+el Excel base desde siempre, nadie la usaba). Es el precio **oficial** — el verdadero "PVP" en el
+sentido comercial habitual (Precio de Venta al Público) — complementario al **promedio real de
+venta** que se calcula de las ventas (`byday`, columna "Prom. venta" en las tablas) — no lo
+reemplaza. Match **solo por nombre normalizado EXACTO** (`PRECIO_LISTA` en `actualizar_antimo.py`)
+— nunca fuzzy-match, para no arriesgar cruzar dos productos distintos por error (Regla #0): de 105
+items en la lista, 78 matchean así; el resto son diferencias de formato (espacios, puntuación) o
+typos ya conocidos ("CORONA 330" vs "CORONA 33O", "HEINEKEN" vs "HEINIKEN" en el POS) que no se
+intenta adivinar. En Rentabilidad y Recetas se muestra junto al promedio real (`fPrecioLista()`),
+resaltado en naranja cuando difiere más de `PRECIO_LISTA_UMBRAL` (5%) — eso puede señalar un
+descuento, un cambio de precio a mitad de período, o algo mal cargado en el POS. Ya reveló algo
+interesante: BEEFEATER + TONICA (lista $80.000, promedio real $50.000, -37.5%) es uno de los
+productos marcados como "sospechoso" por margen falso (Fase 1) — además del costo mal mapeado, el
+precio real vendido también se aleja bastante del oficial.
+
+⚠️ **Ojo con la terminología:** antes de este cambio, la columna que hoy dice "Prom. venta" decía
+"PVP"/"PV" a secas en los encabezados de tabla — comercialmente ambiguo, porque "PVP" en español
+significa "Precio de Venta al Público" (el precio oficial), no un promedio. Se renombró para que
+no quede ambigüedad ahora que conviven las dos columnas: "Prom. venta" = promedio real calculado
+de las ventas; "Lista" = el verdadero PVP oficial. El campo interno `p.pv`/`x.pv` en el código
+sigue llamándose así por compatibilidad — solo cambió la etiqueta visible.
 
 ---
 
