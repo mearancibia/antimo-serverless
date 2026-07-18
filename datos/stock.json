@@ -1,1 +1,14 @@
-{}
+{
+ "Cerveza Corona Porron 710ml": {
+  "cant": 50.0,
+  "fecha": "2026-07-18"
+ },
+ "Cerveza Heineken (1L/Chica)": {
+  "cant": 5.0,
+  "fecha": "2026-07-18"
+ },
+ "Fernet Branca": {
+  "cant": 50.0,
+  "fecha": "2026-07-18"
+ }
+}
