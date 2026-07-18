@@ -416,6 +416,13 @@ _cbx=os.path.join(DATOS,"combos_extra.json")
 if os.path.exists(_cbx):
     for kpos,comp in json.load(open(_cbx,encoding="utf-8")).items():
         COMBOS[norm(kpos)]=[(c[0],c[1],c[2]) for c in comp]
+# precio de lista editado desde la app: pisa el valor de la hoja "Lista de Precios" del Excel
+# sin tocarla. Vacio/0 desde el endpoint significa "volver al de la hoja" (se maneja en app_antimo).
+_plo=os.path.join(DATOS,"precio_lista_override.json")
+if os.path.exists(_plo):
+    try:
+        for k,precio in json.load(open(_plo,encoding="utf-8")).items(): PRECIO_LISTA[k]=precio
+    except Exception: pass
 # precios sospechosos: marca del dueño sobre productos mal cargados en el POS.
 # NO altera ningun costo ni margen: solo viaja al tablero como etiqueta.
 SOSP={}

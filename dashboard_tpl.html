@@ -527,22 +527,34 @@ function mgColor(p){if(p==null)return '';if(p<0)return 'background:rgba(200,90,8
 // Es complementario, no lo reemplaza: cuando difieren >5% suele ser una señal (descuento,
 // aumento de precio a mitad de período, o el precio del POS mal cargado) — se resalta, no se oculta.
 const PRECIO_LISTA_UMBRAL=5;
-function fPrecioLista(precioLista,pv){
- if(precioLista==null) return '<span class="mut">—</span>';
- if(!pv) return f0(precioLista);
- const difPct=(pv/precioLista-1)*100;
- if(Math.abs(difPct)<PRECIO_LISTA_UMBRAL) return f0(precioLista);
- return `<span style="color:var(--accent)" title="El promedio real de venta difiere ${difPct>0?'+':''}${difPct.toFixed(1)}% del precio de lista">${f0(precioLista)} ⚠</span>`;
+// modo lectura: numero o "—", resaltado si difiere del promedio real. modo edicion (APP): un
+// input igual al de precios de insumos en Costos — vacio/0 al guardar vuelve al valor del Excel
+// (se maneja en /api/precio_lista, mismo criterio que el resto de los overrides de esta app).
+function fPrecioLista(precioLista,pv,key){
+ const dif=(precioLista!=null&&pv)?(pv/precioLista-1)*100:null;
+ const diverge=dif!=null&&Math.abs(dif)>=PRECIO_LISTA_UMBRAL;
+ const tip=diverge?`El promedio real de venta difiere ${dif>0?'+':''}${dif.toFixed(1)}% del precio de lista`:'';
+ if(!APP){
+  if(precioLista==null) return '<span class="mut">—</span>';
+  return diverge?`<span style="color:var(--accent)" title="${tip}">${f0(precioLista)} ⚠</span>`:f0(precioLista);
+ }
+ return `<input type="number" class="plin" data-key="${esc(key)}" value="${precioLista??''}" placeholder="—" title="${esc(tip)}"
+  style="width:90px;text-align:right;background:var(--card2);border-radius:6px;padding:3px 6px;
+  border:1px solid ${diverge?'var(--accent)':'var(--line)'};color:${diverge?'var(--accent)':'var(--ink)'}">`;
 }
 function renderRent(){
  let v=curItems().filter(x=>!x.nd);const maxU=Math.max(...v.map(x=>x.u),1);
  const cols=[['pos','Producto'],['u','U'],['pv','Prom. venta'],['precioLista','Lista'],['costo','Costo'],['mgpct','Mg%'],['mgtot','Mg total']];
  v.sort((a,b)=>{const k=st.sort;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*st.dir;});
  let h='<tr>'+cols.map(c=>`<th class="${c[0]==='pos'?'':'n'}" data-k="${c[0]}">${c[1]}${st.sort===c[0]?(st.dir<0?' ▾':' ▴'):''}</th>`).join('')+'</tr>';
- v.forEach((x,i)=>{h+=`<tr class="clik" data-i="${i}"><td><span style="color:${CLCOL[x.clase]}" title="${x.clase}">${CLAB[x.clase]}</span> ${x.pos}${suspBadge(x)}</td><td class="n">${x.u}<span class="ubar" style="width:${(x.u/maxU*26).toFixed(0)}px"></span></td><td class="n">${f0(x.pv)}</td><td class="n">${fPrecioLista(x.precioLista,x.pv)}</td><td class="n">${f0(x.costo)}</td><td class="n" style="${mgColor(x.mgpct)}">${x.mgpct}%</td><td class="n">${f0(x.mgtot)}</td></tr>`;});
+ v.forEach((x,i)=>{h+=`<tr class="clik" data-i="${i}"><td><span style="color:${CLCOL[x.clase]}" title="${x.clase}">${CLAB[x.clase]}</span> ${x.pos}${suspBadge(x)}</td><td class="n">${x.u}<span class="ubar" style="width:${(x.u/maxU*26).toFixed(0)}px"></span></td><td class="n">${f0(x.pv)}</td><td class="n">${fPrecioLista(x.precioLista,x.pv,x.key)}</td><td class="n">${f0(x.costo)}</td><td class="n" style="${mgColor(x.mgpct)}">${x.mgpct}%</td><td class="n">${f0(x.mgtot)}</td></tr>`;});
  const t=document.getElementById('tRent');t.innerHTML=h;window._rentV=v;
  t.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(st.sort===k)st.dir*=-1;else{st.sort=k;st.dir=k==='pos'?1:-1;}renderRent();});
  t.querySelectorAll('tr.clik').forEach(tr=>tr.onclick=()=>showModal(window._rentV[+tr.dataset.i],false));
+ if(APP)t.querySelectorAll('.plin').forEach(inp=>{
+  inp.onclick=e=>e.stopPropagation();  // sin esto, tocar el input abre el modal de la fila
+  inp.onchange=()=>apiPost('/api/precio_lista',{key:inp.dataset.key,precio:inp.value===''?0:+inp.value});
+ });
 }
 const RUNITS=[['g','g (gramos)'],['ml','ml'],['unidad','unidad'],['lata','lata'],['cucharada','cucharada'],['gajo','gajo'],['rodaja','rodaja'],['hoja','hoja'],['medida','medida/trago'],['shot','shot'],['bocha','bocha'],['poron','porón'],['a gusto','a gusto']];
 const EDINP='background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 6px';
@@ -669,9 +681,10 @@ function renderRecetas(){
  list.forEach((p,i)=>{if(p.cat!==cc){cc=p.cat;h+=`<tr class="grpsub"><td colspan="7">${isFood(p.cat)?'🍔':'🍹'} ${p.cat}</td></tr>`;}
   const editable=!p.nd&&(p.tipo==='receta'||p.tipo==='promo_2x1'||p.tipo==='combo'||p.tipo==='pour');
   const btn=editable?`<button class="btn ${APP?'on':''}" data-i="${i}" style="padding:3px 9px"${APP?'':' disabled'}>✏️ Editar</button>`:`<button class="btn" data-i="${i}" style="padding:3px 9px">👁 Ver</button>`;
-  h+=`<tr><td>${p.pos}${suspBadge(p)}</td><td class="mut">${p.nd?'sin datos':p.tipo}</td><td class="n">${p.nd?'—':f0(p.costo)}</td><td class="n">${f0(p.pv||0)}</td><td class="n">${fPrecioLista(p.precio_lista,p.pv)}</td><td class="n" style="${p.nd?'':mgColor(p.mgpct)}">${p.nd?'—':(p.mgpct+'%')}</td><td>${btn}</td></tr>`;});
+  h+=`<tr><td>${p.pos}${suspBadge(p)}</td><td class="mut">${p.nd?'sin datos':p.tipo}</td><td class="n">${p.nd?'—':f0(p.costo)}</td><td class="n">${f0(p.pv||0)}</td><td class="n">${fPrecioLista(p.precio_lista,p.pv,p.key)}</td><td class="n" style="${p.nd?'':mgColor(p.mgpct)}">${p.nd?'—':(p.mgpct+'%')}</td><td>${btn}</td></tr>`;});
  document.getElementById('tRecetas').innerHTML=h;
  document.querySelectorAll('#tRecetas button[data-i]').forEach(b=>b.onclick=()=>showModal(window._recList[+b.dataset.i],true));
+ if(APP)document.querySelectorAll('#tRecetas .plin').forEach(inp=>inp.onchange=()=>apiPost('/api/precio_lista',{key:inp.dataset.key,precio:inp.value===''?0:+inp.value}));
  wireSort(document.getElementById('tRecetas'),'rSort','rDir',renderRecetas,k=>k==='pos'||k==='tipo');
  document.getElementById('recetashint').textContent=list.length+' productos'+(APP?' · clic en Editar para modificar la receta':' · abrí la app (run_ANTIMO_app) para editar');
 }

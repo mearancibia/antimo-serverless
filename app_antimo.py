@@ -216,6 +216,20 @@ class H(http.server.SimpleHTTPRequestHandler):
                         except (TypeError,ValueError): pass
                     s[insumo]=entry; aplicadas+=1
                 _save("stock.json",s)
+            elif path=="/api/precio_lista":
+                # editar el precio de lista de un producto sin tocar el Excel. vacio/0 => volver
+                # al valor de la hoja "Lista de Precios" (si la tenia).
+                key=str(data.get("key","")).strip()
+                if not key: return self._send(200,json.dumps({"ok":False,"error":"Falta el producto"}))
+                p=_load("precio_lista_override.json",{})
+                precio=data.get("precio")
+                if precio in (None,"",0,"0"): p.pop(key,None)
+                else:
+                    try: precio=float(precio)
+                    except (TypeError,ValueError): return self._send(200,json.dumps({"ok":False,"error":"Precio inválido"}))
+                    if precio<0: return self._send(200,json.dumps({"ok":False,"error":"Precio inválido"}))
+                    p[key]=precio
+                _save("precio_lista_override.json",p)
             elif path=="/api/sospechoso":
                 # marca manual de precio mal cargado en el POS. estado: "si" | "no" | "" (limpiar)
                 key=str(data.get("key","")).strip()

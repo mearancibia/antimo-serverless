@@ -182,6 +182,16 @@ no quede ambigüedad ahora que conviven las dos columnas: "Prom. venta" = promed
 de las ventas; "Lista" = el verdadero PVP oficial. El campo interno `p.pv`/`x.pv` en el código
 sigue llamándose así por compatibilidad — solo cambió la etiqueta visible.
 
+**Editor de precio de lista:** `precio_lista` se puede editar desde la app (Rentabilidad y
+Recetas, columna "Lista", `fPrecioLista()`), mismo patrón que el resto de los overrides —
+`datos/precio_lista_override.json` (`{key: precio}`), pisa el valor de la hoja sin tocar el
+Excel, `POST /api/precio_lista`. Vacío o `0` al guardar **vuelve al valor del Excel** (no lo
+borra del producto), mismo criterio que `/api/stock`. También sirve para cargar un precio de
+lista en productos que **nunca** tuvieron uno en la hoja (los inputs quedan vacíos con
+placeholder "—", no bloqueados). Como los `<tr>` de Rentabilidad tienen `onclick` propio (abren
+el modal), el input hace `stopPropagation()` en su handler de click — si se toca esa tabla y algo
+dispara el modal al tocar el precio, revisar que ese `stopPropagation` siga ahí.
+
 ---
 
 ## 6. Sistema de overrides (dónde se guardan las ediciones) — carpeta `datos/`
