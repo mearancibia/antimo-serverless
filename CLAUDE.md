@@ -292,8 +292,10 @@ trago con dos grafías sin unificar en `UNIFICAR`.
 - ✅ Punto de equilibrio por día de semana (findes vs. semana, tarjeta en Resumen).
 - ✅ Alertas de quiebre de stock: conteo periódico + proyección por consumo real, **no** inventario
   perpetuo (decisión de diseño explícita, ver §6).
+- ✅ `git init` + carpeta reorganizada (`_archivo/`, ver sección 2).
 
-**Pendiente:** `git init` del proyecto (repo aún no versionado a fecha de este documento).
+**Pendiente:** nada de código. Solo decisiones/datos del dueño (ver "N/D" arriba) y una limpieza
+menor ya sugerida como tarea aparte: el endpoint `/api/opex` sin uso (§9).
 
 ---
 
