@@ -202,11 +202,25 @@ perpetuo (restar cada venta, sumar cada compra) da un saldo exacto solo si **tod
 cargan siempre — si se salta una, el número queda mal y lo sigue estando hasta el próximo conteo manual
 (peor que no tener alerta: una que dice "hay stock" cuando no hay). En cambio: el dueño carga un conteo
 puntual (`stock.json`), y `stockCalc()` en el front resta el **consumo real** (`consumo_dia`, ya exacto)
-desde esa fecha — sin necesidad de registrar compras. El ritmo para proyectar hacia adelante se promedia
-sobre **toda la historia** (no solo desde el conteo, que puede ser poca muestra), pero el `restante` en sí
-usa solo consumo real desde el conteo, sin estimar. Como el número se desactualiza si compran sin
-recontar, siempre se muestra "hace cuántas noches fue el último conteo" para que se sepa cuánto confiar
-en la proyección. Ver `STOCK_UMBRAL_DEFAULT` (3 noches) en `dashboard_tpl.html`, ajustable por insumo.
+desde esa fecha — sin necesidad de registrar compras. Eso nunca es una estimación.
+
+Lo que SÍ es una estimación es "cuánto va a durar", y ahí se pondera por dos cosas (`ritmosRecientes()`):
+1. **Ventana reciente** (`STOCK_VENTANA_DIAS`=21, ~3 semanas) en vez de toda la historia: un trago que
+   se puso de moda o dejó de pedirse hace poco se refleja rápido, no diluido por meses de historia vieja.
+   Si la ventana no tiene noches de algún tipo (findes o semana), cae al promedio de *toda* la historia
+   para ese tipo — nunca deja el ritmo en 0 por falta de muestra.
+2. **Findes vs. semana** (reusa `FINDES`/`nocheReal()` de la Fase 7a): findes vende ~el doble que semana
+   en este bar, un ritmo único no sirve igual un martes que un sábado.
+
+Con esos dos ritmos, `proyectarQuiebre()` simula **noche por noche** desde mañana (usando
+`patronApertura()` + `dias_cerrados.json`, saltea las noches que no abren) hasta que el stock cruza
+cero, devolviendo una **fecha de quiebre** ("se agota el jueves 24/07") en vez de un "X noches"
+abstracto — más accionable: de un vistazo se sabe si alcanza hasta la próxima compra o no. Tope de
+seguridad: 180 noches simuladas: si no se agota en ese horizonte, muestra "sin quiebre a la vista".
+
+Como el `restante` se desactualiza si compran sin recontar, siempre se muestra "hace cuántas noches
+fue el último conteo". Ver `STOCK_UMBRAL_DEFAULT` (3 noches) en `dashboard_tpl.html`, ajustable por
+insumo — `critico` compara contra las noches simuladas hasta el quiebre, no contra un cociente plano.
 
 **`stock.json["cant"]` está en UNIDADES DE PRESENTACIÓN, no en la unidad base con la que se
 costea.** Ej.: "Cerveza Corona Porrón 710ml" — 1 unidad = 1 botella (710ml), `cant:7` significa
