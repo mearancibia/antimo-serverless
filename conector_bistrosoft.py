@@ -106,7 +106,11 @@ def parse_items(items):
 
 def write_outputs(rank, cajas, entrada=None, datos=None):
     """Escribe rankings + cajas. entrada/datos se pueden redirigir: el autotest --mock NO debe
-    tocar los datos reales (sus ventas inventadas pisarian el ranking del mes en curso)."""
+    tocar los datos reales (sus ventas inventadas pisarian el ranking del mes en curso).
+    cajas_api.json se FUSIONA por noche (fecha_key), no se sobreescribe entero: un pull de rango
+    angosto (el default, "1ro del mes pasado a mañana") no debe borrar noches de meses viejos que
+    ya estaban ahi por un backfill anterior. Para las noches que SI trae el pull actual, gana el
+    pull actual (por si habia quedado data parcial de un sync a medias)."""
     import openpyxl
     entrada=entrada or ENTRADA; datos=datos or DATOS
     written=[]
@@ -117,7 +121,22 @@ def write_outputs(rank, cajas, entrada=None, datos=None):
         for (ddmm,prod),(q,amt) in cells.items():
             ws.append([ddmm,prod,"",0,int(round(q)),int(round(q)),round(amt),""])
         fn=os.path.join(entrada,f"api_ventas_{ym}.xlsx"); wb.save(fn); written.append(os.path.basename(fn))
-    json.dump(cajas,open(os.path.join(datos,"cajas_api.json"),"w"),ensure_ascii=False,indent=1)
+    cajas_path=os.path.join(datos,"cajas_api.json")
+    fusion={}
+    if os.path.exists(cajas_path):
+        try:
+            for c in json.load(open(cajas_path,encoding="utf-8")):
+                k=c.get("fecha_key") or c.get("fecha")
+                if k: fusion[k]=c
+        except Exception: pass
+    antes=len(fusion)
+    for c in cajas:
+        k=c.get("fecha_key") or c.get("fecha")
+        if k: fusion[k]=c
+    nuevas=len(fusion)-antes
+    if antes and nuevas<len(cajas):
+        print(f"cajas_api.json: {antes} noches previas conservadas + {len(cajas)} de este pull -> {len(fusion)} total")
+    json.dump(list(fusion.values()),open(cajas_path,"w"),ensure_ascii=False,indent=1)
     return written
 
 def write_debug(items):

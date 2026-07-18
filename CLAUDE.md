@@ -273,16 +273,14 @@ de fechas elegido.
 - ⚠️ **Estos archivos son los únicos sin backup automático** (los escribe el conector, no
   `app_antimo._save()`). Si se pierden, se recuperan corriendo el conector con el rango deseado:
   `python3 conector_bistrosoft.py 2026-06-01 2026-07-16`. Son datos de la API, no ediciones del dueño.
-- ⚠️ **`datos/cajas_api.json` se SOBREESCRIBE entero en cada corrida** (no es acumulativo, a
-  diferencia de `entrada/api_ventas_*.xlsx` que solo pisa el mes correspondiente). Si se hizo un
-  backfill largo (ej. desde el 30/4) y después alguien aprieta "🔄 Traer ventas" (rango por
-  defecto, "1ro del mes pasado a mañana"), **ese pull más angosto va a hacer desaparecer las
-  cajas de los meses viejos** de `cajas_api.json` — aunque las ventas de esos meses (en los
-  `api_ventas_*.xlsx`) sigan intactas y se sigan sumando en Productos. Pasó una vez en desarrollo:
-  un backfill 30/4→hoy dio 48 noches, y una corrida posterior con rango por defecto lo bajó a 32
-  (perdiendo mayo). Si se necesita mantener historial largo de cajas, hay que repetir el pull con
-  el rango completo después de cualquier "Traer ventas" con rango por defecto — no hay protección
-  automática contra esto todavía.
+- ✅ **`datos/cajas_api.json` se FUSIONA por noche (`fecha_key`), no se sobreescribe entero**
+  (`write_outputs` en el conector). Antes, un pull de rango angosto (el default, "1ro del mes
+  pasado a mañana") corrido *después* de un backfill largo hacía desaparecer las cajas de los
+  meses viejos — pasó una vez en desarrollo (backfill 30/4→hoy dio 48 noches, un pull posterior
+  con rango default lo bajó a 32, perdiendo mayo). Ahora las noches que trae el pull actual se
+  actualizan (por si había sync parcial), y las que quedan fuera de su rango se conservan tal
+  cual estaban. Verificado: reproducido el escenario exacto (backfill 30/4→hoy, después pull
+  default) y las 48 noches sobrevivieron.
 
 ---
 
