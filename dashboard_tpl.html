@@ -333,7 +333,7 @@ const fFecha=iso=>iso<='2000-01-01'?'siempre':iso.slice(8,10)+'-'+iso.slice(5,7)
 function prodAgg(p,ds){let u=0,m=0;ds.forEach(d=>{const bd=p.byday[d.fecha];if(bd){u+=bd[0];m+=bd[1];}});return {u,m};}
 // productos con métricas para el rango actual + filtros
 function prodView(ds){
- return DATA.productos.map(p=>{const a=prodAgg(p,ds);const v={pos:p.pos,key:p.key,susp:p.susp,susp_motivo:p.susp_motivo,cat:p.cat,grupo:p.grupo,nd:p.nd,motivo:p.motivo,falta:p.falta,donde:p.donde,tipo:p.tipo,costo:p.costo,nota:p.nota,breakdown:p.breakdown,receta_nombre:p.receta_nombre,receta_ings:p.receta_ings,combo_comp:p.combo_comp,editable:p.editable,u:a.u,monto:a.m};
+ return DATA.productos.map(p=>{const a=prodAgg(p,ds);const v={pos:p.pos,key:p.key,susp:p.susp,susp_motivo:p.susp_motivo,cat:p.cat,grupo:p.grupo,nd:p.nd,motivo:p.motivo,falta:p.falta,donde:p.donde,tipo:p.tipo,costo:p.costo,nota:p.nota,breakdown:p.breakdown,receta_nombre:p.receta_nombre,receta_ings:p.receta_ings,combo_comp:p.combo_comp,editable:p.editable,precioLista:p.precio_lista,u:a.u,monto:a.m};
   if(!p.nd){v.pv=a.u?Math.round(a.m/a.u):0;v.mgu=Math.round((v.pv||0)-p.costo);v.mgtot=Math.round((v.pv-p.costo)*a.u);v.mgpct=v.pv?+(((v.pv-p.costo)/v.pv)*100).toFixed(1):0;v.fc=v.pv?+((p.costo/v.pv)*100).toFixed(1):null;}
   return v;}).filter(v=>v.u>0);}
 function passF(v){if(st.catgrp.startsWith('g:')&&v.grupo!==st.catgrp.slice(2))return false;if(st.catgrp.startsWith('c:')&&v.cat!==st.catgrp.slice(2))return false;if(st.search&&!v.pos.toLowerCase().includes(st.search.toLowerCase()))return false;return true;}
@@ -523,12 +523,23 @@ function renderTrend(){
 }
 // ---------- RENTABILIDAD ----------
 function mgColor(p){if(p==null)return '';if(p<0)return 'background:rgba(200,90,84,.35)';const g=Math.min(p,80)/80;return `background:rgba(${Math.round(230-140*g)},${Math.round(160+40*g)},100,.28)`;}
+// Precio de lista (hoja "Lista de Precios" del Excel base) vs PVP promedio real de venta.
+// Es complementario, no reemplaza al PVP: cuando difieren >5% suele ser una señal (descuento,
+// aumento de precio a mitad de período, o el precio del POS mal cargado) — se resalta, no se oculta.
+const PRECIO_LISTA_UMBRAL=5;
+function fPrecioLista(precioLista,pv){
+ if(precioLista==null) return '<span class="mut">—</span>';
+ if(!pv) return f0(precioLista);
+ const difPct=(pv/precioLista-1)*100;
+ if(Math.abs(difPct)<PRECIO_LISTA_UMBRAL) return f0(precioLista);
+ return `<span style="color:var(--accent)" title="El PVP real vendido difiere ${difPct>0?'+':''}${difPct.toFixed(1)}% del precio de lista">${f0(precioLista)} ⚠</span>`;
+}
 function renderRent(){
  let v=curItems().filter(x=>!x.nd);const maxU=Math.max(...v.map(x=>x.u),1);
- const cols=[['pos','Producto'],['u','U'],['pv','PV'],['costo','Costo'],['mgpct','Mg%'],['mgtot','Mg total']];
+ const cols=[['pos','Producto'],['u','U'],['pv','PV'],['precioLista','Lista'],['costo','Costo'],['mgpct','Mg%'],['mgtot','Mg total']];
  v.sort((a,b)=>{const k=st.sort;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*st.dir;});
  let h='<tr>'+cols.map(c=>`<th class="${c[0]==='pos'?'':'n'}" data-k="${c[0]}">${c[1]}${st.sort===c[0]?(st.dir<0?' ▾':' ▴'):''}</th>`).join('')+'</tr>';
- v.forEach((x,i)=>{h+=`<tr class="clik" data-i="${i}"><td><span style="color:${CLCOL[x.clase]}" title="${x.clase}">${CLAB[x.clase]}</span> ${x.pos}${suspBadge(x)}</td><td class="n">${x.u}<span class="ubar" style="width:${(x.u/maxU*26).toFixed(0)}px"></span></td><td class="n">${f0(x.pv)}</td><td class="n">${f0(x.costo)}</td><td class="n" style="${mgColor(x.mgpct)}">${x.mgpct}%</td><td class="n">${f0(x.mgtot)}</td></tr>`;});
+ v.forEach((x,i)=>{h+=`<tr class="clik" data-i="${i}"><td><span style="color:${CLCOL[x.clase]}" title="${x.clase}">${CLAB[x.clase]}</span> ${x.pos}${suspBadge(x)}</td><td class="n">${x.u}<span class="ubar" style="width:${(x.u/maxU*26).toFixed(0)}px"></span></td><td class="n">${f0(x.pv)}</td><td class="n">${fPrecioLista(x.precioLista,x.pv)}</td><td class="n">${f0(x.costo)}</td><td class="n" style="${mgColor(x.mgpct)}">${x.mgpct}%</td><td class="n">${f0(x.mgtot)}</td></tr>`;});
  const t=document.getElementById('tRent');t.innerHTML=h;window._rentV=v;
  t.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(st.sort===k)st.dir*=-1;else{st.sort=k;st.dir=k==='pos'?1:-1;}renderRent();});
  t.querySelectorAll('tr.clik').forEach(tr=>tr.onclick=()=>showModal(window._rentV[+tr.dataset.i],false));
@@ -653,12 +664,12 @@ function renderRecetas(){
  const rk=st.rSort||'pos',rd=st.rSort?st.rDir:1;
  list.sort((a,b)=>(a.cat<b.cat?-1:a.cat>b.cat?1:0)||(cmpVals(a[rk]??'',b[rk]??'')*rd));
  window._recList=list;
- let h='<tr>'+thS('Producto','pos',st.rSort,st.rDir,false)+thS('Tipo','tipo',st.rSort,st.rDir,false)+thS('Costo','costo',st.rSort,st.rDir,true)+thS('PVP','pv',st.rSort,st.rDir,true)+thS('Mg%','mgpct',st.rSort,st.rDir,true)+'<th></th></tr>';
+ let h='<tr>'+thS('Producto','pos',st.rSort,st.rDir,false)+thS('Tipo','tipo',st.rSort,st.rDir,false)+thS('Costo','costo',st.rSort,st.rDir,true)+thS('PVP','pv',st.rSort,st.rDir,true)+thS('Lista','precio_lista',st.rSort,st.rDir,true)+thS('Mg%','mgpct',st.rSort,st.rDir,true)+'<th></th></tr>';
  let cc='';
- list.forEach((p,i)=>{if(p.cat!==cc){cc=p.cat;h+=`<tr class="grpsub"><td colspan="6">${isFood(p.cat)?'🍔':'🍹'} ${p.cat}</td></tr>`;}
+ list.forEach((p,i)=>{if(p.cat!==cc){cc=p.cat;h+=`<tr class="grpsub"><td colspan="7">${isFood(p.cat)?'🍔':'🍹'} ${p.cat}</td></tr>`;}
   const editable=!p.nd&&(p.tipo==='receta'||p.tipo==='promo_2x1'||p.tipo==='combo'||p.tipo==='pour');
   const btn=editable?`<button class="btn ${APP?'on':''}" data-i="${i}" style="padding:3px 9px"${APP?'':' disabled'}>✏️ Editar</button>`:`<button class="btn" data-i="${i}" style="padding:3px 9px">👁 Ver</button>`;
-  h+=`<tr><td>${p.pos}${suspBadge(p)}</td><td class="mut">${p.nd?'sin datos':p.tipo}</td><td class="n">${p.nd?'—':f0(p.costo)}</td><td class="n">${f0(p.pv||0)}</td><td class="n" style="${p.nd?'':mgColor(p.mgpct)}">${p.nd?'—':(p.mgpct+'%')}</td><td>${btn}</td></tr>`;});
+  h+=`<tr><td>${p.pos}${suspBadge(p)}</td><td class="mut">${p.nd?'sin datos':p.tipo}</td><td class="n">${p.nd?'—':f0(p.costo)}</td><td class="n">${f0(p.pv||0)}</td><td class="n">${fPrecioLista(p.precio_lista,p.pv)}</td><td class="n" style="${p.nd?'':mgColor(p.mgpct)}">${p.nd?'—':(p.mgpct+'%')}</td><td>${btn}</td></tr>`;});
  document.getElementById('tRecetas').innerHTML=h;
  document.querySelectorAll('#tRecetas button[data-i]').forEach(b=>b.onclick=()=>showModal(window._recList[+b.dataset.i],true));
  wireSort(document.getElementById('tRecetas'),'rSort','rDir',renderRecetas,k=>k==='pos'||k==='tipo');

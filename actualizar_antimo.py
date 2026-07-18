@@ -80,6 +80,13 @@ COSTO = {}
 for r in list(wb["Costo_Base"].iter_rows(values_only=True))[1:]:
     if r[1] is None: continue
     COSTO[r[1]] = {"precio": r[2], "pres": r[3], "cant_base": r[4], "unidad": r[5], "cxu": r[6]}
+# Lista de Precios (hoja del Excel base): precio OFICIAL, complementario al PVP promedio real que
+# sale de las ventas. Match solo por nombre normalizado EXACTO — nunca fuzzy-match, para no
+# arriesgar cruzar dos productos distintos por error (Regla #0).
+PRECIO_LISTA={}
+if "Lista de Precios" in wb.sheetnames:
+    for r in list(wb["Lista de Precios"].iter_rows(values_only=True))[1:]:
+        if r[1] is not None and r[2] is not None: PRECIO_LISTA[norm(r[1])]=r[2]
 EQUI = {"cucharada":(12,"g"),"bocha":(60,"g"),"hoja":(0.5,"g"),"gajo":(15,"g"),"rodaja":(12,"g"),
         "medida":(60,"ml"),"trago":(60,"ml"),"shot":(45,"ml"),"lata red bull":(250,"ml"),
         "lata speed":(473,"ml"),"poron":(330,"ml"),"a gusto":(15,"g"),"aceituna":(5,"g")}
@@ -495,7 +502,7 @@ for k,p in prods.items():
     byday={f:[bd[0],round(bd[1])] for f,bd in p["byday"].items()}
     # "key" = nombre normalizado y unificado: es la identidad estable del producto
     # (el POS puede escribirlo distinto). Con ella se guardan las marcas del dueño.
-    base={"pos":p["raw"],"key":k,"cat":cat,"grupo":grupo,"byday":byday}
+    base={"pos":p["raw"],"key":k,"cat":cat,"grupo":grupo,"byday":byday,"precio_lista":PRECIO_LISTA.get(k)}
     _sp=SOSP.get(k) or {}
     if _sp.get("estado"):
         base["susp"]=_sp["estado"]; base["susp_motivo"]=_sp.get("motivo","") or ""

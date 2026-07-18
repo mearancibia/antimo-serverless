@@ -135,6 +135,7 @@ DATA nueva.
       "pos": "CUARTO DE LIBRA", "key": "CUARTO DE LIBRA",   // key = identidad estable (ver abajo)
       "cat": "HAMBURGUESAS Y SANDWICH", "grupo": "COMIDA",
       "nd": false, "tipo": "receta", "costo": 7584, "nota": "",
+      "precio_lista": 13000,                                // null si no matchea, ver más abajo
       "susp": "si", "susp_motivo": "…",                     // solo si el dueño lo marcó
       "breakdown": [ {"insumo","qty","unidad","cxu","sub"} ],     // desglose por unidad
       "byday": { "DD-MM": [unidades, monto] },                    // ventas por día
@@ -158,6 +159,20 @@ Cada producto lleva `key` (nombre normalizado + unificado): es su **identidad es
 marcas del dueño, porque `pos` es la grafía cruda del POS y puede variar. Cada caja lleva `iso`: las
 cajas se **deduplican por fecha** (un cierre puede llegar por PDF y por API a la vez; gana la de la
 API, que trae comensales y detalle por operador).
+
+**`precio_lista`:** viene de la hoja **"Lista de Precios"** de `datos/datos_general.xlsx` (existe en
+el Excel base desde siempre, nadie la usaba). Es el precio **oficial**, complementario al PVP
+promedio real que se calcula de las ventas (`byday`) — no lo reemplaza. Match **solo por nombre
+normalizado EXACTO** (`PRECIO_LISTA` en `actualizar_antimo.py`) — nunca fuzzy-match, para no
+arriesgar cruzar dos productos distintos por error (Regla #0): de 105 items en la lista, 78
+matchean así; el resto son diferencias de formato (espacios, puntuación) o typos ya conocidos
+("CORONA 330" vs "CORONA 33O", "HEINEKEN" vs "HEINIKEN" en el POS) que no se intenta adivinar.
+En Rentabilidad y Recetas se muestra junto al PVP (`fPrecioLista()`), resaltado en naranja
+cuando difiere más de `PRECIO_LISTA_UMBRAL` (5%) — eso puede señalar un descuento, un cambio de
+precio a mitad de período, o algo mal cargado en el POS. Ya reveló algo interesante: BEEFEATER +
+TONICA (lista $80.000, PVP real $50.000, -37.5%) es uno de los productos marcados como
+"sospechoso" por margen falso (Fase 1) — además del costo mal mapeado, el precio real vendido
+también se aleja bastante del oficial.
 
 ---
 
