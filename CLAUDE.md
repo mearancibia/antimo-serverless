@@ -271,10 +271,20 @@ persistencia en localStorage, botón imprimir/PDF.
 
 ## 11. Estado actual y pendientes
 
-**N/D (faltan datos del dueño):** Combo cumpleaños, Combo Cumpleaños Premium, Jack Daniels, Rabas.
-También: RED LABEL / BLACK LABEL cuestan como *Whisky Ballantines* vía alias (margen ~93% falso —
-no es precio mal cargado, es el insumo mal mapeado); "Gin Brighton" y "GIN BRIGTON" son el mismo
-trago con dos grafías sin unificar en `UNIFICAR`.
+**N/D (faltan datos del dueño, confirmado que no hay info — dejar así):** Combo cumpleaños,
+Combo Cumpleaños Premium, Jack Daniels, Rabas.
+
+**Resuelto:** RED LABEL / BLACK LABEL costeaban como *Whisky Ballantines* vía alias — la propia
+nota del Excel ya decía "Costeado con Ballantines; falta precio real". El dueño dio los precios
+reales de botella (Red Label $36.615, Black Label $64.000, ambas 750ml). Se agregaron como
+insumos nuevos en `insumos_extra.json` y se redirigió el `costeo` de ambos productos vía
+`maestro_extra.json` (mismo cat/canon/tipo/factor/rend que el Excel, solo cambia el insumo).
+Margen real: Red Label 63.4%, Black Label 36.7% (antes ~93% falso, ya no aparecen como
+sospechosos por umbral).
+
+**Pendiente, sin decidir todavía:** "Gin Brighton" y "GIN BRIGTON" son el mismo trago con dos
+grafías sin unificar en `UNIFICAR` — falta confirmación del dueño de que es un typo antes de
+fusionar sus ventas.
 
 **Roadmap del backlog original — completo:**
 - ✅ Backups automáticos de overrides (§6).

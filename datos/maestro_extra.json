@@ -368,5 +368,25 @@
   "rend": null,
   "costeo": "Combo definido en app",
   "nota": "1 botella Vodka Smirnoff + 4 latas Speed"
+ },
+ {
+  "pos": "RED LABEL",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Red Label (vaso)",
+  "tipo": "pour",
+  "factor": 1,
+  "rend": 60,
+  "costeo": "Insumo: Red Label",
+  "nota": ""
+ },
+ {
+  "pos": "BLACK LABEL",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Black Label (vaso)",
+  "tipo": "pour",
+  "factor": 1,
+  "rend": 60,
+  "costeo": "Insumo: Black Label",
+  "nota": ""
  }
 ]

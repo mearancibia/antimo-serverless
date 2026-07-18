@@ -16,5 +16,23 @@
   "unidad": "ml",
   "cxu": 10.606060606060606,
   "cb_cat": "Bebidas - Cervezas"
+ },
+ {
+  "nombre": "Red Label",
+  "precio": 36615,
+  "pres": "750ml",
+  "cant_base": 750,
+  "unidad": "ml",
+  "cxu": 48.82,
+  "cb_cat": "Bebidas - Destilados y Licores"
+ },
+ {
+  "nombre": "Black Label",
+  "precio": 64000,
+  "pres": "750ml",
+  "cant_base": 750,
+  "unidad": "ml",
+  "cxu": 85.3333,
+  "cb_cat": "Bebidas - Destilados y Licores"
  }
 ]
