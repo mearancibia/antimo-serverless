@@ -49,6 +49,13 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .foot{color:var(--mut);font-size:11.5px;margin-top:20px;border-top:1px solid var(--line);padding-top:12px}
 .hidden{display:none}
 .sflag{cursor:help;margin-left:4px;font-size:11px}.sflag.sug{opacity:.5}
+.mgchip{padding:1px 7px;border-radius:3px;cursor:pointer;user-select:none;border:1px solid transparent}
+.mgchip:hover{border-color:var(--ink)}.mgchip.on{border-color:var(--ink);font-weight:700}
+.q.sel{border-width:2px}.q.clik{cursor:pointer;user-select:none}.q.clik:hover{background:#26313d}
+#bcgTip{position:absolute;pointer-events:none;background:#0e141a;border:1px solid var(--line);
+ border-radius:6px;padding:5px 8px;font-size:11.5px;line-height:1.35;white-space:nowrap;z-index:20;
+ display:none;box-shadow:0 3px 10px rgba(0,0,0,.5)}
+#bcg circle{cursor:pointer}
 [data-tip]{cursor:help;border-bottom:1px dotted var(--mut)}
 .ovl{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
 .modal{background:var(--card);border:1px solid var(--line);border-radius:12px;max-width:560px;width:100%;max-height:85vh;overflow:auto;padding:18px}
@@ -70,7 +77,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   <div class="ctl"><label>Categoría / grupo</label><select id="fCat"></select></div>
   <div class="ctl" style="flex:1;min-width:150px"><label>Buscar producto</label><input type="search" id="fSearch" placeholder="ej: fernet"></div>
   <div class="ctl"><label>&nbsp;</label><button class="btn" id="cmp">⇄ Comparar</button></div>
-  <div class="ctl"><label>&nbsp;</label><button class="btn" id="exs" title="Saca de la tabla, la matriz BCG y las alertas los productos que marcaste con precio sospechoso. Los KPIs y el P&amp;L siguen incluyendo todo.">⚠️ Sin sospechosos</button></div>
+  <div class="ctl hidden" id="exsWrap"><label>&nbsp;</label><button class="btn" id="exs" title="Saca de la tabla, la matriz BCG y las alertas los productos que marcaste con precio sospechoso. Los KPIs y el P&amp;L siguen incluyendo todo.">⚠️ Sin sospechosos</button></div>
   <div class="ctl"><label>&nbsp;</label><button class="btn" id="reset">↺ Limpiar</button></div>
 </div>
 <div class="bar hidden" id="barB" style="background:#191f28">
@@ -84,21 +91,21 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   <div class="kpis" id="kpis"></div>
   <div id="cmpCard"></div>
   <div class="cols">
-    <div class="card"><div class="h3">💧 Cascada de resultado (P&L)</div><div id="pnl"></div></div>
-    <div class="card"><div class="h3">🎯 Punto de equilibrio</div><div id="beq"></div></div>
+    <div class="card"><div class="h3" id="pnlTit">💧 Cascada de resultado (P&L)</div><div id="pnl"></div></div>
+    <div class="card"><div class="h3" id="beqTit">🎯 Punto de equilibrio</div><div id="beq"></div></div>
   </div>
   <div class="alerts" id="alerts"></div>
   <div id="compHost"></div>
   <div id="stockHost"></div>
-  <div class="card"><div class="h3">🎯 Equilibrio: findes vs. semana <span class="mut" data-tip="Findes = noches que abrieron viernes, sábado o domingo (la noche real, antes de rotularla por su fecha de cierre). Semana = el resto.">ⓘ</span></div><div id="beqSemana"></div></div>
+  <div class="card" id="cardBeqSemana"><div class="h3">🎯 Equilibrio: findes vs. semana <span class="mut" data-tip="Findes = noches que abrieron viernes, sábado o domingo (la noche real, antes de rotularla por su fecha de cierre). Semana = el resto.">ⓘ</span></div><div id="beqSemana"></div></div>
   <div class="card"><div class="h3">📈 Ventas y margen por día <span class="mut" id="trendhint" style="font-weight:400"></span></div><div id="trend"></div></div>
 </div>
 
 <div id="tab-rent" class="tab-pane hidden">
   <div class="cols">
     <div class="card"><div class="h3">Rentabilidad por producto <span class="mut" style="font-weight:400">— clic en un producto para ver el desglose</span></div><div class="scroll"><table id="tRent"></table></div>
-      <div class="legend">Margen: <span style="background:rgba(200,90,84,.35);padding:1px 6px;border-radius:3px">pierde</span> · <span style="background:rgba(230,200,90,.25);padding:1px 6px;border-radius:3px">bajo</span> · <span style="background:rgba(90,160,100,.28);padding:1px 6px;border-radius:3px">alto</span></div></div>
-    <div><div class="card"><div class="h3">Matriz de menú (BCG) <span class="mut" data-tip="X=cuánto se vende, Y=margen. Estrella=vende y deja mucho; Vaca=vende mucho, margen flojo; Interrogante=poco pero rinde; Perro=poco y flojo.">ⓘ</span></div><div id="bcg"></div><div class="quad2" id="quad"></div></div>
+      <div class="legend" id="mgLeg"></div></div>
+    <div><div class="card"><div class="h3">Matriz de menú (BCG) <span class="mut" data-tip="X=cuánto se vende, Y=margen. Estrella=vende y deja mucho; Vaca=vende mucho, margen flojo; Interrogante=poco pero rinde; Perro=poco y flojo.">ⓘ</span></div><div id="bcg" style="position:relative"></div><div class="quad2" id="quad"></div></div>
       <div class="card"><div class="h3">Por categoría</div><div class="scroll" style="max-height:230px"><table id="tCat"></table></div></div></div>
   </div>
 </div>
@@ -276,7 +283,8 @@ function wireSort(table,sortField,dirField,renderFn,ascByDefault){
 function cmpVals(av,bv){return av>bv?1:av<bv?-1:0;}
 let DIAS=DATA.dias, ISO=Object.fromEntries(DATA.dias.map(d=>[d.fecha,d.iso]));
 let st={tab:'resumen',desde:DIAS[0].fecha,hasta:DIAS[DIAS.length-1].fecha,catgrp:'all',search:'',sort:'mgtot',dir:-1,ci:(DATA.cajas.length-1),compras:'real',cmp:false,desdeB:DIAS[0].fecha,hastaB:DIAS[0].fecha,rGrupo:'todos',rCat:'all',rTipo:'all',rSearch:'',opCat:'all',opSearch:'',exclSusp:false,opVig:null,
-rSort:null,rDir:1,cpSort:null,cpDir:1,csSort:null,csDir:1,oxSort:null,oxDir:1};
+rSort:null,rDir:1,cpSort:null,cpDir:1,csSort:null,csDir:1,oxSort:null,oxDir:1,
+mgF:null,claseF:null};
 try{Object.assign(st,JSON.parse(localStorage.getItem('antimo2')||'{}'));}catch(e){}
 if(!ISO[st.desde])st.desde=DIAS[0].fecha;if(!ISO[st.hasta])st.hasta=DIAS[DIAS.length-1].fecha;
 if(ISO[st.desde]>ISO[st.hasta]){st.desde=DIAS[0].fecha;st.hasta=DIAS[DIAS.length-1].fecha;}
@@ -340,15 +348,43 @@ function passF(v){if(st.catgrp.startsWith('g:')&&v.grupo!==st.catgrp.slice(2))re
 function classify(list){const c=list.filter(x=>!x.nd);if(!c.length)return;const U=c.reduce((s,x)=>s+x.u,0);const pop=U/c.length*0.7;const cm=c.reduce((s,x)=>s+x.mgtot,0)/U;c.forEach(x=>{const hp=x.u>=pop,hm=x.mgu>=cm;x.clase=hp&&hm?'ESTRELLA':hp&&!hm?'VACA':!hp&&hm?'INTERROGANTE':'PERRO';});}
 // Se excluye ANTES de classify(): si no, un margen falso del 98% corre el promedio
 // y ensucia la clasificación BCG del resto de los productos.
-function curItems(){const ds=rangeDias(st.desde,st.hasta);let v=prodView(ds);
+// Umbral de "margen bajo": el mismo 40% que ya usaban las alertas de VACA, ahora explícito
+// y visible en la leyenda (antes el corte pierde/bajo/alto era un degradé sin límite claro).
+const MG_BAJO=40;
+const mgBucket=x=>x.mgpct<0?'pierde':(x.mgpct<MG_BAJO?'bajo':'alto');
+// Base: aplica exclSusp + filtro de categoría/búsqueda, y clasifica BCG sobre ese universo.
+// NO aplica los filtros de margen/cuadrante — los cuadrantes tienen que poder mostrar sus
+// totales aunque haya uno seleccionado, si no al filtrar "Perros" los demás quedarían en 0
+// y no habría forma de volver a elegirlos.
+function curItemsBase(){const ds=rangeDias(st.desde,st.hasta);let v=prodView(ds);
  if(st.exclSusp)v=v.filter(x=>x.susp!=='si');
  classify(v);return v.filter(passF);}
-// totales del rango (sin filtros de cat/search, para KPIs)
-function totals(a,b){const ds=rangeDias(a,b);const v=prodView(ds).filter(x=>!x.nd);
+function curItems(){let v=curItemsBase();
+ if(st.claseF)v=v.filter(x=>x.nd||x.clase===st.claseF);
+ if(st.mgF)v=v.filter(x=>x.nd||mgBucket(x)===st.mgF);
+ return v;}
+// hay filtro de categoria/grupo/busqueda activo?
+const hayFiltro=()=>st.catgrp!=='all'||!!st.search;
+// Totales del rango RESPETANDO el filtro de categoria/grupo/busqueda.
+// OJO con el OPEX: es del bar entero, no de una categoria. Si se filtra "PIZZAS" y se resta el
+// OPEX completo, el resultado operativo da siempre negativo y no dice nada. Por eso, cuando hay
+// filtro, el OPEX se PRORRATEA por el peso que esa seleccion tiene sobre las ventas totales
+// (share). Es una asignacion, no un dato medido — por eso `opexProrrateado` viaja en el retorno
+// y la UI lo aclara donde lo muestra. Sin filtro, `share`=1 y todo queda igual que antes.
+function totals(a,b){const ds=rangeDias(a,b);
+ const all=prodView(ds).filter(x=>!x.nd);        // universo sin filtrar: base del prorrateo
+ const v=all.filter(passF);                       // lo que el filtro deja ver
  const ventas=v.reduce((s,x)=>s+x.monto,0),mb=v.reduce((s,x)=>s+x.mgtot,0),U=v.reduce((s,x)=>s+x.u,0);
- const opex=opexRango(a,b).opex;
+ const ventasAll=all.reduce((s,x)=>s+x.monto,0);
+ const filtrado=hayFiltro();
+ const share=(filtrado&&ventasAll)?ventas/ventasAll:1;
+ const opex=opexRango(a,b).opex*share;
  const dset=new Set(ds.map(d=>d.fecha));let tv=0,com=0;DATA.cajas.forEach(c=>{if(dset.has(c.fecha)){tv+=c.total_vendido||0;com+=c.comensales||0;}});
- return {ventas,mb,mgpct:ventas?mb/ventas*100:0,U,cogs:ventas-mb,opex,resop:mb-opex,ticket:com?tv/com:0,comensales:com,cajaVentas:tv};}
+ // ticket: sin filtro usa el total de caja (la verdad de la caja); con filtro, cuanto gasta en
+ // promedio cada comensal en lo que se esta mirando.
+ const ticket=com?((filtrado?ventas:tv)/com):0;
+ return {ventas,mb,mgpct:ventas?mb/ventas*100:0,U,cogs:ventas-mb,opex,resop:mb-opex,
+         ticket,comensales:com,cajaVentas:tv,opexProrrateado:filtrado,share};}
 function prevRange(a,b){const n=calDaysRange(a,b);const ia=new Date(ISO[a]);const pe=new Date(ia);pe.setDate(pe.getDate()-1);const psD=new Date(pe);psD.setDate(psD.getDate()-(n-1));
  const psIso=psD.toISOString().slice(0,10),peIso=pe.toISOString().slice(0,10);
  const inr=DIAS.filter(d=>d.iso>=psIso&&d.iso<=peIso);if(!inr.length)return null;return {a:inr[0].fecha,b:inr[inr.length-1].fecha};}
@@ -365,48 +401,97 @@ function buildControls(){
  let o='<option value="all">Todo</option><option value="g:BEBIDA">🍹 Todas las bebidas</option><option value="g:COMIDA">🍔 Toda la comida</option>';
  o+='<optgroup label="Bebidas">'+cats.filter(c=>!isFood(c)).sort().map(c=>`<option value="c:${c}">${c}</option>`).join('')+'</optgroup>';
  o+='<optgroup label="Comida">'+cats.filter(isFood).sort().map(c=>`<option value="c:${c}">${c}</option>`).join('')+'</optgroup>';
- fc.innerHTML=o;fc.value=st.catgrp;document.getElementById('fSearch').value=st.search;
+ fc.innerHTML=o;fc.value=st.catgrp;
+ // no pisar el buscador si el usuario está tipeando: reasignar .value le manda el cursor al final
+ const _fs=document.getElementById('fSearch');if(_fs.value!==st.search)_fs.value=st.search;
  const maxd=DIAS[DIAS.length-1].fecha;document.getElementById('hasta').textContent='Datos hasta '+maxd+' · generado '+DATA.generado;
  document.getElementById('barB').classList.toggle('hidden',!st.cmp);
  document.getElementById('cmp').classList.toggle('on',st.cmp);
  document.getElementById('exs').classList.toggle('on',st.exclSusp);
+ // el botón solo tiene sentido si hay algo confirmado como sospechoso: filtrar una lista vacía
+ // no cambia nada y hace parecer que está roto. Si no hay ninguno, se oculta (y se desactiva,
+ // por si quedó prendido de antes y después se desmarcaron todos).
+ const haySosp=DATA.productos.some(p=>p.susp==='si');
+ if(!haySosp&&st.exclSusp)st.exclSusp=false;
+ document.getElementById('exsWrap').classList.toggle('hidden',!haySosp);
 }
-function renderChips(){const ch=[`<span class="chip">📅 <b>${st.desde} → ${st.hasta}</b></span>`];
+// solo chips ACCIONABLES (con ✕ para quitar el filtro). El chip informativo de fechas se sacó:
+// las fechas ya están en los selectores de arriba y no era clickeable, confundía.
+function renderChips(){const ch=[];
  if(st.catgrp!=='all')ch.push(`<span class="chip" data-c="catgrp">${st.catgrp.slice(2)} ✕</span>`);
  if(st.search)ch.push(`<span class="chip" data-c="search">"${esc(st.search)}" ✕</span>`);
  if(st.exclSusp)ch.push(`<span class="chip" data-c="exs">⚠️ sin sospechosos ✕</span>`);
+ if(st.mgF)ch.push(`<span class="chip" data-c="mgF">margen: ${st.mgF} ✕</span>`);
+ if(st.claseF)ch.push(`<span class="chip" data-c="claseF">${CLAB[st.claseF]} ${st.claseF.toLowerCase()} ✕</span>`);
  document.getElementById('chips').innerHTML=ch.join('');
- document.querySelectorAll('#chips .chip[data-c]').forEach(el=>el.onclick=()=>{if(el.dataset.c==='catgrp')st.catgrp='all';if(el.dataset.c==='search')st.search='';if(el.dataset.c==='exs')st.exclSusp=false;rerender();});}
+ document.querySelectorAll('#chips .chip[data-c]').forEach(el=>el.onclick=()=>{const c=el.dataset.c;
+  if(c==='catgrp')st.catgrp='all';if(c==='search')st.search='';if(c==='exs')st.exclSusp=false;
+  if(c==='mgF')st.mgF=null;if(c==='claseF')st.claseF=null;rerender();});}
 
 // ---------- RESUMEN ----------
 function renderKPIs(){
  const t=totals(st.desde,st.hasta);let pv=null;
  if(st.cmp){pv=totals(st.desdeB,st.hastaB);}else{const pr=prevRange(st.desde,st.hasta);pv=pr?totals(pr.a,pr.b):null;}
  const prov=opexRango(st.desde,st.hasta).pend>0?' · PROVIS.':'';
- const k=[['hero','Resultado operativo',f0(t.resop),dchip(delta(t.resop,pv&&pv.resop))+prov,'margen − OPEX ('+calDaysRange(st.desde,st.hasta)+' días)'],
+ const dd=calDaysRange(st.desde,st.hasta);
+ const pieResop=t.opexProrrateado
+  ? `margen − OPEX prorrateado (${(t.share*100).toFixed(1)}% de las ventas)`
+  : `margen − OPEX (${dd} días)`;
+ const pieTicket=t.opexProrrateado?`${t.comensales} comensales · solo lo filtrado`:`${t.comensales} comensales`;
+ const k=[['hero','Resultado operativo',f0(t.resop),dchip(delta(t.resop,pv&&pv.resop))+prov,pieResop],
   ['','Ventas',fM(t.ventas),dchip(delta(t.ventas,pv&&pv.ventas)),t.U+' unidades'],
   ['','Margen bruto',t.mgpct.toFixed(1)+'%',dchip(delta(t.mgpct,pv&&pv.mgpct)),f0(t.mb)],
-  ['','Ticket promedio',t.ticket?f0(t.ticket):'—',dchip(delta(t.ticket,pv&&pv.ticket)),t.comensales+' comensales']];
+  ['','Ticket promedio',t.ticket?f0(t.ticket):'—',dchip(delta(t.ticket,pv&&pv.ticket)),pieTicket]];
  document.getElementById('kpis').innerHTML=k.map(x=>`<div class="kpi ${x[0]}"><div class="l">${x[1]}</div><div class="v">${x[2]}</div><div class="d">${x[3]}</div><div class="l" style="margin-top:3px;text-transform:none;letter-spacing:0">${x[4]}</div></div>`).join('');
- // comparación explícita
+ // Comparación: SOLO las métricas que el P&L comparado no muestra (ventas, margen bruto y
+ // resultado ya salen ahí, repetirlas era ruido). Acá quedan las de eficiencia/volumen.
  const cc=document.getElementById('cmpCard');
- if(st.cmp&&pv){const rows=[['Ventas','ventas',0],['Margen bruto','mb',0],['Margen %','mgpct',1],['Resultado op.','resop',0],['Ticket','ticket',0]];
-  cc.innerHTML=`<div class="card"><div class="h3">⇄ Comparación</div><table><tr><th>Métrica</th><th class="n">A (${st.desde}→${st.hasta})</th><th class="n">B (${st.desdeB}→${st.hastaB})</th><th class="n">Dif</th></tr>`+
-   rows.map(r=>`<tr><td>${r[0]}</td><td class="n">${r[2]?t[r[1]].toFixed(1)+'%':f0(t[r[1]])}</td><td class="n">${r[2]?pv[r[1]].toFixed(1)+'%':f0(pv[r[1]])}</td><td class="n">${dchip(delta(t[r[1]],pv[r[1]]))}</td></tr>`).join('')+'</table></div>';
+ if(st.cmp&&pv){const rows=[['Margen %','mgpct',1],['Ticket promedio','ticket',0],['Unidades','U',0],['Comensales','comensales',0]];
+  cc.innerHTML=`<div class="card"><div class="h3">⇄ Comparación · indicadores</div><table><tr><th>Métrica</th><th class="n">A (${st.desde}→${st.hasta})</th><th class="n">B (${st.desdeB}→${st.hastaB})</th><th class="n">Dif</th></tr>`+
+   rows.map(r=>{const fmt=v=>r[2]?v.toFixed(1)+'%':(r[1]==='U'||r[1]==='comensales'?Math.round(v).toLocaleString('es-AR'):f0(v));
+    return `<tr><td>${r[0]}</td><td class="n">${fmt(t[r[1]])}</td><td class="n">${fmt(pv[r[1]])}</td><td class="n">${dchip(delta(t[r[1]],pv[r[1]]))}</td></tr>`;}).join('')
+   +'</table><div class="legend" style="margin-top:6px">Ventas, margen y resultado se comparan en la cascada P&L de abajo.</div></div>';
  }else cc.innerHTML='';
+ // títulos que aclaran qué está mostrando cada tarjeta en modo comparación
+ const pt=document.getElementById('pnlTit');if(pt)pt.innerHTML=st.cmp?'💧 Cascada de resultado (P&L) — A vs B':'💧 Cascada de resultado (P&L)';
+ const bt=document.getElementById('beqTit');if(bt)bt.innerHTML=st.cmp?'🎯 Punto de equilibrio <span class="mut" style="font-weight:400">— solo período A</span>':'🎯 Punto de equilibrio';
 }
+// líneas del P&L, en orden de cascada. Se usan tanto para la vista simple como para la comparada.
+const PNL_LINEAS=[['Ventas','ventas','#5a8fd6'],['− Costo insumos','cogs','#c85a54'],
+ ['= Margen bruto','mb','#4a9d7f'],['− OPEX','opex','#c85a54'],['= Resultado','resop',null]];
 function renderPnl(){
  const t=totals(st.desde,st.hasta),host=document.getElementById('pnl');
+ const notaProrr=t.opexProrrateado?`<div class="legend" style="margin-top:6px">⚠️ Filtro activo: el OPEX es del bar entero, acá se muestra <b>prorrateado</b> — el ${(t.share*100).toFixed(1)}% que esta selección representa de las ventas. Es una asignación, no un costo medido de esta categoría.</div>`:'';
+ // modo comparación: cascada A vs B lado a lado, con la diferencia por línea
+ if(st.cmp){
+  const b=totals(st.desdeB,st.hastaB);
+  const max=Math.max(t.ventas,b.ventas,1);
+  const mini=(val,col)=>`<div class="barwrap" style="height:14px"><div class="fill" style="width:${Math.max(0,Math.min(100,Math.abs(val)/max*100)).toFixed(0)}%;background:${col}"></div></div>`;
+  host.innerHTML=`<table style="width:100%">
+   <tr><th></th><th class="n">A (${st.desde}→${st.hasta})</th><th class="n">B (${st.desdeB}→${st.hastaB})</th><th class="n">Dif</th></tr>`
+   +PNL_LINEAS.map(([lab,k,col])=>{
+     const va=t[k],vb=b[k],c=col||(va>=0?'#4a9d7f':'#c85a54'),cb=col||(vb>=0?'#4a9d7f':'#c85a54');
+     return `<tr><td style="white-space:nowrap">${lab}</td>
+      <td class="n" style="min-width:120px">${fM(va)}${mini(va,c)}</td>
+      <td class="n" style="min-width:120px">${fM(vb)}${mini(vb,cb)}</td>
+      <td class="n">${dchip(delta(va,vb))}</td></tr>`;}).join('')
+   +`</table><div class="legend" style="margin-top:6px">Dif = cuánto cambió A respecto de B. Las barras están a la misma escala para poder compararlas visualmente.</div>`+notaProrr;
+  return;
+ }
  const max=Math.max(t.ventas,1);const bar=(lab,val,col)=>`<div class="row"><div class="lab">${lab}</div><div class="barwrap"><div class="fill" style="width:${Math.max(0,Math.min(100,Math.abs(val)/max*100)).toFixed(0)}%;background:${col}"></div></div><div class="amt">${fM(val)}</div></div>`;
- host.innerHTML='<div class="wf">'+bar('Ventas',t.ventas,'#5a8fd6')+bar('− Costo insumos',t.cogs,'#c85a54')+bar('= Margen bruto',t.mb,'#4a9d7f')+bar('− OPEX',t.opex,'#c85a54')+bar('= Resultado',t.resop,t.resop>=0?'#4a9d7f':'#c85a54')+'</div>';
+ host.innerHTML='<div class="wf">'+PNL_LINEAS.map(([lab,k,col])=>bar(lab,t[k],col||(t[k]>=0?'#4a9d7f':'#c85a54'))).join('')+'</div>'+notaProrr;
 }
 function renderBeq(){
  const t=totals(st.desde,st.hasta),host=document.getElementById('beq');const dd=calDaysRange(st.desde,st.hasta);
- const or_=opexRango(st.desde,st.hasta),opexMes=opexMesEfectivo(st.desde,st.hasta);
+ const or_=opexRango(st.desde,st.hasta);
+ // con filtro activo se usa el OPEX prorrateado (mismo share que totals), si no el equilibrio
+ // de una categoría se calcularía contra el OPEX del bar entero y siempre daría "no cubre".
+ const opexMes=opexMesEfectivo(st.desde,st.hasta)*(t.share||1);
  const mgpct=t.mgpct/100||0;const beMes=mgpct>0?opexMes/mgpct:0;const beDia=beMes/30;const ventasDia=t.ventas/dd;
  const cubre=ventasDia>=beDia;
  const cruza=or_.periodos.length>1?` <span class="mut">(promedio de ${or_.periodos.length} vigencias en el período)</span>`:'';
- host.innerHTML=`<div style="font-size:13px">Para cubrir el OPEX (${f0(opexMes)}/mes)${cruza} con tu margen de <b>${t.mgpct.toFixed(1)}%</b>, tenés que vender:</div>
+ const prorr=t.opexProrrateado?` <span class="mut">— prorrateado al ${(t.share*100).toFixed(1)}% por el filtro activo</span>`:'';
+ host.innerHTML=`<div style="font-size:13px">Para cubrir el OPEX (${f0(opexMes)}/mes)${cruza}${prorr} con tu margen de <b>${t.mgpct.toFixed(1)}%</b>, tenés que vender:</div>
   <div class="mini"><div><span class="ml">Por mes</span><div class="mv">${fM(beMes)}</div></div><div><span class="ml">Por día</span><div class="mv">${fM(beDia)}</div></div>
    <div><span class="ml">Vendés/día (real)</span><div class="mv">${fM(ventasDia)}</div></div><div><span class="ml">Estado</span><div class="mv" style="color:${cubre?'var(--pos)':'var(--neg)'}">${cubre?'✓ cubre':'✗ no cubre'}</div></div></div>
   <div class="legend">Punto de equilibrio = OPEX ÷ margen%. ${or_.pend?'OPEX aún provisorio.':''}${or_.sinOpex?' <span style="color:var(--neg)">'+or_.sinOpex+' días del período no tienen OPEX declarado (cuentan $0).</span>':''}</div>`;
@@ -421,12 +506,15 @@ function nocheReal(iso){const d=dOf(iso);d.setDate(d.getDate()-1);return DOWN[d.
 function beqSemanaRows(){
  const ds=rangeDias(st.desde,st.hasta);
  const buckets={Findes:[],Semana:[]};
+ // con filtro activo el OPEX/día se prorratea igual que en totals(), si no la comparación
+ // findes/semana daría siempre negativa al mirar una sola categoría. Se calcula una sola vez.
+ const share=totals(st.desde,st.hasta).share||1;
  ds.forEach(d=>{
   if(!d.iso)return;
   const bal=FINDES.has(nocheReal(d.iso))?'Findes':'Semana';
   let ventas=0,margen=0;
-  DATA.productos.forEach(p=>{if(p.nd)return;const bd=p.byday[d.fecha];if(bd){ventas+=bd[1];margen+=(bd[1]-p.costo*bd[0]);}});
-  const per=opexPeriodo(d.iso),opexDia=per?per.opex/30:0;
+  DATA.productos.forEach(p=>{if(p.nd||!passF(p))return;const bd=p.byday[d.fecha];if(bd){ventas+=bd[1];margen+=(bd[1]-p.costo*bd[0]);}});
+  const per=opexPeriodo(d.iso),opexDia=(per?per.opex/30:0)*share;
   buckets[bal].push({ventas,margen,opexDia});
  });
  return ['Findes','Semana'].map(k=>{
@@ -438,6 +526,10 @@ function beqSemanaRows(){
 }
 function renderBeqSemana(){
  const host=document.getElementById('beqSemana');if(!host)return;
+ // muestra un solo período: en modo comparación se oculta la tarjeta entera
+ const card=document.getElementById('cardBeqSemana');
+ if(card)card.classList.toggle('hidden',st.cmp);
+ if(st.cmp)return;
  const rows=beqSemanaRows();
  if(rows.every(r=>!r.n)){host.innerHTML='<div class="mut">Sin datos en el rango.</div>';return;}
  host.innerHTML=`<table><tr><th></th><th class="n">Noches</th><th class="n">Ventas/noche</th><th class="n">Margen/noche</th><th class="n">Mg%</th><th class="n">OPEX/día</th><th class="n">Resultado/noche</th><th>Estado</th></tr>`+
@@ -461,7 +553,10 @@ function renderAlerts(){
  document.getElementById('alerts').innerHTML=A.slice(0,6).map(a=>`<div class="alert" style="border-left-color:${a[0]}"><div class="ai">${a[1]}</div><div><div class="at">${a[2]}</div><div class="as">${a[3]}</div></div></div>`).join('');
 }
 function renderCompletitud(){
- const host=document.getElementById('compHost'),p=patronApertura();
+ const host=document.getElementById('compHost');
+ // en modo comparación no aporta: es "estado de los datos de hoy", no compara dos períodos
+ if(st.cmp){host.innerHTML='';return;}
+ const p=patronApertura();
  const fal=faltantes(st.desde,st.hasta),lag=colaSinDatos(),cerr=DATA.dias_cerrados||{};
  const abre=DOWSEM.filter(w=>p.abre[w]),ult=DIAS[DIAS.length-1];
  const cerrEnRango=Object.keys(cerr).filter(iso=>iso>=ISO[st.desde]&&iso<=ISO[st.hasta]).sort();
@@ -487,6 +582,8 @@ function renderCompletitud(){
 }
 function renderStock(){
  const host=document.getElementById('stockHost');if(!host)return;
+ // en modo comparación no aporta: el stock es de hoy, no de un período
+ if(st.cmp){host.innerHTML='';return;}
  const list=stockList();
  if(!list.length){host.innerHTML='';return;}
  const row=c=>{const m=DATA.insumos[c.insumo]||{};return `<tr><td>${esc(c.insumo)}${c.critico?' <span class="sflag" title="Se agota dentro del umbral de '+c.umbral+' noches">⚠️</span>':''}</td>
@@ -501,14 +598,16 @@ function renderStock(){
  host.innerHTML=host2;
  if(APP)host.querySelectorAll('button[data-stk]').forEach(b=>b.onclick=()=>stockModal(b.dataset.stk));
 }
+// respeta el filtro de categoria/busqueda: passF() trabaja sobre {pos,cat,grupo}, que es lo que
+// hace falta para decidir si el producto entra — no requiere las metricas agregadas de prodView.
 function dayTotals(){const ds=rangeDias(st.desde,st.hasta),t={};ds.forEach(d=>t[d.fecha]={fecha:d.fecha,dow:d.dow,ventas:0,margen:0});
- DATA.productos.forEach(p=>{if(p.nd)return;ds.forEach(d=>{const bd=p.byday[d.fecha];if(bd){t[d.fecha].ventas+=bd[1];t[d.fecha].margen+=(bd[1]-p.costo*bd[0]);}});});
+ DATA.productos.forEach(p=>{if(p.nd||!passF(p))return;ds.forEach(d=>{const bd=p.byday[d.fecha];if(bd){t[d.fecha].ventas+=bd[1];t[d.fecha].margen+=(bd[1]-p.costo*bd[0]);}});});
  return ds.map(d=>t[d.fecha]);}
 function renderTrend(){
  const days=dayTotals(),host=document.getElementById('trend');
  if(!days.length){host.innerHTML='<div class="mut">Sin datos en el rango.</div>';document.getElementById('trendhint').textContent='';return;}
  const totV=days.reduce((s,d)=>s+d.ventas,0),totM=days.reduce((s,d)=>s+d.margen,0);
- document.getElementById('trendhint').textContent='· Total '+fM(totV)+' ventas · '+fM(totM)+' margen';
+ document.getElementById('trendhint').textContent='· Total '+fM(totV)+' ventas · '+fM(totM)+' margen'+(st.cmp?' · solo período A':'');
  const fMt=n=>Math.abs(n)>=1e6?(n/1e6).toFixed(1)+'M':Math.round(n/1e3)+'k';
  const n=days.length,H=250,ml=8,mr=8,mt=24,mb=52,barmin=34,gap=8;
  const W=Math.max(760,ml+mr+n*(barmin)+ (n-1)*0);
@@ -554,6 +653,25 @@ function renderRent(){
  if(APP)t.querySelectorAll('.plin').forEach(inp=>{
   inp.onclick=e=>e.stopPropagation();  // sin esto, tocar el input abre el modal de la fila
   inp.onchange=()=>apiPost('/api/precio_lista',{key:inp.dataset.key,precio:inp.value===''?0:+inp.value});
+ });
+ renderMgLeyenda();
+}
+// Leyenda de margen clickeable: filtra la tabla y la matriz por tramo. Muestra cuántos hay en
+// cada tramo para que se vea de una si hay algo que corregir sin tener que filtrar.
+function renderMgLeyenda(){
+ const el=document.getElementById('mgLeg');if(!el)return;
+ const base=curItemsBase().filter(x=>!x.nd);
+ const cnt=b=>base.filter(x=>mgBucket(x)===b).length;
+ const chip=(b,lab,bg)=>`<span class="mgchip${st.mgF===b?' on':''}" data-mg="${b}" style="background:${bg}">${lab} (${cnt(b)})</span>`;
+ el.innerHTML='Margen: '+chip('pierde','pierde','rgba(200,90,84,.35)')+' · '
+  +chip('bajo','bajo &lt;'+MG_BAJO+'%','rgba(230,200,90,.25)')+' · '
+  +chip('alto','alto ≥'+MG_BAJO+'%','rgba(90,160,100,.28)')
+  +(st.mgF?' <span class="mgchip" data-mg="" style="background:var(--card2)">✕ quitar filtro</span>':'')
+  +' <span class="mut">— clic para filtrar</span>';
+ el.querySelectorAll('.mgchip').forEach(c=>c.onclick=()=>{
+  const b=c.dataset.mg;
+  st.mgF=(b&&st.mgF!==b)?b:null;   // volver a tocar el mismo lo saca
+  renderRent();renderBCG();renderCat();renderChips();
  });
 }
 const RUNITS=[['g','g (gramos)'],['ml','ml'],['unidad','unidad'],['lata','lata'],['cucharada','cucharada'],['gajo','gajo'],['rodaja','rodaja'],['hoja','hoja'],['medida','medida/trago'],['shot','shot'],['bocha','bocha'],['poron','porón'],['a gusto','a gusto']];
@@ -641,23 +759,57 @@ function showModal(x,allowEdit){
  const b3=document.getElementById('spClr');if(b3)b3.onclick=()=>marcar('');
 }
 function renderBCG(){
- const v=curItems().filter(x=>!x.nd),el=document.getElementById('bcg');
- if(!v.length){el.innerHTML='';document.getElementById('quad').innerHTML='';return;}
- const W=380,H=250,ml=36,mr=12,mt=12,mb=26,maxU=Math.max(...v.map(x=>x.u),1);
- const ys=v.map(x=>x.mgpct),ymin=Math.min(...ys,0),ymax=Math.max(...ys,10);
- const popthr=v.reduce((s,x)=>s+x.u,0)/v.length*0.7;
+ const base=curItemsBase().filter(x=>!x.nd);        // universo: fija la escala y los cuadrantes
+ const v=curItems().filter(x=>!x.nd);               // lo que se dibuja (puede estar filtrado)
+ const el=document.getElementById('bcg');
+ if(!base.length){el.innerHTML='';document.getElementById('quad').innerHTML='';return;}
+ // Escala y líneas de corte SIEMPRE sobre `base`: si se recalcularan con el subconjunto
+ // filtrado, al tocar un cuadrante los puntos saltarían de lugar y se perdería la referencia.
+ const W=380,H=250,ml=36,mr=12,mt=12,mb=26,maxU=Math.max(...base.map(x=>x.u),1);
+ const ys=base.map(x=>x.mgpct),ymin=Math.min(...ys,0),ymax=Math.max(...ys,10);
+ const popthr=base.reduce((s,x)=>s+x.u,0)/base.length*0.7;
  const sx=u=>ml+Math.sqrt(u/maxU)*(W-ml-mr),sy=p=>mt+(1-(p-ymin)/(ymax-ymin||1))*(H-mt-mb);
- const yavg=sy(v.reduce((a,x)=>a+x.mgpct,0)/v.length);
+ const yavg=sy(base.reduce((a,x)=>a+x.mgpct,0)/base.length);
  let s=`<line x1="${sx(popthr)}" y1="${mt}" x2="${sx(popthr)}" y2="${H-mb}" stroke="#3a4653" stroke-dasharray="3 3"/><line x1="${ml}" y1="${yavg.toFixed(0)}" x2="${W-mr}" y2="${yavg.toFixed(0)}" stroke="#3a4653" stroke-dasharray="3 3"/>`;
  s+=`<text x="${ml}" y="${H-mb+16}" fill="#5a6672" font-size="9">← vende poco</text><text x="${W-mr}" y="${H-mb+16}" fill="#5a6672" font-size="9" text-anchor="end">vende mucho →</text><text x="2" y="${mt+8}" fill="#5a6672" font-size="9">margen</text>`;
- v.forEach(x=>{const sp=suspOf(x),ring=sp==='si'?' stroke="#e8834a" stroke-width="2"':sp==='sug'?' stroke="#e8834a" stroke-width="1.2" stroke-dasharray="2 1.5"':'';
-  s+=`<circle cx="${sx(x.u).toFixed(1)}" cy="${sy(x.mgpct).toFixed(1)}" r="4.5" fill="${CLCOL[x.clase]}" opacity=".85"${ring}><title>${esc(x.pos)}: ${x.u}u · ${x.mgpct}%${sp==='si'?' · ⚠️ precio sospechoso':sp==='sug'?' · ⚠ margen a revisar':''}</title></circle>`;});
+ // data-i apunta al índice en window._bcgV para poder armar el tooltip y abrir la ficha al clic
+ v.forEach((x,i)=>{const sp=suspOf(x),ring=sp==='si'?' stroke="#e8834a" stroke-width="2"':sp==='sug'?' stroke="#e8834a" stroke-width="1.2" stroke-dasharray="2 1.5"':'';
+  s+=`<circle data-i="${i}" cx="${sx(x.u).toFixed(1)}" cy="${sy(x.mgpct).toFixed(1)}" r="4.5" fill="${CLCOL[x.clase]}" opacity=".85"${ring}/>`;});
  const nsp=v.filter(x=>suspOf(x)).length;
- el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:420px">${s}</svg>`+
+ window._bcgV=v;
+ el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:420px">${s}</svg><div id="bcgTip"></div>`+
   (nsp?`<div class="legend">Borde naranja = ${nsp} con precio a revisar.</div>`:'')+
-  (st.exclSusp?'<div class="legend">⚠️ Sospechosos confirmados excluidos de esta matriz.</div>':'');
+  (st.exclSusp?'<div class="legend">⚠️ Sospechosos confirmados excluidos de esta matriz.</div>':'')+
+  `<div class="legend">Pasá el mouse por un punto para ver cuál es · clic para abrir la ficha.</div>`;
+ // Tooltip propio: el <title> nativo del SVG tardaba ~1s en aparecer y con puntos de 4.5px
+ // superpuestos era imposible saber qué producto era cada uno.
+ const tip=document.getElementById('bcgTip');
+ el.querySelectorAll('circle[data-i]').forEach(c=>{
+  const x=window._bcgV[+c.dataset.i];
+  c.onmouseenter=ev=>{
+   c.setAttribute('r','7.5');
+   const sp=suspOf(x);
+   tip.innerHTML=`<b>${esc(x.pos)}</b><br>${x.u} u · ${f0(x.monto)} vendido<br>Margen ${x.mgpct}% · ${f0(x.mgtot)}`
+    +(sp==='si'?'<br><span style="color:var(--accent)">⚠️ precio sospechoso</span>':sp==='sug'?'<br><span style="color:var(--accent)">⚠ margen a revisar</span>':'');
+   tip.style.display='block';
+   const r=el.getBoundingClientRect();
+   let L=ev.clientX-r.left+12,T=ev.clientY-r.top+12;
+   if(L+tip.offsetWidth>r.width)L=Math.max(0,r.width-tip.offsetWidth-4);   // no salirse a la derecha
+   tip.style.left=L+'px';tip.style.top=T+'px';
+  };
+  c.onmouseleave=()=>{c.setAttribute('r','4.5');tip.style.display='none';};
+  c.onclick=()=>showModal(x,false);
+ });
+ // Cuadrantes clickeables: los totales salen del universo SIN filtro de clase, si no al
+ // seleccionar uno los otros quedarían en 0 y no se podría cambiar de selección.
  const ord=['ESTRELLA','VACA','INTERROGANTE','PERRO'],lab={ESTRELLA:'⭐ Estrellas',VACA:'🐄 Vacas',INTERROGANTE:'❓ Interrog.',PERRO:'🐕 Perros'};
- document.getElementById('quad').innerHTML=ord.map(c=>{const it=v.filter(x=>x.clase===c);return `<div class="q" style="border-color:${CLCOL[c]}55"><h4><span class="tag" style="background:${CLCOL[c]}"></span>${lab[c]}</h4><div class="n">${it.length}</div><div class="s">${fM(it.reduce((s,x)=>s+x.mgtot,0))} margen</div></div>`;}).join('');
+ const q=document.getElementById('quad');
+ q.innerHTML=ord.map(c=>{const it=base.filter(x=>x.clase===c);const sel=st.claseF===c;
+  return `<div class="q clik${sel?' sel':''}" data-cl="${c}" style="border-color:${CLCOL[c]}${sel?'':'55'}" title="${sel?'Clic para quitar el filtro':'Clic para ver solo estos'}"><h4><span class="tag" style="background:${CLCOL[c]}"></span>${lab[c]}${sel?' ✕':''}</h4><div class="n">${it.length}</div><div class="s">${fM(it.reduce((s,x)=>s+x.mgtot,0))} margen</div></div>`;}).join('');
+ q.querySelectorAll('.q[data-cl]').forEach(d=>d.onclick=()=>{
+  st.claseF=st.claseF===d.dataset.cl?null:d.dataset.cl;
+  renderRent();renderBCG();renderCat();renderChips();
+ });
 }
 function renderCat(){
  const v=curItems().filter(x=>!x.nd),m={};v.forEach(x=>{const d=m[x.cat]||(m[x.cat]={u:0,i:0,mg:0});d.u+=x.u;d.i+=x.monto;d.mg+=x.mgtot;});
@@ -696,29 +848,67 @@ function consumoRepo(){const ds=rangeDias(st.desde,st.hasta);const byW={};ds.for
  // de cierre, las noches que abre el bar caen en otros dias de los que uno diria de memoria.
  const OPEN=DOWN.filter(w=>patronApertura().abre[w]),tot={};
  for(const i in byW){let s=0;OPEN.forEach(w=>{const arr=byW[i][w]||[];if(arr.length)s+=arr.reduce((a,b)=>a+b,0)/arr.length;});if(s>0)tot[i]=s;}return tot;}
+// Dos modos MUY distintos, que antes se mostraban igual y confundían:
+//  'real' = CONSUMO HISTÓRICO del período elegido. No es una lista de compras: con 47 días
+//           seleccionados, "477 Stella" es lo que se consumió en 47 días, no lo que hay que
+//           comprar. Por eso en este modo no se muestra columna "Comprar".
+//  'repo' = REPOSICIÓN para cubrir un ciclo completo de apertura. Acá sí tiene sentido
+//           "Comprar", y se le RESTA el stock que ya está cargado (stockCalc), si lo hay.
 function comprasRows(){
  const tot=st.compras==='real'?consumoRango():consumoRepo();const rows=[];
  for(const ins in tot){const m=DATA.insumos[ins];if(!m)continue;if(st.catgrp.startsWith('g:')&&m.grupo!==st.catgrp.slice(2))continue;
-  const qb=tot[ins],env=m.cant_base?qb/m.cant_base:0;rows.push({insumo:ins,cb_cat:m.cb_cat,grupo:m.grupo,compartido:m.compartido,present:m.present,unidad:m.unidad,qb:qb,env:env,envc:Math.ceil(env-1e-9),valor:Math.round(qb*m.cxu)});}
+  const qb=tot[ins],cb=m.cant_base||1,env=qb/cb;
+  const sc=stockCalc(ins);                                  // null si el insumo no está vigilado
+  const tengo=sc?Math.max(0,sc.restante):null;              // en envases, nunca negativo
+  const netoEnv=tengo!=null?Math.max(0,env-tengo):env;      // necesidad menos lo que ya hay
+  rows.push({insumo:ins,cb_cat:m.cb_cat,grupo:m.grupo,compartido:m.compartido,present:m.present,
+   unidad:m.unidad,qb:qb,env:env,envc:Math.ceil(env-1e-9),
+   tengo:tengo,netoEnv:netoEnv,comprar:Math.ceil(netoEnv-1e-9),
+   valor:Math.round(qb*m.cxu),valorComprar:Math.round(netoEnv*cb*m.cxu)});}
  rows.sort((a,b)=>b.valor-a.valor);return rows;}
 function renderCompras(){
  document.getElementById('mReal').classList.toggle('on',st.compras==='real');document.getElementById('mRepo').classList.toggle('on',st.compras==='repo');
- const rows=comprasRows(),tot=rows.reduce((s,r)=>s+r.valor,0);
+ const rows=comprasRows();
+ const esRepo=st.compras==='repo';
+ // el total del encabezado: en reposición es lo que hay que GASTAR (ya neto de stock);
+ // en histórico, el valor de lo consumido.
+ const tot=rows.reduce((s,r)=>s+(esRepo?r.valorComprar:r.valor),0);
  document.getElementById('comprahint').textContent='· '+f0(tot);
  const nOpen=DOWN.filter(w=>patronApertura().abre[w]).length;
- document.getElementById('comprasnote').textContent=st.compras==='real'?'Consumo real de insumos en el período elegido ('+st.desde+'→'+st.hasta+').':'Proyección para cubrir un ciclo completo de apertura ('+nOpen+' noches, mié a dom), ponderando el consumo por día de semana del período elegido. Las noches se cuentan por fecha de cierre.';
+ const nVig=rows.filter(r=>r.tengo!=null).length;
+ document.getElementById('comprasnote').innerHTML=esRepo
+  ?'Cuánto comprar para cubrir un ciclo completo de apertura ('+nOpen+' noches), ponderando el consumo por día de semana del período elegido. Las noches se cuentan por fecha de cierre. '
+    +(nVig?'<b>Se resta el stock cargado</b> de los '+nVig+' insumos vigilados.':'Ningún insumo tiene stock cargado todavía — cargalo en Costos para que se descuente de lo que hay que comprar.')
+  :'Consumo real del período elegido ('+st.desde+'→'+st.hasta+'). <b>No es una lista de compras</b>: es lo que ya se consumió en esos '+calDaysRange(st.desde,st.hasta)+' días. Para saber cuánto comprar, usá "Reposición".';
  const g={};rows.forEach(r=>{(g[r.cb_cat]||(g[r.cb_cat]=[])).push(r);});
  // agrupado por rubro SIEMPRE; dentro de cada rubro, orden por columna (default = como llega
  // de comprasRows(), ya ordenado por valor desc).
  if(st.cpSort){const k=st.cpSort,d=st.cpDir;Object.values(g).forEach(arr=>arr.sort((a,b)=>cmpVals(a[k],b[k])*d));}
- let h='<tr>'+thS('Insumo','insumo',st.cpSort,st.cpDir,false)+thS('Comprar','envc',st.cpSort,st.cpDir,true)+thS('Presentación',null,null,null,false)+thS('Valor','valor',st.cpSort,st.cpDir,true)+'</tr>';
- Object.keys(g).sort().forEach(cat=>{const sub=g[cat].reduce((s,r)=>s+r.valor,0);h+=`<tr class="grpsub"><td colspan="3">${cat}</td><td class="n">${f0(sub)}</td></tr>`;
-  g[cat].forEach(r=>{const dot=r.compartido?'<span class="tag" style="background:var(--accent)"></span>':'';h+=`<tr><td>${dot}${r.insumo}</td><td class="n" style="font-weight:600">${r.envc} u</td><td class="mut">${r.present}</td><td class="n">${f0(r.valor)}</td></tr>`;});});
+ let h='<tr>'+thS('Insumo','insumo',st.cpSort,st.cpDir,false)
+  +thS(esRepo?'Necesito':'Consumo','envc',st.cpSort,st.cpDir,true)
+  +(esRepo?thS('Tengo','tengo',st.cpSort,st.cpDir,true)+thS('Comprar','comprar',st.cpSort,st.cpDir,true):'')
+  +thS('Presentación',null,null,null,false)
+  +thS('Valor',esRepo?'valorComprar':'valor',st.cpSort,st.cpDir,true)+'</tr>';
+ const ncols=esRepo?5:3;
+ Object.keys(g).sort().forEach(cat=>{const sub=g[cat].reduce((s,r)=>s+(esRepo?r.valorComprar:r.valor),0);
+  h+=`<tr class="grpsub"><td colspan="${ncols}">${cat}</td><td class="n">${f0(sub)}</td></tr>`;
+  g[cat].forEach(r=>{const dot=r.compartido?'<span class="tag" style="background:var(--accent)"></span>':'';
+   const cubierto=esRepo&&r.comprar===0&&r.tengo!=null;
+   h+=`<tr><td>${dot}${r.insumo}</td><td class="n">${r.envc} u</td>`
+    +(esRepo?`<td class="n ${r.tengo==null?'mut':''}">${r.tengo==null?'—':(+r.tengo.toFixed(1))+' u'}</td>`
+      +`<td class="n" style="font-weight:600${cubierto?';color:var(--pos)':''}">${cubierto?'✓ cubierto':r.comprar+' u'}</td>`:'')
+    +`<td class="mut">${r.present}</td><td class="n">${f0(esRepo?r.valorComprar:r.valor)}</td></tr>`;});});
  document.getElementById('tPar').innerHTML=h;
  wireSort(document.getElementById('tPar'),'cpSort','cpDir',renderCompras,k=>k==='insumo');
 }
-function exportCSV(){const rows=comprasRows();const out=[['Rubro','Insumo','Comprar (u)','Presentacion','Consumo','Unidad','Valor']];
- rows.slice().sort((a,b)=>(a.cb_cat<b.cb_cat?-1:1)||b.valor-a.valor).forEach(r=>out.push([r.cb_cat,r.insumo,r.envc,r.present,Math.round(r.qb),r.unidad,r.valor]));
+function exportCSV(){const rows=comprasRows();const esRepo=st.compras==='repo';
+ // el CSV refleja el modo: en reposición sale la compra neta de stock; en histórico, el consumo
+ // (sin columna "Comprar", para que nadie lo lea como una orden de compra).
+ const out=[esRepo?['Rubro','Insumo','Necesito (u)','Tengo (u)','Comprar (u)','Presentacion','Consumo','Unidad','Valor a comprar']
+                  :['Rubro','Insumo','Consumo (u)','Presentacion','Consumo','Unidad','Valor consumido']];
+ rows.slice().sort((a,b)=>(a.cb_cat<b.cb_cat?-1:1)||b.valor-a.valor).forEach(r=>out.push(
+  esRepo?[r.cb_cat,r.insumo,r.envc,r.tengo==null?'':+r.tengo.toFixed(1),r.comprar,r.present,Math.round(r.qb),r.unidad,r.valorComprar]
+        :[r.cb_cat,r.insumo,r.envc,r.present,Math.round(r.qb),r.unidad,r.valor]));
  const csv='﻿'+out.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download='compras_ANTIMO_'+st.desde+'_'+st.hasta+'_'+st.compras+'.csv';document.body.appendChild(a);a.click();a.remove();}
 
@@ -997,10 +1187,11 @@ document.getElementById('fHasta').onchange=e=>{st.hasta=snapH(e.target.value);if
 document.getElementById('fDesdeB').onchange=e=>{st.desdeB=snapD(e.target.value);rerender();};
 document.getElementById('fHastaB').onchange=e=>{st.hastaB=snapH(e.target.value);rerender();};
 document.getElementById('fCat').onchange=e=>{st.catgrp=e.target.value;rerender();};
-document.getElementById('fSearch').oninput=e=>{st.search=e.target.value;renderRent();renderBCG();renderCat();renderChips();renderND();};
+// el buscador afecta TODO (igual que el filtro de categoría), no solo las tablas de Rentabilidad
+document.getElementById('fSearch').oninput=e=>{st.search=e.target.value;rerender();};
 document.getElementById('cmp').onclick=()=>{st.cmp=!st.cmp;rerender();};
 document.getElementById('exs').onclick=()=>{st.exclSusp=!st.exclSusp;rerender();};
-document.getElementById('reset').onclick=()=>{st.catgrp='all';st.search='';st.desde=DIAS[0].fecha;st.hasta=DIAS[DIAS.length-1].fecha;st.cmp=false;st.exclSusp=false;rerender();};
+document.getElementById('reset').onclick=()=>{st.catgrp='all';st.search='';st.desde=DIAS[0].fecha;st.hasta=DIAS[DIAS.length-1].fecha;st.cmp=false;st.exclSusp=false;st.mgF=null;st.claseF=null;rerender();};
 document.getElementById('mReal').onclick=()=>{st.compras='real';renderCompras();};
 document.getElementById('mRepo').onclick=()=>{st.compras='repo';renderCompras();};
 document.getElementById('fCaja').onchange=e=>{const iso=e.target.value;let bi=0,bd=1e15;(DATA.cajas||[]).forEach((c,i)=>{const d=Math.abs(new Date(cajaIso(c))-new Date(iso));if(d<bd){bd=d;bi=i;}});st.ci=bi;renderCaja();};

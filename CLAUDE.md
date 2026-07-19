@@ -348,10 +348,44 @@ de OPEX — el frontend ya solo llama `/api/opex_save`/`/api/opex_vigencia`. No 
 Resumen (KPIs con delta vs período anterior, alertas automáticas, punto de equilibrio, cascada
 P&L, tendencia por día), Rentabilidad (tabla + heatmap de margen + matriz BCG scatter, click =
 desglose de lectura), **Recetas** (editor: crear/editar recetas, combos; filtros grupo/categoría/
-tipo/buscar), Compras (consumo real vs reposición Mié→Dom, exportable), Caja (por noche, con
+tipo/buscar), Compras (consumo histórico vs reposición, exportable), Caja (por noche, con
 detalle de retiros/descuentos), Costos (precios de insumos editables), OPEX (CRUD con
 cantidad×unitario, filtros). Selector de fechas Desde/Hasta (calendario), comparar dos rangos,
 persistencia en localStorage, botón imprimir/PDF.
+
+### Filtros globales (barra superior) — alcance
+
+El filtro **Categoría/Grupo** y el **buscador** afectan **todo el tablero**, incluido Resumen
+(KPIs, P&L, punto de equilibrio, gráfico por día, findes/semana). Hasta que se corrigió, `totals()`
+los ignoraba explícitamente y solo las alertas los respetaban — o sea que filtrar cambiaba una sola
+caja y parecía roto.
+
+⚠️ **OPEX con filtro activo:** el OPEX es del bar entero, no de una categoría. Si se filtra
+"PIZZAS" y se resta el OPEX completo, el resultado da siempre negativo y no dice nada. Por eso
+`totals()` lo **prorratea** por el peso que la selección tiene sobre las ventas totales (`share`),
+y devuelve `opexProrrateado:true` para que la UI lo aclare (lo hacen el pie del KPI, una nota bajo
+el P&L y el punto de equilibrio). **Es una asignación, no un costo medido** — si alguien toca esto,
+mantener el cartel: sin él, el número parece un dato duro y no lo es. Sin filtro, `share`=1 y todo
+queda idéntico a antes.
+
+**Filtros de Rentabilidad** (`st.mgF` por tramo de margen, `st.claseF` por cuadrante BCG): la
+leyenda "pierde/bajo/alto" y las cajas de cuadrante son clickeables y filtran tabla + matriz +
+categorías a la vez. Umbral `MG_BAJO`=40% (el mismo que ya usaban las alertas de VACA, antes
+implícito). Ojo con `curItemsBase()` vs `curItems()`: los cuadrantes y la escala del scatter usan
+**base** (sin filtro de clase) a propósito — si usaran el filtrado, al seleccionar "Perros" los
+otros cuadrantes quedarían en 0 (imposible cambiar de selección) y los puntos saltarían de lugar.
+
+**Modo comparación:** el P&L se dibuja como tabla A vs B con diferencia por línea; la tarjeta de
+indicadores muestra solo lo que el P&L no (margen %, ticket, unidades, comensales) para no repetir
+números. Completitud, Stock y Findes/Semana **se ocultan** (muestran "estado de hoy" o un solo
+período, no comparan); el gráfico por día y el punto de equilibrio se quedan pero rotulados
+"solo período A".
+
+**Compras — dos modos que NO son lo mismo:** `real` = consumo histórico del período (NO es una
+lista de compras: con 66 días seleccionados, "477 Stella" es lo consumido en 66 días); `repo` =
+cuánto comprar para cubrir un ciclo de apertura, **restando el stock cargado** (`stockCalc`) de los
+insumos vigilados, con columnas Necesito / Tengo / Comprar. El CSV exportado refleja el modo activo
+y en `real` no incluye columna "Comprar", para que nadie lo lea como una orden de compra.
 
 ---
 
