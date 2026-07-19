@@ -392,10 +392,15 @@ caja y parecía roto.
 ⚠️ **OPEX con filtro activo:** el OPEX es del bar entero, no de una categoría. Si se filtra
 "PIZZAS" y se resta el OPEX completo, el resultado da siempre negativo y no dice nada. Por eso
 `totals()` lo **prorratea** por el peso que la selección tiene sobre las ventas totales (`share`),
-y devuelve `opexProrrateado:true` para que la UI lo aclare (lo hacen el pie del KPI, una nota bajo
-el P&L y el punto de equilibrio). **Es una asignación, no un costo medido** — si alguien toca esto,
-mantener el cartel: sin él, el número parece un dato duro y no lo es. Sin filtro, `share`=1 y todo
-queda idéntico a antes.
+y devuelve `opexProrrateado:true` + `share` para que la UI lo aclare. **Todo lo que muestre OPEX
+junto a ventas filtradas tiene que multiplicar por `share`**: hoy lo hacen el pie del KPI, la nota
+bajo el P&L, el punto de equilibrio, `beqSemanaRows()` y la tarjeta "Peso del OPEX". Esa última se
+olvidó en la primera versión y mostraba **388%** con PIZZAS filtrado (OPEX del bar entero ÷ ventas
+de una categoría) — si se agrega otro widget que cruce ambas cosas, aplicarle `share` también.
+**Es una asignación, no un costo medido** — si alguien toca esto, mantener el cartel: sin él, el
+número parece un dato duro y no lo es. Sin filtro, `share`=1 y todo queda idéntico a antes.
+Nota: con prorrateo proporcional el "% que representa el OPEX" da igual con y sin filtro (es
+aritmética, no un bug): cada categoría carga su parte exactamente en proporción a lo que vende.
 
 **Filtros de Rentabilidad** (`st.mgF` por tramo de margen, `st.claseF` por cuadrante BCG): la
 leyenda "pierde/bajo/alto" y las cajas de cuadrante son clickeables y filtran tabla + matriz +
@@ -404,11 +409,27 @@ implícito). Ojo con `curItemsBase()` vs `curItems()`: los cuadrantes y la escal
 **base** (sin filtro de clase) a propósito — si usaran el filtrado, al seleccionar "Perros" los
 otros cuadrantes quedarían en 0 (imposible cambiar de selección) y los puntos saltarían de lugar.
 
+⚠️ **`mgF`/`claseF` son de alcance LOCAL a Rentabilidad**, a diferencia de `catgrp`/`search` que
+son globales. Por eso **no** aparecen como chip en la barra de arriba (un chip global implicaba
+que filtraban todo el tablero, cuando solo tocaban esa solapa) y por eso `renderAlerts()` (Resumen)
+y `renderND()` (Caja) usan **`curItemsBase()`**, no `curItems()`. Su estado ya se ve donde viven:
+la leyenda marca el tramo activo y el cuadrante seleccionado muestra ✕. Si se agrega un widget
+fuera de Rentabilidad que consuma `curItems()`, va a heredar estos filtros sin querer.
+
 **Modo comparación:** el P&L se dibuja como tabla A vs B con diferencia por línea; la tarjeta de
 indicadores muestra solo lo que el P&L no (margen %, ticket, unidades, comensales) para no repetir
 números. Completitud, Stock y Findes/Semana **se ocultan** (muestran "estado de hoy" o un solo
 período, no comparan); el gráfico por día y el punto de equilibrio se quedan pero rotulados
 "solo período A".
+
+**Compras respeta el filtro por categoría de producto** vía `consumoDia()`: `DATA.consumo_dia`
+viene del motor **ya agregado por insumo**, ahí se perdió de qué producto salió cada gramo, así que
+no alcanza para filtrar por una categoría como "PIZZAS" (antes solo se filtraba por el `grupo` del
+insumo y una categoría no filtraba nada). Cuando hay filtro se reconstruye desde los productos:
+`breakdown[i].qty × unidades vendidas`, cacheado por `catgrp+search`. Verificado que la
+reconstrucción da **idéntico** al `consumo_dia` del motor en los 119 insumos (por eso es seguro
+sustituirlo). Sin filtro se usa el del motor directo. **Invalidar `_cdCache` si cambia `DATA`**
+(se hace en `applyData`).
 
 **Compras — dos modos que NO son lo mismo:** `real` = consumo histórico del período (NO es una
 lista de compras: con 66 días seleccionados, "477 Stella" es lo consumido en 66 días); `repo` =
