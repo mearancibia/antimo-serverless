@@ -33,19 +33,21 @@ def clean_product(p):
 
 def business_ddmm_ym(it):
     """Fecha de la NOCHE de caja, rotulada por la fecha de cierre (como el POS). Corte 08:00:
-    lo que pasa entre 00:00 y 07:59 cuenta para la noche que cerro esa madrugada."""
+    lo que pasa entre 00:00 y 07:59 cuenta para la noche que cerro esa madrugada.
+    Devuelve (DD-MM, YYYY-MM, YYYY-MM-DD): el ISO completo hace falta para no mezclar el mismo
+    dia-mes de dos años distintos cuando el rango pedido cruza un fin de año."""
     ts=it.get("timestamp")
+    bd=None
     try:
         dt=datetime.datetime.fromisoformat(str(ts))
         bd=dt.date() if dt.hour<8 else dt.date()+datetime.timedelta(days=1)
-        return bd.strftime("%d-%m"), bd.strftime("%Y-%m")
     except Exception:
         pp=str(it.get("date") or "").split("-")
-        if len(pp)<3: return None,None
-        try:
-            bd=datetime.date(int(pp[2]),int(pp[1]),int(pp[0]))
-            return bd.strftime("%d-%m"), bd.strftime("%Y-%m")
-        except Exception: return None,None
+        if len(pp)>=3:
+            try: bd=datetime.date(int(pp[2]),int(pp[1]),int(pp[0]))
+            except Exception: bd=None
+    if bd is None: return None,None,None
+    return bd.strftime("%d-%m"), bd.strftime("%Y-%m"), bd.isoformat()
 
 def _nuevo_dia():
     return {"total_vendido":0.0,"efectivo":0.0,"tarjetas":0.0,"qr":0.0,"otros_pago":0.0,
@@ -68,7 +70,7 @@ def parse_items(items):
     dias={}
     for it in items:
         tt=(it.get("transactionType") or "").strip()
-        ddmm,ym=business_ddmm_ym(it)
+        ddmm,ym,iso=business_ddmm_ym(it)
         if ddmm is None: continue
         amt=float(it.get("amount") or 0)
         if tt in ("- ITEM","- COMBO"):
@@ -76,7 +78,9 @@ def parse_items(items):
             if not prod or prod=="-": continue
             cell=rank[ym][(ddmm,prod)]; cell[0]+=float(it.get("quantity") or 0); cell[1]+=amt
             continue
-        v=dias.setdefault(ddmm,_nuevo_dia())
+        # clave por ISO completo: dos noches con el mismo DD-MM de años distintos son días
+        # distintos y no deben sumarse en uno solo
+        v=dias.setdefault(iso,_nuevo_dia()); v["_ddmm"]=ddmm
         if tt=="- ITEM DESCUENTO":
             v["descuentos"]+=amt
             v["detalle_descuentos"].append({"concepto":(it.get("comments") or "").strip()[:50],
@@ -99,9 +103,13 @@ def parse_items(items):
             v["depositos"]+=amt
         # CIERRE / APERTURA / AJUSTE de caja: se ignoran
     cajas=[]
-    for f,v in sorted(dias.items()):
+    for iso_f,v in sorted(dias.items()):
         if v["total_vendido"]==0 and v["retiros"]==0 and v["depositos"]==0: continue
-        v["fecha"]=f; v["fecha_dia"]=f; v["archivo"]="Bistrosoft API"; v["fecha_key"]=f; cajas.append(v)
+        ddmm=v.pop("_ddmm",iso_f)
+        # `fecha`/`fecha_dia` siguen siendo DD-MM (es lo que se muestra); `fecha_iso` es el dato
+        # sin ambigüedad y `fecha_key` pasa a ser el ISO para que la fusión no mezcle años.
+        v["fecha"]=ddmm; v["fecha_dia"]=ddmm; v["archivo"]="Bistrosoft API"
+        v["fecha_iso"]=iso_f; v["fecha_key"]=iso_f; cajas.append(v)
     return rank, cajas
 
 def write_outputs(rank, cajas, entrada=None, datos=None):
@@ -126,12 +134,17 @@ def write_outputs(rank, cajas, entrada=None, datos=None):
     if os.path.exists(cajas_path):
         try:
             for c in json.load(open(cajas_path,encoding="utf-8")):
-                k=c.get("fecha_key") or c.get("fecha")
+                k=c.get("fecha_iso") or c.get("fecha_key") or c.get("fecha")
                 if k: fusion[k]=c
         except Exception: pass
     antes=len(fusion)
+    # Los registros viejos usaban DD-MM como clave y los nuevos usan el ISO completo: si no se
+    # reconcilian, la misma noche queda dos veces (con clave vieja y nueva). Se descarta la vieja.
+    ddmm_nuevas={c.get("fecha") for c in cajas if c.get("fecha")}
+    for k in [k for k,c in fusion.items() if not c.get("fecha_iso") and c.get("fecha") in ddmm_nuevas]:
+        fusion.pop(k,None)
     for c in cajas:
-        k=c.get("fecha_key") or c.get("fecha")
+        k=c.get("fecha_iso") or c.get("fecha_key") or c.get("fecha")
         if k: fusion[k]=c
     nuevas=len(fusion)-antes
     if antes and nuevas<len(cajas):

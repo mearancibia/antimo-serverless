@@ -120,16 +120,6 @@
   "nota": ""
  },
  {
-  "pos": "BEEFEATER + TONICA",
-  "cat": "BEBIDAS CON ALCOHOL",
-  "canon": "Beefeater + Tonica",
-  "tipo": "receta",
-  "factor": 1,
-  "rend": null,
-  "costeo": "Receta: GIN TONIC",
-  "nota": "Gin Beefeater"
- },
- {
   "pos": "Gin Tanqueray",
   "cat": "BEBIDAS CON ALCOHOL",
   "canon": "Gin Tanqueray vaso",
@@ -260,16 +250,6 @@
   "nota": ""
  },
  {
-  "pos": "Smirnoff + Red Bull",
-  "cat": "BEBIDAS CON ALCOHOL",
-  "canon": "Smirnoff + Red Bull",
-  "tipo": "receta",
-  "factor": 1,
-  "rend": null,
-  "costeo": "Receta: SMIRNOFF + SPEED",
-  "nota": "PROXY energizante Red Bull con Speed"
- },
- {
   "pos": "ABSOLUT FRUTOS ROJOS+ REDBULL",
   "cat": "1 MODO BOLICHE",
   "canon": "Absolut FR + Red Bull",
@@ -378,5 +358,35 @@
   "rend": 60,
   "costeo": "Insumo: Black Label",
   "nota": ""
+ },
+ {
+  "pos": "BOMBAY + TONICA",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Bombay + Tónica",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: BOMBAY + TONICA",
+  "nota": "Gin Bombay $40.000/750ml (dato del dueño; Costo_Base tenía $32.900)"
+ },
+ {
+  "pos": "BEEFEATER + TONICA",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Beefeater + Tónica",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: BEEFEATER + TONICA",
+  "nota": "Gin Beefeater, precio ya cargado en Costo_Base"
+ },
+ {
+  "pos": "SMIRNOFF + RED BULL",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Smirnoff + Red Bull",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: SMIRNOFF + RED BULL",
+  "nota": "Lleva Red Bull, no Speed (confirmado por el dueño)"
  }
 ]

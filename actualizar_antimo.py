@@ -527,21 +527,29 @@ for path in RANKS:
         try: monto=float(r[cM] or 0)
         except: monto=0.0
         if u==0 and monto==0: continue
+        # El ranking trae la fecha como "DD-MM" (sin año); el año sale del nombre del archivo
+        # (api_ventas_YYYY-MM.xlsx). Si no se puede deducir, se descarta el año en vez de inventar
+        # uno: antes había un "2026" hardcodeado que iba a quedar mal el año que viene.
         fecha=str(r[cF]) if cF is not None and r[cF] is not None else "s/f"
         dd,mm=(fecha.split("-")+["",""])[:2]
-        yy=ym[0] if ym else "2026"
-        iso=f"{yy}-{mm}-{dd}" if (mm and dd) else ""
-        if fecha not in dias:
+        yy=ym[0] if ym else ""
+        iso=f"{yy}-{mm}-{dd}" if (yy and mm and dd) else ""
+        # CLAVE del día = fecha ISO completa, no "DD-MM". Los archivos de ventas se acumulan en
+        # entrada/ (uno por mes, para siempre), así que en 2027 van a convivir api_ventas_2026-07
+        # y api_ventas_2027-07: con la clave vieja, el "18-07" de cada año se sumaba en un solo
+        # día sin ningún aviso. `fecha` se conserva solo como etiqueta para mostrar.
+        dkey=iso or fecha
+        if dkey not in dias:
             try: dow=DOW[datetime.date.fromisoformat(iso).weekday()]
             except Exception: dow=""
-            dias[fecha]={"fecha":fecha,"iso":iso,"dow":dow}
+            dias[dkey]={"fecha":fecha,"iso":iso,"dow":dow}
         k=norm(nombre); k=UNIFICAR.get(k,k)
         p=prods.setdefault(k,{"raw":nombre,"byday":{}})
-        bd=p["byday"].setdefault(fecha,[0,0.0]); bd[0]+=u; bd[1]+=monto
+        bd=p["byday"].setdefault(dkey,[0,0.0]); bd[0]+=u; bd[1]+=monto
         exp=explotar_producto(k)
         if exp:
             g=grupo_cat(MAESTRO.get(k,{}).get("cat",""))
-            cd=consumo_dia.setdefault(fecha,{})
+            cd=consumo_dia.setdefault(dkey,{})
             for insumo,qb,ub in exp:
                 cd[insumo]=cd.get(insumo,0.0)+qb*u
                 s=split.setdefault(insumo,{"BEBIDA":0.0,"COMIDA":0.0}); s[g]+=qb*u
@@ -599,14 +607,24 @@ if os.path.exists(_capi):
     try:
         for c in json.load(open(_capi,encoding="utf-8")): cajas.append(c)
     except Exception: pass
+# índice DD-MM -> ISO, solo para las noches en que ese DD-MM es INEQUÍVOCO. Si el histórico
+# llega a tener el mismo día-mes en dos años, esa entrada se descarta y no se adivina.
+_ddmm2iso={}; _ddmm_amb=set()
+for _d in dias.values():
+    _f=_d.get("fecha"); _i=_d.get("iso")
+    if not _f or not _i: continue
+    if _f in _ddmm2iso and _ddmm2iso[_f]!=_i: _ddmm_amb.add(_f)
+    _ddmm2iso[_f]=_i
+for _f in _ddmm_amb: _ddmm2iso.pop(_f,None)
 def _caja_iso(c):
-    """Fecha de la noche en ISO. El PDF la trae como 'DD/MM/YYYY', la API como 'DD-MM'."""
+    """Fecha de la noche en ISO. El conector nuevo la guarda completa en 'fecha_iso'; los
+    registros viejos y el PDF traen 'DD-MM' o 'DD/MM/YYYY' y hay que deducirla."""
+    fi=str(c.get("fecha_iso") or "")
+    if _re.match(r"^\d{4}-\d{2}-\d{2}$", fi): return fi          # dato explícito: no se adivina
     m=_re.search(r"(\d{2})/(\d{2})/(\d{4})", str(c.get("fecha_key") or "") or str(c.get("fecha") or ""))
     if m: return "%s-%s-%s"%(m.group(3),m.group(2),m.group(1))
     f=str(c.get("fecha") or "")
-    if f in dias and dias[f].get("iso"): return dias[f]["iso"]
-    m=_re.match(r"^(\d{2})-(\d{2})$", f)
-    if m and dias_list: return "%s-%s-%s"%(dias_list[-1]["iso"][:4],m.group(2),m.group(1))
+    if f in _ddmm2iso: return _ddmm2iso[f]                        # DD-MM que solo existe en un año
     return ""
 # Un mismo cierre puede llegar por PDF y por API a la vez: se queda el de la API,
 # que trae comensales, descuentos y detalle por operador.

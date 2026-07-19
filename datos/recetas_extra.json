@@ -20,5 +20,55 @@
    "Alga Nori",
    "1 unidad"
   ]
+ ],
+ "BOMBAY + TONICA": [
+  [
+   "Gin Bombay",
+   "60 ml"
+  ],
+  [
+   "Agua Tónica",
+   "250 ml"
+  ],
+  [
+   "Rodaja de Limón",
+   "50gr"
+  ],
+  [
+   "Hielo",
+   "120gr"
+  ]
+ ],
+ "BEEFEATER + TONICA": [
+  [
+   "Gin Beefeater",
+   "60 ml"
+  ],
+  [
+   "Agua Tónica",
+   "250 ml"
+  ],
+  [
+   "Rodaja de Limón",
+   "50gr"
+  ],
+  [
+   "Hielo",
+   "120gr"
+  ]
+ ],
+ "SMIRNOFF + RED BULL": [
+  [
+   "Vodka Smirnoff",
+   "90 ml"
+  ],
+  [
+   "Energizante Red Bull",
+   "270 ml"
+  ],
+  [
+   "Hielo",
+   "120gr"
+  ]
  ]
 }

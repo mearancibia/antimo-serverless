@@ -203,7 +203,7 @@ function ritmosRecientes(insumo){
  const desdeVentana=isoOf(t0);
  let fS=0,fN=0,sS=0,sN=0,fSt=0,fNt=0,sSt=0,sNt=0;
  DIAS.forEach(d=>{
-  const c=(DATA.consumo_dia[d.fecha]||{})[insumo]||0,esFindes=FINDES.has(nocheReal(d.iso));
+  const c=(DATA.consumo_dia[DK(d)]||{})[insumo]||0,esFindes=FINDES.has(nocheReal(d.iso));
   if(esFindes){fSt+=c;fNt++;if(d.iso>=desdeVentana){fS+=c;fN++;}}
   else{sSt+=c;sNt++;if(d.iso>=desdeVentana){sS+=c;sN++;}}
  });
@@ -238,7 +238,7 @@ function stockCalc(insumo){
  const cb=m.cant_base||1;
  const ult=DIAS[DIAS.length-1].iso;
  let consumidoDesdeBase=0;
- DIAS.forEach(d=>{const c=(DATA.consumo_dia[d.fecha]||{})[insumo]||0;if(d.iso>=entry.fecha)consumidoDesdeBase+=c;});
+ DIAS.forEach(d=>{const c=(DATA.consumo_dia[DK(d)]||{})[insumo]||0;if(d.iso>=entry.fecha)consumidoDesdeBase+=c;});
  const restanteBase=entry.cant*cb-consumidoDesdeBase;
  const restante=restanteBase/cb;                              // de vuelta a envases, para mostrar
  const ritmosBase=ritmosRecientes(insumo);
@@ -281,17 +281,20 @@ function wireSort(table,sortField,dirField,renderFn,ascByDefault){
  });
 }
 function cmpVals(av,bv){return av>bv?1:av<bv?-1:0;}
-let DIAS=DATA.dias, ISO=Object.fromEntries(DATA.dias.map(d=>[d.fecha,d.iso]));
-let st={tab:'resumen',desde:DIAS[0].fecha,hasta:DIAS[DIAS.length-1].fecha,catgrp:'all',search:'',sort:'mgtot',dir:-1,ci:(DATA.cajas.length-1),compras:'real',cmp:false,desdeB:DIAS[0].fecha,hastaB:DIAS[0].fecha,rGrupo:'todos',rCat:'all',rTipo:'all',rSearch:'',opCat:'all',opSearch:'',exclSusp:false,opVig:null,
+// CLAVE de un día = su fecha ISO completa (el motor indexa byday/consumo_dia así). `d.fecha`
+// es solo la etiqueta "DD-MM" para mostrar: dos años distintos comparten etiqueta pero no clave.
+const DK=d=>d.iso||d.fecha;
+let DIAS=DATA.dias, ISO=Object.fromEntries(DATA.dias.map(d=>[DK(d),d.iso||DK(d)]));
+let st={tab:'resumen',desde:DK(DIAS[0]),hasta:DK(DIAS[DIAS.length-1]),catgrp:'all',search:'',sort:'mgtot',dir:-1,ci:(DATA.cajas.length-1),compras:'real',cmp:false,desdeB:DK(DIAS[0]),hastaB:DK(DIAS[0]),rGrupo:'todos',rCat:'all',rTipo:'all',rSearch:'',opCat:'all',opSearch:'',exclSusp:false,opVig:null,
 rSort:null,rDir:1,cpSort:null,cpDir:1,csSort:null,csDir:1,oxSort:null,oxDir:1,
 mgF:null,claseF:null};
 try{Object.assign(st,JSON.parse(localStorage.getItem('antimo2')||'{}'));}catch(e){}
-if(!ISO[st.desde])st.desde=DIAS[0].fecha;if(!ISO[st.hasta])st.hasta=DIAS[DIAS.length-1].fecha;
-if(ISO[st.desde]>ISO[st.hasta]){st.desde=DIAS[0].fecha;st.hasta=DIAS[DIAS.length-1].fecha;}
-if(!ISO[st.desdeB])st.desdeB=DIAS[0].fecha;if(!ISO[st.hastaB])st.hastaB=DIAS[0].fecha;
+if(!ISO[st.desde])st.desde=DK(DIAS[0]);if(!ISO[st.hasta])st.hasta=DK(DIAS[DIAS.length-1]);
+if(ISO[st.desde]>ISO[st.hasta]){st.desde=DK(DIAS[0]);st.hasta=DK(DIAS[DIAS.length-1]);}
+if(!ISO[st.desdeB])st.desdeB=DK(DIAS[0]);if(!ISO[st.hastaB])st.hastaB=DK(DIAS[0]);
 function save(){try{localStorage.setItem('antimo2',JSON.stringify({tab:st.tab,desde:st.desde,hasta:st.hasta,catgrp:st.catgrp,compras:st.compras,exclSusp:st.exclSusp}));}catch(e){}}
 let APP=false;
-function applyData(d){if(!d||!d.dias)return;DATA=d;DIAS=DATA.dias;ISO=Object.fromEntries(DIAS.map(x=>[x.fecha,x.iso]));_patC=null;_cdCache=null;if(!ISO[st.desde])st.desde=DIAS[0].fecha;if(!ISO[st.hasta])st.hasta=DIAS[DIAS.length-1].fecha;rerender();}
+function applyData(d){if(!d||!d.dias)return;DATA=d;DIAS=DATA.dias;ISO=Object.fromEntries(DIAS.map(x=>[DK(x),x.iso||DK(x)]));_patC=null;_cdCache=null;if(!ISO[st.desde])st.desde=DK(DIAS[0]);if(!ISO[st.hasta])st.hasta=DK(DIAS[DIAS.length-1]);rerender();}
 function toast(m){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a222c;border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:8px;z-index:99;font-size:13px';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';clearTimeout(window._tt);window._tt=setTimeout(()=>t.style.opacity='0',2200);}
 async function apiPost(path,body){document.body.style.cursor='progress';try{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();document.body.style.cursor='';if(j.ok){applyData(j.data);toast('Guardado y recalculado ✓');}else toast('Error: '+(j.error||(j.log||'').slice(-120)||'?'));return j;}catch(e){document.body.style.cursor='';toast('Error de conexión con la app');}}
 async function pull(){toast('Trayendo ventas de Bistrosoft…');const j=await apiPost('/api/pull',{});if(j&&j.ok)toast('Ventas actualizadas ✓');}
@@ -322,8 +325,8 @@ function colaSinDatos(){const p=patronApertura(),ult=DIAS[DIAS.length-1].iso,hoy
  eachDay(isoOf(t),hoy,(iso,w)=>{if(p.abre[w]&&!esCerrado(iso))out.push({iso,dow:w});});
  return out;}
 function rangeDias(a,b){const ia=ISO[a],ib=ISO[b];return DIAS.filter(d=>d.iso>=ia&&d.iso<=ib);}
-function snapD(iso){const c=DIAS.filter(d=>d.iso>=iso);return (c[0]||DIAS[DIAS.length-1]).fecha;}
-function snapH(iso){const c=DIAS.filter(d=>d.iso<=iso);return (c[c.length-1]||DIAS[0]).fecha;}
+function snapD(iso){const c=DIAS.filter(d=>d.iso>=iso);return DK(c[0]||DIAS[DIAS.length-1]);}
+function snapH(iso){const c=DIAS.filter(d=>d.iso<=iso);return DK(c[c.length-1]||DIAS[0]);}
 function cajaIso(c){if(c.iso)return c.iso;if(ISO[c.fecha])return ISO[c.fecha];if(c.fecha_key){const m=(''+c.fecha_key).match(/(\d{2})\/(\d{2})\/(\d{4})/);if(m)return m[3]+'-'+m[2]+'-'+m[1];}const p=(''+(c.fecha||'')).split('-');return p.length>=2?('2026-'+p[1]+'-'+p[0]):'';}
 function calDaysRange(a,b){const ia=ISO[a],ib=ISO[b];return Math.max(1,Math.round((new Date(ib)-new Date(ia))/864e5)+1);}
 // ----- OPEX con vigencias -----
@@ -338,7 +341,7 @@ function opexRango(a,b){let s=0,sin=0;const us={};
 // OPEX mensual equivalente del rango (si cruza vigencias, es el promedio ponderado por dias)
 function opexMesEfectivo(a,b){const d=calDaysRange(a,b);return d?opexRango(a,b).opex/d*30:0;}
 const fFecha=iso=>iso<='2000-01-01'?'siempre':iso.slice(8,10)+'-'+iso.slice(5,7)+'-'+iso.slice(0,4);
-function prodAgg(p,ds){let u=0,m=0;ds.forEach(d=>{const bd=p.byday[d.fecha];if(bd){u+=bd[0];m+=bd[1];}});return {u,m};}
+function prodAgg(p,ds){let u=0,m=0;ds.forEach(d=>{const bd=p.byday[DK(d)];if(bd){u+=bd[0];m+=bd[1];}});return {u,m};}
 // productos con métricas para el rango actual + filtros
 function prodView(ds){
  return DATA.productos.map(p=>{const a=prodAgg(p,ds);const v={pos:p.pos,key:p.key,susp:p.susp,susp_motivo:p.susp_motivo,cat:p.cat,grupo:p.grupo,nd:p.nd,motivo:p.motivo,falta:p.falta,donde:p.donde,tipo:p.tipo,costo:p.costo,nota:p.nota,breakdown:p.breakdown,receta_nombre:p.receta_nombre,receta_ings:p.receta_ings,combo_comp:p.combo_comp,editable:p.editable,precioLista:p.precio_lista,u:a.u,monto:a.m};
@@ -379,7 +382,7 @@ function totals(a,b){const ds=rangeDias(a,b);
  const filtrado=hayFiltro();
  const share=(filtrado&&ventasAll)?ventas/ventasAll:1;
  const opex=opexRango(a,b).opex*share;
- const dset=new Set(ds.map(d=>d.fecha));let tv=0,com=0;DATA.cajas.forEach(c=>{if(dset.has(c.fecha)){tv+=c.total_vendido||0;com+=c.comensales||0;}});
+ const dset=new Set(ds.map(d=>DK(d)));let tv=0,com=0;DATA.cajas.forEach(c=>{if(dset.has(cajaIso(c))){tv+=c.total_vendido||0;com+=c.comensales||0;}});
  // ticket: sin filtro usa el total de caja (la verdad de la caja); con filtro, cuanto gasta en
  // promedio cada comensal en lo que se esta mirando.
  const ticket=com?((filtrado?ventas:tv)/com):0;
@@ -448,7 +451,7 @@ function renderKPIs(){
  // resultado ya salen ahí, repetirlas era ruido). Acá quedan las de eficiencia/volumen.
  const cc=document.getElementById('cmpCard');
  if(st.cmp&&pv){const rows=[['Margen %','mgpct',1],['Ticket promedio','ticket',0],['Unidades','U',0],['Comensales','comensales',0]];
-  cc.innerHTML=`<div class="card"><div class="h3">⇄ Comparación · indicadores</div><table><tr><th>Métrica</th><th class="n">A (${st.desde}→${st.hasta})</th><th class="n">B (${st.desdeB}→${st.hastaB})</th><th class="n">Dif</th></tr>`+
+  cc.innerHTML=`<div class="card"><div class="h3">⇄ Comparación · indicadores</div><table><tr><th>Métrica</th><th class="n">A (${ddmmOf(st.desde)}→${ddmmOf(st.hasta)})</th><th class="n">B (${ddmmOf(st.desdeB)}→${ddmmOf(st.hastaB)})</th><th class="n">Dif</th></tr>`+
    rows.map(r=>{const fmt=v=>r[2]?v.toFixed(1)+'%':(r[1]==='U'||r[1]==='comensales'?Math.round(v).toLocaleString('es-AR'):f0(v));
     return `<tr><td>${r[0]}</td><td class="n">${fmt(t[r[1]])}</td><td class="n">${fmt(pv[r[1]])}</td><td class="n">${dchip(delta(t[r[1]],pv[r[1]]))}</td></tr>`;}).join('')
    +'</table><div class="legend" style="margin-top:6px">Ventas, margen y resultado se comparan en la cascada P&L de abajo.</div></div>';
@@ -469,7 +472,7 @@ function renderPnl(){
   const max=Math.max(t.ventas,b.ventas,1);
   const mini=(val,col)=>`<div class="barwrap" style="height:14px"><div class="fill" style="width:${Math.max(0,Math.min(100,Math.abs(val)/max*100)).toFixed(0)}%;background:${col}"></div></div>`;
   host.innerHTML=`<table style="width:100%">
-   <tr><th></th><th class="n">A (${st.desde}→${st.hasta})</th><th class="n">B (${st.desdeB}→${st.hastaB})</th><th class="n">Dif</th></tr>`
+   <tr><th></th><th class="n">A (${ddmmOf(st.desde)}→${ddmmOf(st.hasta)})</th><th class="n">B (${ddmmOf(st.desdeB)}→${ddmmOf(st.hastaB)})</th><th class="n">Dif</th></tr>`
    +PNL_LINEAS.map(([lab,k,col])=>{
      const va=t[k],vb=b[k],c=col||(va>=0?'#4a9d7f':'#c85a54'),cb=col||(vb>=0?'#4a9d7f':'#c85a54');
      return `<tr><td style="white-space:nowrap">${lab}</td>
@@ -514,7 +517,7 @@ function beqSemanaRows(){
   if(!d.iso)return;
   const bal=FINDES.has(nocheReal(d.iso))?'Findes':'Semana';
   let ventas=0,margen=0;
-  DATA.productos.forEach(p=>{if(p.nd||!passF(p))return;const bd=p.byday[d.fecha];if(bd){ventas+=bd[1];margen+=(bd[1]-p.costo*bd[0]);}});
+  DATA.productos.forEach(p=>{if(p.nd||!passF(p))return;const bd=p.byday[DK(d)];if(bd){ventas+=bd[1];margen+=(bd[1]-p.costo*bd[0]);}});
   const per=opexPeriodo(d.iso),opexDia=(per?per.opex/30:0)*share;
   buckets[bal].push({ventas,margen,opexDia});
  });
@@ -603,9 +606,9 @@ function renderStock(){
 }
 // respeta el filtro de categoria/busqueda: passF() trabaja sobre {pos,cat,grupo}, que es lo que
 // hace falta para decidir si el producto entra — no requiere las metricas agregadas de prodView.
-function dayTotals(){const ds=rangeDias(st.desde,st.hasta),t={};ds.forEach(d=>t[d.fecha]={fecha:d.fecha,dow:d.dow,ventas:0,margen:0});
- DATA.productos.forEach(p=>{if(p.nd||!passF(p))return;ds.forEach(d=>{const bd=p.byday[d.fecha];if(bd){t[d.fecha].ventas+=bd[1];t[d.fecha].margen+=(bd[1]-p.costo*bd[0]);}});});
- return ds.map(d=>t[d.fecha]);}
+function dayTotals(){const ds=rangeDias(st.desde,st.hasta),t={};ds.forEach(d=>t[DK(d)]={fecha:d.fecha,dow:d.dow,ventas:0,margen:0});
+ DATA.productos.forEach(p=>{if(p.nd||!passF(p))return;ds.forEach(d=>{const bd=p.byday[DK(d)];if(bd){t[DK(d)].ventas+=bd[1];t[DK(d)].margen+=(bd[1]-p.costo*bd[0]);}});});
+ return ds.map(d=>t[DK(d)]);}
 function renderTrend(){
  const days=dayTotals(),host=document.getElementById('trend');
  if(!days.length){host.innerHTML='<div class="mut">Sin datos en el rango.</div>';document.getElementById('trendhint').textContent='';return;}
@@ -869,8 +872,8 @@ function consumoDia(){
   }
  });
  _cdKey=key;_cdCache=out;return out;}
-function consumoRango(){const ds=rangeDias(st.desde,st.hasta),tot={},CD=consumoDia();ds.forEach(d=>{const cd=CD[d.fecha]||{};for(const i in cd)tot[i]=(tot[i]||0)+cd[i];});return tot;}
-function consumoRepo(){const ds=rangeDias(st.desde,st.hasta);const byW={},CD=consumoDia();ds.forEach(d=>{const cd=CD[d.fecha]||{};for(const i in cd){(byW[i]||(byW[i]={}));(byW[i][d.dow]||(byW[i][d.dow]=[])).push(cd[i]);}});
+function consumoRango(){const ds=rangeDias(st.desde,st.hasta),tot={},CD=consumoDia();ds.forEach(d=>{const cd=CD[DK(d)]||{};for(const i in cd)tot[i]=(tot[i]||0)+cd[i];});return tot;}
+function consumoRepo(){const ds=rangeDias(st.desde,st.hasta);const byW={},CD=consumoDia();ds.forEach(d=>{const cd=CD[DK(d)]||{};for(const i in cd){(byW[i]||(byW[i]={}));(byW[i][d.dow]||(byW[i][d.dow]=[])).push(cd[i]);}});
  // Las noches de apertura salen del historico real, no de una lista fija: rotuladas por fecha
  // de cierre, las noches que abre el bar caen en otros dias de los que uno diria de memoria.
  const OPEN=DOWN.filter(w=>patronApertura().abre[w]),tot={};
@@ -934,7 +937,7 @@ function renderCompras(){
  document.getElementById('comprasnote').innerHTML=esRepo
   ?'Cuánto comprar para cubrir un ciclo completo de apertura ('+nOpen+' noches), ponderando el consumo por día de semana del período elegido. Las noches se cuentan por fecha de cierre. '
     +(nVig?'<b>Se resta el stock cargado</b> de los '+nVig+' insumos vigilados.':'Ningún insumo tiene stock cargado todavía — cargalo en Costos para que se descuente de lo que hay que comprar.')
-  :'Consumo real del período elegido ('+st.desde+'→'+st.hasta+'). <b>No es una lista de compras</b>: es lo que ya se consumió en esos '+calDaysRange(st.desde,st.hasta)+' días. Para saber cuánto comprar, usá "Reposición".';
+  :'Consumo real del período elegido ('+ddmmOf(st.desde)+'→'+ddmmOf(st.hasta)+'). <b>No es una lista de compras</b>: es lo que ya se consumió en esos '+calDaysRange(st.desde,st.hasta)+' días. Para saber cuánto comprar, usá "Reposición".';
  const g={};rows.forEach(r=>{(g[r.cb_cat]||(g[r.cb_cat]=[])).push(r);});
  // agrupado por rubro SIEMPRE; dentro de cada rubro, orden por columna (default = como llega
  // de comprasRows(), ya ordenado por valor desc).
@@ -1114,7 +1117,7 @@ function renderOpex(){
  const pct=ventasMes?om/ventasMes*100:0;
  filterOpex();
  const prorrNota=tt.opexProrrateado?` <b>OPEX prorrateado</b> al ${(tt.share*100).toFixed(1)}% por el filtro activo (asignación, no un costo medido de esta selección).`:'';
- document.getElementById('opexpeso').innerHTML=`<div style="font-size:13px">En el período <b>${st.desde}→${st.hasta}</b>, proyectando las ventas a un mes (${fM(ventasMes)}) contra un OPEX de ${fM(om)}/mes, el OPEX representa:</div><div class="kpi" style="margin-top:8px"><div class="v" style="font-size:26px;color:${pct>60?'var(--neg)':pct>40?'var(--accent)':'var(--pos)'}">${pct.toFixed(0)}%</div><div class="l">de las ventas</div></div><div class="legend">${or2.pend?'OPEX con '+or2.pend+' rubros en $0 (provisorio).':'OPEX completo.'}${or2.periodos.length>1?' Cruza '+or2.periodos.length+' vigencias.':''}${prorrNota}</div>`;
+ document.getElementById('opexpeso').innerHTML=`<div style="font-size:13px">En el período <b>${ddmmOf(st.desde)}→${ddmmOf(st.hasta)}</b>, proyectando las ventas a un mes (${fM(ventasMes)}) contra un OPEX de ${fM(om)}/mes, el OPEX representa:</div><div class="kpi" style="margin-top:8px"><div class="v" style="font-size:26px;color:${pct>60?'var(--neg)':pct>40?'var(--accent)':'var(--pos)'}">${pct.toFixed(0)}%</div><div class="l">de las ventas</div></div><div class="legend">${or2.pend?'OPEX con '+or2.pend+' rubros en $0 (provisorio).':'OPEX completo.'}${or2.periodos.length>1?' Cruza '+or2.periodos.length+' vigencias.':''}${prorrNota}</div>`;
 }
 // ---------- router ----------
 function renderCostos(){
@@ -1242,7 +1245,7 @@ document.getElementById('fCat').onchange=e=>{st.catgrp=e.target.value;rerender()
 document.getElementById('fSearch').oninput=e=>{st.search=e.target.value;rerender();};
 document.getElementById('cmp').onclick=()=>{st.cmp=!st.cmp;rerender();};
 document.getElementById('exs').onclick=()=>{st.exclSusp=!st.exclSusp;rerender();};
-document.getElementById('reset').onclick=()=>{st.catgrp='all';st.search='';st.desde=DIAS[0].fecha;st.hasta=DIAS[DIAS.length-1].fecha;st.cmp=false;st.exclSusp=false;st.mgF=null;st.claseF=null;rerender();};
+document.getElementById('reset').onclick=()=>{st.catgrp='all';st.search='';st.desde=DK(DIAS[0]);st.hasta=DK(DIAS[DIAS.length-1]);st.cmp=false;st.exclSusp=false;st.mgF=null;st.claseF=null;rerender();};
 document.getElementById('mReal').onclick=()=>{st.compras='real';renderCompras();};
 document.getElementById('mRepo').onclick=()=>{st.compras='repo';renderCompras();};
 document.getElementById('fCaja').onchange=e=>{const iso=e.target.value;let bi=0,bd=1e15;(DATA.cajas||[]).forEach((c,i)=>{const d=Math.abs(new Date(cajaIso(c))-new Date(iso));if(d<bd){bd=d;bi=i;}});st.ci=bi;renderCaja();};
