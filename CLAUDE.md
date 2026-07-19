@@ -320,9 +320,33 @@ Detalles: hay un diccionario `ALIAS` que mapea nombres de ingredientes de receta
 `Costo_Base`; si un ingrediente ya es un nombre exacto de `Costo_Base`, se usa directo (fallback).
 `parse_qty` interpreta cantidades (`120g`, `60 ml`, `1 unidad`, `4 lata`, `A gusto`, `1 cucharada`,
 etc.) usando la hoja de Equivalencias. Hay **supuestos documentados** (pesos de pieza para
-panes/medallón/masa/aceitunas, proxies como gin tonic con Gin Brighton, aguas 500ml). La
+panes/medallón/masa/aceitunas, aguas 500ml). La
 clasificación BCG (estrella/vaca/interrogante/perro) se calcula en el **frontend** sobre el rango
 de fechas elegido.
+
+### Trampa: ingredientes genéricos resuelven al insumo más barato
+
+La hoja `Recetas Bebidas` tiene ingredientes genéricos como `Gin (Brighton/Beefeater)`. El `ALIAS`
+los resuelve a **un** insumo concreto, y termina eligiendo el más barato. Eso hizo que durante
+meses BOMBAY y BEEFEATER se costearan con gin Brighton, y SMIRNOFF + RED BULL con energizante
+Speed. Peor: cuando el resultado *sí* era el correcto (el 2x1 lleva Brighton de verdad), lo era
+por casualidad, y un cambio de precios lo habría dado vuelta en silencio.
+
+**Si el nombre del producto dice qué marca lleva, dale receta propia en `recetas_extra.json` con
+el insumo explícito.** Nunca dejarlo colgando del genérico. Ojo con `promo_2x1`: la receta se
+escribe con la cantidad de **un** trago, el `factor` del maestro hace la multiplicación (si escribís
+la receta ya duplicada, se duplica dos veces).
+
+### Los productos `X + TÓNICA` son servicio de botella, no tragos
+
+`BOMBAY + TONICA`, `BEEFEATER + TONICA` y `BRIGHTON + TONICA` son **botella entera de gin + tónica
+de 1,5L**, no un trago de 60 ml. Venían costeados como trago suelto y daban 95% de margen contra
+precios de $45.000–$85.000. Corregidos, caen a 46–67%, en línea con los otros servicios de botella
+(BARON B 46%, SMIRNOFF + 4 ENERGIZANTES 58%).
+
+**Señal de alarma reusable:** un margen arriba del ~85% en una bebida con precio de cinco cifras
+casi siempre significa receta de trago con precio de botella. `2 X 1 GIN TONIC` ($13.000, 74%) sí
+es promo de tragos sueltos — el precio es el que delata cuál es cuál.
 
 ---
 
