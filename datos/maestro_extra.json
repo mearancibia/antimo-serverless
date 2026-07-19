@@ -388,5 +388,25 @@
   "rend": null,
   "costeo": "Receta: SMIRNOFF + RED BULL",
   "nota": "Lleva Red Bull, no Speed (confirmado por el dueño)"
+ },
+ {
+  "pos": "2 X 1 GIN TONIC",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "2x1 Gin Tonic",
+  "tipo": "promo_2x1",
+  "factor": 2,
+  "rend": null,
+  "costeo": "Receta: 2 X 1 GIN TONIC",
+  "nota": "Lleva Gin Brighton (confirmado por el dueño). Receta base de 1 trago; el factor 2 duplica."
+ },
+ {
+  "pos": "BRIGHTON + TONICA",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Brighton + Tónica",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: BRIGHTON + TONICA",
+  "nota": "Gin Brighton explícito; antes dependía de que Brighton fuera el gin más barato."
  }
 ]
