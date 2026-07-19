@@ -367,7 +367,7 @@
   "factor": 1,
   "rend": null,
   "costeo": "Receta: BOMBAY + TONICA",
-  "nota": "Gin Bombay $40.000/750ml (dato del dueño; Costo_Base tenía $32.900)"
+  "nota": "Servicio de botella: botella entera de Gin Bombay (750ml) + botella de tónica 1,5L (confirmado por el dueño). Guarnición para 6 tragos."
  },
  {
   "pos": "BEEFEATER + TONICA",
@@ -377,7 +377,7 @@
   "factor": 1,
   "rend": null,
   "costeo": "Receta: BEEFEATER + TONICA",
-  "nota": "Gin Beefeater, precio ya cargado en Costo_Base"
+  "nota": "Servicio de botella: botella entera de Gin Beefeater (700ml) + botella de tónica 1,5L (confirmado por el dueño). Guarnición para 6 tragos."
  },
  {
   "pos": "SMIRNOFF + RED BULL",
