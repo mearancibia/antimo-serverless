@@ -104,9 +104,33 @@ if "Lista de Precios" in wb.sheetnames:
         if a in _PL_APL and _PL_APL[a]!=r[2]: _apl_dup.add(a)   # ambiguo: dos precios distintos
         _PL_APL[a]=r[2]
 for a in _apl_dup: _PL_APL.pop(a,None)                          # ante la duda, no matchear
+# Equivalencias que NI el match exacto ni el aplanado pueden resolver, porque el nombre cambia
+# de verdad: typos del POS ("33O" con letra O en vez de cero, "HEINIKEN") o el Excel detalla el
+# envase y el POS no ("COCA 600CC" vs "COCA"). NO se adivinan: cada una fue confirmada por el
+# dueño y contrastada contra el precio realmente cobrado (Regla #0). La dif es contra el promedio
+# de venta al momento de mapearlas — sirve como evidencia de que son el mismo producto:
+#   CORONA 33O      137 u  $6.000 vs $6.000   0,0%
+#   COCA            600 u  $3.507 vs $3.500   0,2%
+#   SPRITE           55 u  $3.618 vs $3.500   3,4%
+#   COCA ZERO        41 u  $3.646 vs $3.500   4,2%
+#   FANTA            13 u  $3.731 vs $3.500   6,6%
+#   HEINIKEN CHICA   13 u  $4.692 vs $7.000 -33,0%  <- typo claro, pero vendió una sola noche
+#                                                      (07-06) con precio promocional. Se mapea
+#                                                      igual: esa brecha es justo lo que la
+#                                                      columna "Lista" está para mostrar.
+PRECIO_LISTA_ALIAS={
+    norm("CORONA 33O"):     norm("CORONA 330"),
+    norm("COCA"):           norm("COCA 600CC"),
+    norm("SPRITE"):         norm("SPRITE 600CC"),
+    norm("COCA ZERO"):      norm("COCA ZERO 600CC"),
+    norm("FANTA"):          norm("FANTA 600CC"),
+    norm("HEINIKEN CHICA"): norm("HEINEKEN CHICA"),
+}
 def precio_lista_de(k):
     """precio de lista de un producto por su key. None si no hay match seguro."""
     if k in PRECIO_LISTA: return PRECIO_LISTA[k]                # exacto (incluye overrides)
+    al=PRECIO_LISTA_ALIAS.get(k)                                # equivalencia confirmada
+    if al is not None and al in PRECIO_LISTA: return PRECIO_LISTA[al]
     return _PL_APL.get(_aplanar(k))                             # aplanado, solo si es inequívoco
 EQUI = {"cucharada":(12,"g"),"bocha":(60,"g"),"hoja":(0.5,"g"),"gajo":(15,"g"),"rodaja":(12,"g"),
         "medida":(60,"ml"),"trago":(60,"ml"),"shot":(45,"ml"),"lata red bull":(250,"ml"),

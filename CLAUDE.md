@@ -175,13 +175,27 @@ reemplaza.
    `"FERNET+COCA"`, `"CUMPLEANOS"`↔`"CUMPLEAÑOS"`. Si dos filas del Excel se aplanan al mismo
    texto con **precios distintos**, se descarta el match (ambiguo) en vez de elegir uno.
 
-Lo que el paso 2 deliberadamente **NO** empareja, porque podrían ser productos distintos y eso lo
-decide el dueño: `"CORONA 330"` vs `"CORONA 33O"` (cero vs letra O), `"COCA 600CC"` vs `"COCA"`,
-`"HEINEKEN CHICA"` vs `"HEINIKEN CHICA"` (typo), `"SPRITE 600CC"` vs `"SPRITE"`. Esos quedan sin
-precio hasta que se carguen a mano desde la app (o se corrija el nombre en el Excel/POS).
-Resultado sobre los datos reales: 90 de 109 productos con precio (79 con match exacto solo).
+3. Si tampoco, por **equivalencia explícita** (`PRECIO_LISTA_ALIAS`): casos donde el nombre cambia
+   de verdad y ningún algoritmo puede resolverlos sin adivinar — typos del POS (`"CORONA 33O"` con
+   letra O en vez de cero, `"HEINIKEN CHICA"`) o el Excel detalla el envase y el POS no
+   (`"COCA 600CC"`↔`"COCA"`). **Cada entrada fue confirmada por el dueño y contrastada contra el
+   precio realmente cobrado** antes de agregarla; la evidencia quedó en el comentario del dict.
+   Para agregar una nueva, hacer lo mismo: comparar `precio_lista` contra el promedio real de
+   venta. Si coinciden (0-7%), es el mismo producto; si no, preguntar antes de mapear.
+
+Resultado sobre los datos reales: **96 de 109** productos con precio (79 solo con match exacto,
+90 sumando el aplanado, 96 con las equivalencias). Lo que queda sin precio son productos que
+nunca estuvieron en la hoja (shots, Redbull, Speed, Tónica, Rabas) o los N/D.
+
 ⚠️ Caso especial sin resolver: el Excel tiene `Gin Aconcagua` ($9.500) **y** `GIN ACONCAGUA VASO`
 ($9.000) como líneas separadas, pero `UNIFICAR` fusiona ambos en un producto — hoy gana $9.500.
+Resolverlo implica dejar de unificarlos, lo que cambiaría las ventas históricas de ese producto:
+es una decisión del dueño, no un bug.
+
+Ojo con no confundir dos cosas: **mapear** (decidir que dos nombres son el mismo producto) es
+distinto de que **los precios coincidan**. `HEINIKEN CHICA` está bien mapeado y aun así muestra
+−33% — vendió sus 13 unidades una sola noche a precio promocional. Esa brecha es exactamente lo
+que la columna "Lista" está para mostrar, no un error de mapeo.
 
 En Rentabilidad y Recetas se muestra junto al promedio real (`fPrecioLista()`),
 resaltado en naranja cuando difiere más de `PRECIO_LISTA_UMBRAL` (5%) — eso puede señalar un
