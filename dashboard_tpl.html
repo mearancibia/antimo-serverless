@@ -170,7 +170,13 @@ const CLAB={ESTRELLA:'★',VACA:'🐄',INTERROGANTE:'❓',PERRO:'🐕'};
 const FOODCATS=['HAMBURGUESAS Y SANDWICH','PARA PICAR Y PAPAS','PIZZAS','ENSALADAS','SIN TACC Y VEGGIE','POSTRES'];
 const isFood=c=>FOODCATS.includes((c||'').toUpperCase());
 const f0=n=>'$'+Math.round(n||0).toLocaleString('es-AR');
-const esc=s=>(''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+// Escapa TODO texto que no controla la app (nombres del POS, comentarios de retiros del Excel
+// o de la API) antes de meterlo en innerHTML. Cubre > y ' además de & < ": la comilla simple
+// hace falta porque hay atributos armados con comillas simples, y > por los casos donde el
+// texto cae dentro de un atributo ya abierto.
+const esc=s=>(''+(s==null?'':s))
+ .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+ .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 // ----- precios sospechosos (POS mal cargado) -----
 // El umbral SUGIERE; solo el dueño confirma. Ninguna marca cambia un costo ni un margen:
 // los KPIs y el P&L siempre incluyen todo. La marca solo etiqueta y, si se pide, saca de rankings.
@@ -327,7 +333,10 @@ function colaSinDatos(){const p=patronApertura(),ult=DIAS[DIAS.length-1].iso,hoy
 function rangeDias(a,b){const ia=ISO[a],ib=ISO[b];return DIAS.filter(d=>d.iso>=ia&&d.iso<=ib);}
 function snapD(iso){const c=DIAS.filter(d=>d.iso>=iso);return DK(c[0]||DIAS[DIAS.length-1]);}
 function snapH(iso){const c=DIAS.filter(d=>d.iso<=iso);return DK(c[c.length-1]||DIAS[0]);}
-function cajaIso(c){if(c.iso)return c.iso;if(ISO[c.fecha])return ISO[c.fecha];if(c.fecha_key){const m=(''+c.fecha_key).match(/(\d{2})\/(\d{2})\/(\d{4})/);if(m)return m[3]+'-'+m[2]+'-'+m[1];}const p=(''+(c.fecha||'')).split('-');return p.length>=2?('2026-'+p[1]+'-'+p[0]):'';}
+// Si el DD-MM no resuelve contra ISO[], NO se inventa el año: se devuelve '' y la caja queda
+// sin cruzar (visible), en vez de cruzarse contra el año equivocado (silencioso). Acá había un
+// '2026' hardcodeado que sobrevivió a la migración a ISO y rompía solo a partir de 2027.
+function cajaIso(c){if(c.iso)return c.iso;if(ISO[c.fecha])return ISO[c.fecha];if(c.fecha_key){const m=(''+c.fecha_key).match(/(\d{2})\/(\d{2})\/(\d{4})/);if(m)return m[3]+'-'+m[2]+'-'+m[1];}return '';}
 function calDaysRange(a,b){const ia=ISO[a],ib=ISO[b];return Math.max(1,Math.round((new Date(ib)-new Date(ia))/864e5)+1);}
 // ----- OPEX con vigencias -----
 // Cada dia usa el OPEX que regia ESE dia: un periodo que cruza un cambio de vigencia
@@ -390,7 +399,10 @@ function totals(a,b){const ds=rangeDias(a,b);
          ticket,comensales:com,cajaVentas:tv,opexProrrateado:filtrado,share};}
 function prevRange(a,b){const n=calDaysRange(a,b);const ia=new Date(ISO[a]);const pe=new Date(ia);pe.setDate(pe.getDate()-1);const psD=new Date(pe);psD.setDate(psD.getDate()-(n-1));
  const psIso=psD.toISOString().slice(0,10),peIso=pe.toISOString().slice(0,10);
- const inr=DIAS.filter(d=>d.iso>=psIso&&d.iso<=peIso);if(!inr.length)return null;return {a:inr[0].fecha,b:inr[inr.length-1].fecha};}
+ // Devuelve la CLAVE del dia (ISO), no la etiqueta d.fecha: totals()/rangeDias() indexan por
+ // ISO[...]. Devolviendo "04-06" el lookup daba undefined, el periodo anterior quedaba en 0
+ // ventas y las cuatro flechas de comparacion de los KPIs mostraban "—" en vez del %.
+ const inr=DIAS.filter(d=>d.iso>=psIso&&d.iso<=peIso);if(!inr.length)return null;return {a:DK(inr[0]),b:DK(inr[inr.length-1])};}
 const delta=(c,p)=>(p==null||p===0)?null:(c-p)/Math.abs(p)*100;
 const dchip=(d)=>d==null?'<span class="mut">—</span>':`<span class="${d>=0?'up':'down'}">${d>=0?'▲':'▼'} ${Math.abs(d).toFixed(0)}%</span>`;
 
@@ -545,17 +557,17 @@ function renderAlerts(){
  // curItemsBase, no curItems: las alertas viven en Resumen y no deben cambiar por mgF/claseF,
  // que son filtros de la solapa Rentabilidad (si no, Resumen vuelve a responder a medias).
  const v=curItemsBase(),ci=v.filter(x=>!x.nd),A=[];
- ci.filter(x=>x.mgu<0).sort((a,b)=>a.mgu-b.mgu).slice(0,2).forEach(x=>A.push(['#c85a54','📉',`${x.pos} pierde ${f0(-x.mgu)}/u`,`${x.u} vendidas · ${x.mgpct}%. Subí precio o revisá receta.`]));
+ ci.filter(x=>x.mgu<0).sort((a,b)=>a.mgu-b.mgu).slice(0,2).forEach(x=>A.push(['#c85a54','📉',`${esc(x.pos)} pierde ${f0(-x.mgu)}/u`,`${x.u} vendidas · ${x.mgpct}%. Subí precio o revisá receta.`]));
  const stkCrit=stockList().filter(c=>c.critico).sort((a,b)=>(a.nochesHastaQuiebre??999)-(b.nochesHastaQuiebre??999));
  stkCrit.slice(0,2).forEach(c=>{const cuando=c.nochesHastaQuiebre===0?'YA':`${DOWN[dOf(c.fechaQuiebre).getDay()]} ${ddmmOf(c.fechaQuiebre)} (en ${c.nochesHastaQuiebre}n)`;
-  A.push(['#c85a54','📦',`${c.insumo}: se agota ${cuando}`,`Quedan ${fRestante(c)} u. (${DATA.insumos[c.insumo].present||''} c/u). Último conteo hace ${c.diasDesdeConteo}d.`]);});
+  A.push(['#c85a54','📦',`${esc(c.insumo)}: se agota ${cuando}`,`Quedan ${fRestante(c)} u. (${DATA.insumos[c.insumo].present||''} c/u). Último conteo hace ${c.diasDesdeConteo}d.`]);});
  const days=dayTotals();if(days.length){const b=days.slice().sort((a,b)=>b.ventas-a.ventas)[0];A.push(['#4a9d7f','🏆',`Mejor día: ${b.dow} ${b.fecha}`,`${f0(b.ventas)} · ${f0(b.margen)} de margen.`]);}
  const nd=v.filter(x=>x.nd);if(nd.length){A.push(['#e8a54a','❓',`${nd.length} productos sin costear (${fM(nd.reduce((s,x)=>s+x.monto,0))})`,`Ver pestaña Caja › N/D.`]);}
  // se calcula aparte de curItems(): si el toggle los excluye, la alerta igual tiene que verse
  const sp=suspRango();
  if(sp.si.length)A.push(['#e8834a','⚠️',`${sp.si.length} con precio sospechoso (${fM(sp.si.reduce((s,x)=>s+x.mgtot,0))} de margen)`,`Ese margen no es confiable. ${st.exclSusp?'Están excluidos de tabla, matriz y alertas.':'Usá "Sin sospechosos" para sacarlos de los rankings.'} Los KPIs y el P&L los siguen incluyendo.`]);
  if(sp.sug.length)A.push(['#e8a54a','🔎',`${sp.sug.length} con margen ≥${SUSP_THR}% sin revisar`,`Puede ser el precio del POS o el costo del insumo. Abrilos y confirmá o descartá.`]);
- const vaca=ci.filter(x=>x.clase==='VACA'&&x.mgpct<40).sort((a,b)=>b.u-a.u)[0];if(vaca)A.push(['#5a8fd6','⚖️',`${vaca.pos}: mucho volumen, margen ${vaca.mgpct}%`,`Oportunidad de mejorar precio.`]);
+ const vaca=ci.filter(x=>x.clase==='VACA'&&x.mgpct<40).sort((a,b)=>b.u-a.u)[0];if(vaca)A.push(['#5a8fd6','⚖️',`${esc(vaca.pos)}: mucho volumen, margen ${vaca.mgpct}%`,`Oportunidad de mejorar precio.`]);
  document.getElementById('alerts').innerHTML=A.slice(0,6).map(a=>`<div class="alert" style="border-left-color:${a[0]}"><div class="ai">${a[1]}</div><div><div class="at">${a[2]}</div><div class="as">${a[3]}</div></div></div>`).join('');
 }
 function renderCompletitud(){
@@ -652,7 +664,7 @@ function renderRent(){
  const cols=[['pos','Producto'],['u','U'],['pv','Prom. venta'],['precioLista','Lista'],['costo','Costo'],['mgpct','Mg%'],['mgtot','Mg total']];
  v.sort((a,b)=>{const k=st.sort;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*st.dir;});
  let h='<tr>'+cols.map(c=>`<th class="${c[0]==='pos'?'':'n'}" data-k="${c[0]}">${c[1]}${st.sort===c[0]?(st.dir<0?' ▾':' ▴'):''}</th>`).join('')+'</tr>';
- v.forEach((x,i)=>{h+=`<tr class="clik" data-i="${i}"><td><span style="color:${CLCOL[x.clase]}" title="${x.clase}">${CLAB[x.clase]}</span> ${x.pos}${suspBadge(x)}</td><td class="n">${x.u}<span class="ubar" style="width:${(x.u/maxU*26).toFixed(0)}px"></span></td><td class="n">${f0(x.pv)}</td><td class="n">${fPrecioLista(x.precioLista,x.pv,x.key)}</td><td class="n">${f0(x.costo)}</td><td class="n" style="${mgColor(x.mgpct)}">${x.mgpct}%</td><td class="n">${f0(x.mgtot)}</td></tr>`;});
+ v.forEach((x,i)=>{h+=`<tr class="clik" data-i="${i}"><td><span style="color:${CLCOL[x.clase]}" title="${esc(x.clase)}">${CLAB[x.clase]}</span> ${esc(x.pos)}${suspBadge(x)}</td><td class="n">${x.u}<span class="ubar" style="width:${(x.u/maxU*26).toFixed(0)}px"></span></td><td class="n">${f0(x.pv)}</td><td class="n">${fPrecioLista(x.precioLista,x.pv,x.key)}</td><td class="n">${f0(x.costo)}</td><td class="n" style="${mgColor(x.mgpct)}">${x.mgpct}%</td><td class="n">${f0(x.mgtot)}</td></tr>`;});
  const t=document.getElementById('tRent');t.innerHTML=h;window._rentV=v;
  t.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(st.sort===k)st.dir*=-1;else{st.sort=k;st.dir=k==='pos'?1:-1;}renderRent();});
  t.querySelectorAll('tr.clik').forEach(tr=>tr.onclick=()=>showModal(window._rentV[+tr.dataset.i],false));
@@ -684,13 +696,13 @@ const RUNITS=[['g','g (gramos)'],['ml','ml'],['unidad','unidad'],['lata','lata']
 const EDINP='background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 6px';
 function parseQ(q){q=(''+(q||'')).trim();const m=q.match(/^([\d.,]+)\s*(.*)$/);if(!m)return{num:'',unit:(q.toLowerCase()||'g')};let u=(m[2]||'').toLowerCase().trim();if(['g','gr','grs','gramos'].includes(u))u='g';else if(['ml','cc'].includes(u))u='ml';else if(['unidad','unidades','u','uni'].includes(u))u='unidad';else if(u.indexOf('lata')===0)u='lata';else if(!u)u='g';return{num:m[1].replace(',','.'),unit:u};}
 function unitSel(u){const has=RUNITS.some(x=>x[0]===u);const o=(!has&&u?`<option value="${u}" selected>${u}</option>`:'')+RUNITS.map(x=>`<option value="${x[0]}"${x[0]===u?' selected':''}>${x[1]}</option>`).join('');return `<select class="edu" style="${EDINP}">${o}</select>`;}
-function rowR(ing,qty){const p=parseQ(qty);return `<tr><td><input class="edn" list="inslist" value="${(''+(ing||'')).replace(/"/g,'&quot;')}" style="${EDINP};width:180px"></td><td class="n"><input class="edq" type="number" step="any" value="${p.num}" style="${EDINP};width:70px;text-align:right"></td><td>${unitSel(p.unit)}</td><td><span class="rmrow" style="cursor:pointer;color:var(--neg)">✕</span></td></tr>`;}
-function rowComp(ins,cant,un){return `<tr><td><input class="cin" list="inslist" value="${(''+(ins||'')).replace(/"/g,'&quot;')}" style="${EDINP};width:180px"></td><td class="n"><input class="cq" type="number" step="any" value="${cant||1}" style="${EDINP};width:70px;text-align:right"></td><td><select class="cu" style="${EDINP}"><option value="ml"${un==='ml'?' selected':''}>ml</option><option value="lata"${un==='lata'?' selected':''}>lata</option></select></td><td><span class="rmrow" style="cursor:pointer;color:var(--neg)">✕</span></td></tr>`;}
+function rowR(ing,qty){const p=parseQ(qty);return `<tr><td><input class="edn" list="inslist" value="${esc(''+(ing||''))}" style="${EDINP};width:180px"></td><td class="n"><input class="edq" type="number" step="any" value="${p.num}" style="${EDINP};width:70px;text-align:right"></td><td>${unitSel(p.unit)}</td><td><span class="rmrow" style="cursor:pointer;color:var(--neg)">✕</span></td></tr>`;}
+function rowComp(ins,cant,un){return `<tr><td><input class="cin" list="inslist" value="${esc(''+(ins||''))}" style="${EDINP};width:180px"></td><td class="n"><input class="cq" type="number" step="any" value="${cant||1}" style="${EDINP};width:70px;text-align:right"></td><td><select class="cu" style="${EDINP}"><option value="ml"${un==='ml'?' selected':''}>ml</option><option value="lata"${un==='lata'?' selected':''}>lata</option></select></td><td><span class="rmrow" style="cursor:pointer;color:var(--neg)">✕</span></td></tr>`;}
 function collectIngs(bodyId){return [...document.querySelectorAll('#'+bodyId+' tr')].map(tr=>({n:tr.querySelector('.edn').value.trim(),q:(tr.querySelector('.edq').value||'').trim(),u:tr.querySelector('.edu').value})).filter(r=>r.n&&(r.q!==''||r.u==='a gusto')).map(r=>[r.n,r.u==='a gusto'?'A gusto':(r.q+' '+r.u)]);}
 function rewireRm(host){host.querySelectorAll('.rmrow').forEach(el=>el.onclick=()=>el.closest('tr').remove());}
 function showModal(x,allowEdit){
- let rows='';(x.breakdown||[]).forEach(b=>{rows+=`<tr><td>${b.insumo}</td><td class="n">${b.qty} ${b.unidad}</td><td class="n">${f0(b.cxu)}</td><td class="n">${f0(b.sub)}</td></tr>`;});
- const insOpts=Object.keys(DATA.insumos||{}).sort().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+ let rows='';(x.breakdown||[]).forEach(b=>{rows+=`<tr><td>${esc(b.insumo)}</td><td class="n">${b.qty} ${esc(b.unidad)}</td><td class="n">${f0(b.cxu)}</td><td class="n">${f0(b.sub)}</td></tr>`;});
+ const insOpts=Object.keys(DATA.insumos||{}).sort().map(n=>`<option value="${esc(n)}">`).join('');
  let editHtml='';
  if(allowEdit&&APP&&x.editable&&x.receta_ings){
   const body=x.receta_ings.map(ig=>rowR(ig[0],ig[1])).join('');
@@ -714,8 +726,8 @@ function showModal(x,allowEdit){
     <button class="btn on" id="savePour">Guardar</button>
    </div>`;
  } else if(allowEdit&&APP&&!x.nd&&x.tipo&&x.tipo!=='receta'&&x.tipo!=='promo_2x1'&&x.tipo!=='combo'){
-  editHtml=`<div class="legend" style="margin-top:12px">Este producto se costea como <b>${x.tipo}</b> (un solo insumo). Para cambiar su costo, editá el precio del insumo en la solapa <b>Costos</b>.</div>`;
- } else if(allowEdit&&APP&&x.nd){editHtml=`<div class="warn" style="margin-top:12px">Sin datos. ${x.falta||''} ${x.donde||''}</div>`;}
+  editHtml=`<div class="legend" style="margin-top:12px">Este producto se costea como <b>${esc(x.tipo)}</b> (un solo insumo). Para cambiar su costo, editá el precio del insumo en la solapa <b>Costos</b>.</div>`;
+ } else if(allowEdit&&APP&&x.nd){editHtml=`<div class="warn" style="margin-top:12px">Sin datos. ${esc(x.falta||'')} ${esc(x.donde||'')}</div>`;}
  // control de precio sospechoso: disponible siempre que la app esté viva y el producto tenga margen,
  // tambien desde Rentabilidad (que es donde se ve el margen raro).
  let suspHtml='';
@@ -729,12 +741,12 @@ function showModal(x,allowEdit){
    <button class="btn" id="spSi">⚠️ Marcar sospechoso</button> <button class="btn" id="spNo">✓ Está bien cargado</button>${raw?' <button class="btn" id="spClr">Quitar marca</button>':''}
    <div class="legend" style="margin-top:6px">Marcarlo no cambia ningún costo ni el P&L: solo lo etiqueta y permite sacarlo de los rankings.</div></div>`;}
  const html=`<div class="ovl" id="ovl"><div class="modal"><span class="mclose" id="mx">✕</span>
-  <h2><span style="color:${CLCOL[x.clase]||'#888'}">${CLAB[x.clase]||''}</span> ${x.pos}</h2>
-  <div class="mut" style="font-size:12px">${x.cat} · ${x.tipo||''} · ${x.u} vendidas en el período</div>
+  <h2><span style="color:${CLCOL[x.clase]||'#888'}">${CLAB[x.clase]||''}</span> ${esc(x.pos)}</h2>
+  <div class="mut" style="font-size:12px">${esc(x.cat)} · ${esc(x.tipo||'')} · ${x.u} vendidas en el período</div>
   ${x.nd?'':`<div class="mini" style="grid-template-columns:repeat(3,1fr)"><div><span class="ml">Prom. venta</span><div class="mv">${f0(x.pv)}</div></div><div><span class="ml">Costo</span><div class="mv">${f0(x.costo)}</div></div><div><span class="ml">Margen</span><div class="mv" style="color:${x.mgu<0?'var(--neg)':'var(--pos)'}">${f0(x.mgu)} (${x.mgpct}%)</div></div></div>
   <div class="h3" style="margin-top:14px">Desglose de costo (por unidad)</div>
   <table><tr><th>Insumo</th><th class="n">Cantidad</th><th class="n">$/unidad</th><th class="n">Subtotal</th></tr>${rows||'<tr><td colspan=4 class="mut">Sin receta.</td></tr>'}<tr style="font-weight:700"><td>Costo total</td><td></td><td></td><td class="n">${f0(x.costo)}</td></tr></table>`}
-  ${x.nota&&!x.nd?`<div class="warn" style="margin-top:10px">⚠️ ${x.nota}</div>`:''}
+  ${x.nota&&!x.nd?`<div class="warn" style="margin-top:10px">⚠️ ${esc(x.nota)}</div>`:''}
   ${suspHtml}
   ${editHtml}
   ${allowEdit&&!APP?'<div class="legend" style="margin-top:8px">Abrí la app (run_ANTIMO_app) para editar.</div>':''}
@@ -823,7 +835,7 @@ function renderBCG(){
 function renderCat(){
  const v=curItems().filter(x=>!x.nd),m={};v.forEach(x=>{const d=m[x.cat]||(m[x.cat]={u:0,i:0,mg:0});d.u+=x.u;d.i+=x.monto;d.mg+=x.mgtot;});
  document.getElementById('tCat').innerHTML='<tr><th>Categoría</th><th class="n">U</th><th class="n">Ventas</th><th class="n">Mg%</th><th class="n">Margen</th></tr>'+
-  Object.entries(m).sort((a,b)=>b[1].mg-a[1].mg).map(([c,d])=>`<tr><td>${isFood(c)?'🍔':'🍹'} ${c}</td><td class="n">${d.u}</td><td class="n">${fM(d.i)}</td><td class="n" style="${mgColor(d.i?d.mg/d.i*100:0)}">${d.i?(d.mg/d.i*100).toFixed(1):0}%</td><td class="n">${fM(d.mg)}</td></tr>`).join('');
+  Object.entries(m).sort((a,b)=>b[1].mg-a[1].mg).map(([c,d])=>`<tr><td>${isFood(c)?'🍔':'🍹'} ${esc(c)}</td><td class="n">${d.u}</td><td class="n">${fM(d.i)}</td><td class="n" style="${mgColor(d.i?d.mg/d.i*100:0)}">${d.i?(d.mg/d.i*100).toFixed(1):0}%</td><td class="n">${fM(d.mg)}</td></tr>`).join('');
 }
 
 function renderRecetas(){
@@ -839,10 +851,10 @@ function renderRecetas(){
  window._recList=list;
  let h='<tr>'+thS('Producto','pos',st.rSort,st.rDir,false)+thS('Tipo','tipo',st.rSort,st.rDir,false)+thS('Costo','costo',st.rSort,st.rDir,true)+thS('Prom. venta','pv',st.rSort,st.rDir,true)+thS('Lista','precio_lista',st.rSort,st.rDir,true)+thS('Mg%','mgpct',st.rSort,st.rDir,true)+'<th></th></tr>';
  let cc='';
- list.forEach((p,i)=>{if(p.cat!==cc){cc=p.cat;h+=`<tr class="grpsub"><td colspan="7">${isFood(p.cat)?'🍔':'🍹'} ${p.cat}</td></tr>`;}
+ list.forEach((p,i)=>{if(p.cat!==cc){cc=p.cat;h+=`<tr class="grpsub"><td colspan="7">${isFood(p.cat)?'🍔':'🍹'} ${esc(p.cat)}</td></tr>`;}
   const editable=!p.nd&&(p.tipo==='receta'||p.tipo==='promo_2x1'||p.tipo==='combo'||p.tipo==='pour');
   const btn=editable?`<button class="btn ${APP?'on':''}" data-i="${i}" style="padding:3px 9px"${APP?'':' disabled'}>✏️ Editar</button>`:`<button class="btn" data-i="${i}" style="padding:3px 9px">👁 Ver</button>`;
-  h+=`<tr><td>${p.pos}${suspBadge(p)}</td><td class="mut">${p.nd?'sin datos':p.tipo}</td><td class="n">${p.nd?'—':f0(p.costo)}</td><td class="n">${f0(p.pv||0)}</td><td class="n">${fPrecioLista(p.precio_lista,p.pv,p.key)}</td><td class="n" style="${p.nd?'':mgColor(p.mgpct)}">${p.nd?'—':(p.mgpct+'%')}</td><td>${btn}</td></tr>`;});
+  h+=`<tr><td>${esc(p.pos)}${suspBadge(p)}</td><td class="mut">${p.nd?'sin datos':esc(p.tipo)}</td><td class="n">${p.nd?'—':f0(p.costo)}</td><td class="n">${f0(p.pv||0)}</td><td class="n">${fPrecioLista(p.precio_lista,p.pv,p.key)}</td><td class="n" style="${p.nd?'':mgColor(p.mgpct)}">${p.nd?'—':(p.mgpct+'%')}</td><td>${btn}</td></tr>`;});
  document.getElementById('tRecetas').innerHTML=h;
  document.querySelectorAll('#tRecetas button[data-i]').forEach(b=>b.onclick=()=>showModal(window._recList[+b.dataset.i],true));
  if(APP)document.querySelectorAll('#tRecetas .plin').forEach(inp=>inp.onchange=()=>apiPost('/api/precio_lista',{key:inp.dataset.key,precio:inp.value===''?0:+inp.value}));
@@ -909,7 +921,7 @@ function comprasRows(){
 function comprasCols(esRepo){
  const cols=[
   {tit:'Insumo',sortK:'insumo',num:false,val:r=>r.insumo,
-   celda:r=>(r.compartido?'<span class="tag" style="background:var(--accent)"></span>':'')+r.insumo},
+   celda:r=>(r.compartido?'<span class="tag" style="background:var(--accent)"></span>':'')+esc(r.insumo)},
   {tit:esRepo?'Necesito':'Consumo',sortK:'envc',num:true,val:r=>r.envc,celda:r=>r.envc+' u'},
  ];
  if(esRepo)cols.push(
@@ -919,7 +931,7 @@ function comprasCols(esRepo){
    celda:r=>{const cubierto=r.comprar===0&&r.tengo!=null;
     return `<span style="font-weight:600${cubierto?';color:var(--pos)':''}">${cubierto?'✓ cubierto':r.comprar+' u'}</span>`;}});
  cols.push(
-  {tit:'Presentación',sortK:null,num:false,val:r=>r.present,celda:r=>`<span class="mut">${r.present}</span>`},
+  {tit:'Presentación',sortK:null,num:false,val:r=>r.present,celda:r=>`<span class="mut">${esc(r.present)}</span>`},
   {tit:esRepo?'Valor a comprar':'Valor consumido',sortK:esRepo?'valorComprar':'valor',num:true,
    val:r=>esRepo?r.valorComprar:r.valor,celda:r=>f0(esRepo?r.valorComprar:r.valor)});
  return cols;
@@ -945,7 +957,7 @@ function renderCompras(){
  const cols=comprasCols(esRepo),ult=cols.length-1;
  let h='<tr>'+cols.map(c=>thS(c.tit,c.sortK,st.cpSort,st.cpDir,c.num)).join('')+'</tr>';
  Object.keys(g).sort().forEach(cat=>{const sub=g[cat].reduce((s,r)=>s+(esRepo?r.valorComprar:r.valor),0);
-  h+=`<tr class="grpsub"><td colspan="${ult}">${cat}</td><td class="n">${f0(sub)}</td></tr>`;
+  h+=`<tr class="grpsub"><td colspan="${ult}">${esc(cat)}</td><td class="n">${f0(sub)}</td></tr>`;
   g[cat].forEach(r=>{h+='<tr>'+cols.map(c=>`<td class="${c.num?'n':''}">${(c.celda||c.val)(r)}</td>`).join('')+'</tr>';});});
  document.getElementById('tPar').innerHTML=h;
  wireSort(document.getElementById('tPar'),'cpSort','cpDir',renderCompras,k=>k==='insumo');
@@ -1025,10 +1037,10 @@ function renderCaja(){
  const tk=(c.comensales&&c.total_vendido)?f0(c.total_vendido/c.comensales):'—';
  const dr=(c.detalle_retiros||[]).map(x=>Array.isArray(x)?{concepto:x[0],monto:x[1],user:'',hora:''}:x);
  const dd=(c.detalle_descuentos||[]).map(x=>Array.isArray(x)?{concepto:x[0],monto:x[1],user:'',hora:''}:x);
- let retTab=dr.length?`<div class="h3" style="margin-top:12px">Retiros (${dr.length})</div><table><tr><th>Concepto</th><th>Operador</th><th>Hora</th><th class="n">Monto</th></tr>`+dr.map(r=>`<tr><td>${r.concepto||'—'}</td><td class="mut">${r.user||'—'}</td><td class="mut">${r.hora||'—'}</td><td class="n neg">${f0(r.monto)}</td></tr>`).join('')+'</table>':'';
- let descTab=dd.length?`<div class="h3" style="margin-top:12px">Descuentos (${dd.length})</div><table><tr><th>Concepto</th><th>Operador</th><th>Hora</th><th class="n">Monto</th></tr>`+dd.map(r=>`<tr><td>${r.concepto||'—'}</td><td class="mut">${r.user||'—'}</td><td class="mut">${r.hora||'—'}</td><td class="n neg">${f0(r.monto)}</td></tr>`).join('')+'</table>':'';
+ let retTab=dr.length?`<div class="h3" style="margin-top:12px">Retiros (${dr.length})</div><table><tr><th>Concepto</th><th>Operador</th><th>Hora</th><th class="n">Monto</th></tr>`+dr.map(r=>`<tr><td>${esc(r.concepto||'—')}</td><td class="mut">${esc(r.user||'—')}</td><td class="mut">${esc(r.hora||'—')}</td><td class="n neg">${f0(r.monto)}</td></tr>`).join('')+'</table>':'';
+ let descTab=dd.length?`<div class="h3" style="margin-top:12px">Descuentos (${dd.length})</div><table><tr><th>Concepto</th><th>Operador</th><th>Hora</th><th class="n">Monto</th></tr>`+dd.map(r=>`<tr><td>${esc(r.concepto||'—')}</td><td class="mut">${esc(r.user||'—')}</td><td class="mut">${esc(r.hora||'—')}</td><td class="n neg">${f0(r.monto)}</td></tr>`).join('')+'</table>':'';
  const noUser=dr.length&&!dr.some(r=>r.user)?'<div class="legend">Para ver operador y hora en cada movimiento, volvé a correr el conector (versión nueva).</div>':'';
- el.innerHTML=`<div class="mut">Noche del <b>${c.fecha}</b> · ${cajas.length} cierres.</div>
+ el.innerHTML=`<div class="mut">Noche del <b>${esc(c.fecha)}</b> · ${cajas.length} cierres.</div>
   <div class="mini"><div><span class="ml">Total vendido</span><div class="mv">${R(c.total_vendido)}</div></div><div><span class="ml">Efectivo</span><div class="mv">${R(c.efectivo)}</div></div><div><span class="ml">Tarjetas</span><div class="mv">${R(c.tarjetas)}</div></div><div><span class="ml">QR</span><div class="mv">${R(c.qr)}</div></div></div>
   <div class="mini" style="margin-top:1px"><div><span class="ml">Descuentos</span><div class="mv" style="color:var(--neg)">${R(c.descuentos)}</div></div><div><span class="ml">Retiros</span><div class="mv" style="color:var(--neg)">${R(c.retiros)}</div></div><div><span class="ml">Comensales</span><div class="mv">${c.comensales!=null?c.comensales:'—'}</div></div><div><span class="ml">Ticket prom.</span><div class="mv">${tk}</div></div></div>
   ${retTab}${descTab}${noUser}`;
@@ -1036,7 +1048,7 @@ function renderCaja(){
 // curItemsBase: la solapa Caja es ajena a mgF/claseF (filtros de análisis de Rentabilidad)
 function renderND(){const nd=curItemsBase().filter(v=>v.nd);
  let h='<tr><th>Producto</th><th class="n">U</th><th class="n">Facturado</th><th>Qué falta</th><th>Dónde cargarlo</th></tr>';
- nd.forEach(x=>{h+=`<tr><td>${x.pos}</td><td class="n">${x.u}</td><td class="n">${f0(x.monto)}</td><td>${x.falta||x.motivo}</td><td class="mut">${x.donde||''}</td></tr>`;});
+ nd.forEach(x=>{h+=`<tr><td>${esc(x.pos)}</td><td class="n">${x.u}</td><td class="n">${f0(x.monto)}</td><td>${esc(x.falta||x.motivo)}</td><td class="mut">${esc(x.donde||'')}</td></tr>`;});
  document.getElementById('tND').innerHTML=h;}
 
 // ---------- OPEX ----------
@@ -1047,7 +1059,7 @@ function vigSel(){const ps=DATA.opex_periodos||[];if(!ps.length)return null;
 function filterOpex(){
  const _v=vigSel();const det=_v?_v.opex_detalle:[];const cat=st.opCat||'all',q=(st.opSearch||'').toLowerCase();
  const catF=document.getElementById('opCatF');
- if(catF){const cats=[...new Set(det.map(r=>r.cat))].sort();catF.innerHTML='<option value="all">Todas las categorías</option>'+cats.map(c=>`<option value="${(c||'').replace(/"/g,'&quot;')}">${c}</option>`).join('');catF.value=cat;}
+ if(catF){const cats=[...new Set(det.map(r=>r.cat))].sort();catF.innerHTML='<option value="all">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c||'')}">${c}</option>`).join('');catF.value=cat;}
  const sf=document.getElementById('opSearchF');if(sf&&sf.value!==st.opSearch)sf.value=st.opSearch;
  document.querySelectorAll('#tOpex tr[data-cat]').forEach(tr=>{const c=tr.getAttribute('data-cat'),it=tr.getAttribute('data-item');
   let show=(cat==='all'||c===cat);
@@ -1085,8 +1097,8 @@ function renderOpex(){
  const ok=st.oxSort,od=st.oxDir;
  if(APP){
   const cats=[...new Set(det.map(r=>r.cat))].sort();
-  const catOpts=cats.map(c=>`<option value="${(c||'').replace(/"/g,'&quot;')}">`).join('');
-  const row=r=>`<tr class="opr" data-cat="${(r.cat||'').replace(/"/g,'&quot;')}" data-item="${(r.item||'').replace(/"/g,'&quot;')}"><td><input class="opc" list="opcatlist" value="${(r.cat||'').replace(/"/g,'&quot;')}" style="${EDINP};width:150px"></td><td><input class="opi" value="${(r.item||'').replace(/"/g,'&quot;')}" style="${EDINP};width:200px"></td><td class="n"><input class="opq" type="number" step="any" value="${r.cantidad!=null?r.cantidad:1}" style="${EDINP};width:60px;text-align:right"></td><td class="n"><input class="opu" type="number" step="any" value="${r.unitario||0}" style="${EDINP};width:110px;text-align:right"></td><td class="n opm">${f0(r.monto||0)}</td><td><span class="rmrow" style="cursor:pointer;color:var(--neg)">✕</span></td></tr>`;
+  const catOpts=cats.map(c=>`<option value="${esc(c||'')}">`).join('');
+  const row=r=>`<tr class="opr" data-cat="${esc(r.cat||'')}" data-item="${esc(r.item||'')}"><td><input class="opc" list="opcatlist" value="${esc(r.cat||'')}" style="${EDINP};width:150px"></td><td><input class="opi" value="${esc(r.item||'')}" style="${EDINP};width:200px"></td><td class="n"><input class="opq" type="number" step="any" value="${r.cantidad!=null?r.cantidad:1}" style="${EDINP};width:60px;text-align:right"></td><td class="n"><input class="opu" type="number" step="any" value="${r.unitario||0}" style="${EDINP};width:110px;text-align:right"></td><td class="n opm">${f0(r.monto||0)}</td><td><span class="rmrow" style="cursor:pointer;color:var(--neg)">✕</span></td></tr>`;
   window._opexRow=row;
   // en modo edicion la tabla es plana (sin grupos): orden flat por la columna elegida.
   let detS=det.slice();
@@ -1098,15 +1110,15 @@ function renderOpex(){
   // vista de solo lectura: agrupada por rubro; dentro de cada rubro, orden por item/monto.
   const gs=Object.fromEntries(Object.entries(g).map(([c,rs])=>[c,ok?rs.slice().sort((a,b)=>cmpVals(a[ok]??'',b[ok]??'')*od):rs]));
   let h='<tr>'+thS('Rubro','item',ok,od,false)+thS('Monto/mes','monto',ok,od,true)+'</tr>';
-  Object.keys(gs).forEach(cat=>{const sub=gs[cat].reduce((s,r)=>s+(r.monto||0),0);h+=`<tr class="grpsub" data-cat="${(cat||'').replace(/"/g,'&quot;')}"><td>${cat}</td><td class="n">${f0(sub)}</td></tr>`;
-   gs[cat].forEach(r=>{const z=r.monto===0;h+=`<tr data-cat="${(cat||'').replace(/"/g,'&quot;')}" data-item="${(r.item||'').replace(/"/g,'&quot;')}"><td>${r.item}${z?(r.confirmado_cero?' <span class="mut">(sin gasto)</span>':' <span style="color:var(--neg)">(falta cargar)</span>'):''}</td><td class="n">${r.monto?f0(r.monto):'—'}</td></tr>`;});});
+  Object.keys(gs).forEach(cat=>{const sub=gs[cat].reduce((s,r)=>s+(r.monto||0),0);h+=`<tr class="grpsub" data-cat="${esc(cat)}"><td>${esc(cat)}</td><td class="n">${f0(sub)}</td></tr>`;
+   gs[cat].forEach(r=>{const z=r.monto===0;h+=`<tr data-cat="${esc(cat||'')}" data-item="${esc(r.item||'')}"><td>${esc(r.item)}${z?(r.confirmado_cero?' <span class="mut">(sin gasto)</span>':' <span style="color:var(--neg)">(falta cargar)</span>'):''}</td><td class="n">${r.monto?f0(r.monto):'—'}</td></tr>`;});});
   h+=`<tr style="font-weight:700"><td>TOTAL</td><td class="n">${f0(v?v.opex:0)}</td></tr>`;
   t.innerHTML=h;
  }
  wireSort(t,'oxSort','oxDir',renderOpex,k=>k==='cat'||k==='item');
  const cats2=Object.entries(g).map(([c,rs])=>[c,rs.reduce((s,r)=>s+(r.monto||0),0)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
  const max=Math.max(...cats2.map(c=>c[1]),1);
- document.getElementById('opexchart').innerHTML='<div class="wf">'+cats2.map(c=>`<div class="row"><div class="lab">${c[0]}</div><div class="barwrap"><div class="fill" style="width:${(c[1]/max*100).toFixed(0)}%;background:#e8834a"></div></div><div class="amt">${fM(c[1])}</div></div>`).join('')+'</div>';
+ document.getElementById('opexchart').innerHTML='<div class="wf">'+cats2.map(c=>`<div class="row"><div class="lab">${esc(c[0])}</div><div class="barwrap"><div class="fill" style="width:${(c[1]/max*100).toFixed(0)}%;background:#e8834a"></div></div><div class="amt">${fM(c[1])}</div></div>`).join('')+'</div>';
  // Este card analiza el PERIODO elegido arriba, no la vigencia del selector: usa el OPEX
  // efectivo de esos días (si cruzan vigencias, el promedio ponderado).
  const tt=totals(st.desde,st.hasta),dd=calDaysRange(st.desde,st.hasta);const ventasMes=tt.ventas/dd*30;
@@ -1128,12 +1140,12 @@ function renderCostos(){
  ins.sort((a,b)=>cmpVals(csv(a,ck),csv(b,ck))*cd||(a[0]<b[0]?-1:1));
  document.getElementById('costoshint').textContent='· '+ins.length+' insumos'+(APP?' · editá el precio y recalcula solo':'');
  let h='<tr>'+thS('Insumo','insumo',st.csSort,st.csDir,false)+thS('Rubro','cb_cat',st.csSort,st.csDir,false)+thS('Presentación',null,null,null,false)+thS('Precio','precio',st.csSort,st.csDir,true)+thS('$/u base','cxu',st.csSort,st.csDir,true)+'<th>📦 Stock</th></tr>';
- ins.forEach(([nm,m])=>{const pc=APP?`<input type="number" class="prin" data-ins="${nm.replace(/"/g,'&quot;')}" value="${Math.round(m.precio||0)}" style="width:110px;text-align:right;background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 6px">`:f0(m.precio);
+ ins.forEach(([nm,m])=>{const pc=APP?`<input type="number" class="prin" data-ins="${esc(nm)}" value="${Math.round(m.precio||0)}" style="width:110px;text-align:right;background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 6px">`:f0(m.precio);
   const c=stockCalc(nm);
   const stk=!APP?(c?fRestante(c)+' u.':'—')
-   :c?`<button class="btn" data-stk="${nm.replace(/"/g,'&quot;')}" style="padding:2px 8px;font-size:11.5px;${c.critico?'border-color:var(--neg);color:var(--neg)':''}">${Math.max(0,c.restante).toFixed(1)}u · ${fQuiebreCompact(c)}</button>`
-   :`<button class="btn" data-stk="${nm.replace(/"/g,'&quot;')}" style="padding:2px 8px;font-size:11.5px">+ vigilar</button>`;
-  h+=`<tr><td>${nm}</td><td class="mut">${m.cb_cat||''}</td><td class="mut">${m.present||''}</td><td class="n">${pc}</td><td class="n mut">${(m.cxu||0).toFixed(2)}/${m.unidad||''}</td><td>${stk}</td></tr>`;});
+   :c?`<button class="btn" data-stk="${esc(nm)}" style="padding:2px 8px;font-size:11.5px;${c.critico?'border-color:var(--neg);color:var(--neg)':''}">${Math.max(0,c.restante).toFixed(1)}u · ${fQuiebreCompact(c)}</button>`
+   :`<button class="btn" data-stk="${esc(nm)}" style="padding:2px 8px;font-size:11.5px">+ vigilar</button>`;
+  h+=`<tr><td>${esc(nm)}</td><td class="mut">${esc(m.cb_cat||'')}</td><td class="mut">${esc(m.present||'')}</td><td class="n">${pc}</td><td class="n mut">${(m.cxu||0).toFixed(2)}/${m.unidad||''}</td><td>${stk}</td></tr>`;});
  el.innerHTML=h;
  wireSort(el,'csSort','csDir',renderCostos,k=>k==='insumo'||k==='cb_cat');
  if(APP){
@@ -1147,7 +1159,7 @@ function newProductModal(){
  if(!APP){toast('Abrí la app (run_ANTIMO_app) para crear productos');return;}
  const cats=[...new Set(DATA.productos.map(p=>p.cat))].sort();
  const catOpts=cats.map(c=>`<option value="${c}">`).join('');
- const insOpts=Object.keys(DATA.insumos||{}).sort().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+ const insOpts=Object.keys(DATA.insumos||{}).sort().map(n=>`<option value="${esc(n)}">`).join('');
  const html=`<div class="ovl" id="ovl"><div class="modal"><span class="mclose" id="mx">✕</span>
   <h2>➕ Nuevo producto / receta</h2>
   <datalist id="catlist">${catOpts}</datalist><datalist id="inslist">${insOpts}</datalist>
@@ -1190,9 +1202,9 @@ async function configModal(){
  const html=`<div class="ovl" id="ovl"><div class="modal" style="max-width:440px"><span class="mclose" id="mx">✕</span>
   <h2>⚙️ Conexión con Bistrosoft</h2>
   <div class="legend" style="margin:6px 0 12px">Tus datos para que ANTIMO traiga las ventas. Quedan solo en esta Mac.</div>
-  <div class="ml">Usuario (email)</div><input id="cfgU" value="${(c.username||'').replace(/"/g,'&quot;')}" style="${EDINP};width:100%">
+  <div class="ml">Usuario (email)</div><input id="cfgU" value="${esc(c.username||'')}" style="${EDINP};width:100%">
   <div class="ml" style="margin-top:8px">Contraseña</div><input id="cfgP" type="password" placeholder="(dejar vacío para no cambiarla)" style="${EDINP};width:100%">
-  <div class="ml" style="margin-top:8px">Código de tienda (shopCode)</div><input id="cfgS" value="${(c.shopCode||'').replace(/"/g,'&quot;')}" style="${EDINP};width:100%">
+  <div class="ml" style="margin-top:8px">Código de tienda (shopCode)</div><input id="cfgS" value="${esc(c.shopCode||'')}" style="${EDINP};width:100%">
   <div style="margin-top:16px"><button class="btn on" id="cfgSave">Guardar</button> <button class="btn" id="cfgCancel">Cancelar</button></div>
   <div class="legend" style="margin-top:8px">${c.configured?'✓ Configurado.':'⚠️ Falta configurar.'}</div>
   </div></div>`;

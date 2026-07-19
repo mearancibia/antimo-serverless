@@ -49,6 +49,24 @@ no entra a subcarpetas); el PDF sobrevivía a la deduplicación 0 veces (su noch
 
 ## 3. Stack y principios (NO romper)
 
+### Invariantes de seguridad (auditoría 19-07-2026, ver `bug_report_antimo.md`)
+
+Cuatro reglas que salieron de bugs reales y **no hay que volver a romper**:
+
+1. **Todo POST pasa por `_origen_confiable()`.** Exige `Content-Type: application/json` (obliga
+   al preflight cross-origin), `Origin` loopback si viene, y `Host` loopback (anti DNS-rebinding).
+   Sin esto, cualquier web abierta en otra pestaña escribía en `datos/` — incluidas las
+   credenciales de Bistrosoft. Un endpoint nuevo no necesita hacer nada: ya está en `do_POST`.
+2. **Todo texto que no controla la app va con `esc()` antes de `innerHTML`.** Nombres de producto,
+   categorías, insumos y sobre todo los `comments` de retiros/descuentos (los tipea el personal en
+   el POS). Sin escapar, un producto llamado `<img src=x onerror=...>` ejecuta código con acceso a
+   todos los endpoints.
+3. **Todo read-modify-write usa `_load(..., estricto=True)`.** Ante un JSON corrupto hay que
+   abortar, no devolver `{}`: eso hace que el `_save` siguiente lo pise con un solo ítem y borre
+   todo lo cargado a mano. Y `_save` escribe con `tmp` + `os.replace` (atómico).
+4. **Nunca inventar el año.** Si un `DD-MM` no resuelve contra `ISO[]`, devolver `''` y que quede
+   sin cruzar (visible) en vez de asumir un año (silencioso). Mismo criterio que la Regla #0.
+
 - **Backend:** `app_antimo.py`, solo librería estándar de Python (`http.server`,
   `socketserver`). Sin Flask ni dependencias web.
 - **Motor:** `actualizar_antimo.py`, un único script autocontenido (~500 líneas). Usa `openpyxl`

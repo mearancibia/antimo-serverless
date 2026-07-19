@@ -11,7 +11,15 @@ BASE=os.path.dirname(os.path.abspath(__file__)); DATOS=os.path.join(BASE,"datos"
 def get_token(base,user,pw):
     import requests
     r=requests.post(base.rstrip("/")+"/api/v1/Token",json={"username":user,"password":pw},timeout=30)
-    r.raise_for_status(); return r.json()["token"]
+    if r.status_code in (401,403):
+        raise RuntimeError("Usuario o contraseña rechazados por Bistrosoft. Revisá ⚙️ en la app.")
+    r.raise_for_status()
+    try: j=r.json()
+    except ValueError:
+        raise RuntimeError(f"Bistrosoft respondió algo que no es JSON (HTTP {r.status_code}). ¿Hay internet?")
+    if "token" not in j:
+        raise RuntimeError(f"La respuesta de login no trae token. Claves recibidas: {list(j)[:5]}")
+    return j["token"]
 
 def fetch_all(base,token,shop,start,end):
     import requests
@@ -20,10 +28,13 @@ def fetch_all(base,token,shop,start,end):
         params={"startDate":start,"endDate":end,"shopCode":shop,"pageNumber":page}
         r=requests.get(base.rstrip("/")+"/api/v1/TransactionDetailReport",headers=hdr,params=params,timeout=60)
         if r.status_code==401: raise RuntimeError("Token vencido/invalido")
-        r.raise_for_status(); batch=r.json().get("items",[])
+        r.raise_for_status()
+        try: batch=r.json().get("items",[])
+        except ValueError:
+            raise RuntimeError(f"Bistrosoft devolvió algo que no es JSON en la página {page}.")
         if not batch: break
         items+=batch; page+=1
-        if page>5000: break
+        if page>=5000: break   # red de seguridad; antes cortaba en 5001
     return items
 
 def clean_product(p):
@@ -94,7 +105,7 @@ def parse_items(items):
             else: v["otros_pago"]+=amt
             if tt=="Comanda":
                 try: v["comensales"]+=int(float(it.get("dinnersQty") or 0))
-                except: pass
+                except (TypeError,ValueError): pass
         elif tt=="CAJA (RETIRO)":
             v["retiros"]+=amt
             v["detalle_retiros"].append({"concepto":(it.get("comments") or "").strip()[:60],
@@ -149,19 +160,20 @@ def write_outputs(rank, cajas, entrada=None, datos=None):
     nuevas=len(fusion)-antes
     if antes and nuevas<len(cajas):
         print(f"cajas_api.json: {antes} noches previas conservadas + {len(cajas)} de este pull -> {len(fusion)} total")
-    json.dump(list(fusion.values()),open(cajas_path,"w"),ensure_ascii=False,indent=1)
+    with open(cajas_path,"w",encoding="utf-8") as f:
+        json.dump(list(fusion.values()),f,ensure_ascii=False,indent=1)
     return written
 
 def write_debug(items):
     cnt=collections.Counter((it.get("transactionType") or "") for it in items)
-    fechas=sorted({(business_ddmm_ym(it)[0]) for it in items if business_ddmm_ym(it)[0]})
+    fechas=sorted({d for d in (business_ddmm_ym(it)[0] for it in items) if d})
     samples={}
     for it in items:
         tt=it.get("transactionType") or ""
         if tt not in samples: samples[tt]=it
-    json.dump({"total_items":len(items),"tipos":dict(cnt),"noches":fechas,
-               "ejemplo_por_tipo":samples},
-              open(os.path.join(DATOS,"bistro_debug.json"),"w"),ensure_ascii=False,indent=1)
+    with open(os.path.join(DATOS,"bistro_debug.json"),"w",encoding="utf-8") as f:
+        json.dump({"total_items":len(items),"tipos":dict(cnt),"noches":fechas,
+                   "ejemplo_por_tipo":samples},f,ensure_ascii=False,indent=1)
     print("Diagnostico -> datos/bistro_debug.json | noches:",fechas)
 
 def default_range():
@@ -171,7 +183,9 @@ def default_range():
     return first_prev.isoformat(), end.isoformat()
 
 def run(start,end):
-    cfg=json.load(open(os.path.join(DATOS,"bistro_config.json"),encoding="utf-8"))
+    with open(os.path.join(DATOS,"bistro_config.json"),encoding="utf-8") as f: cfg=json.load(f)
+    faltan=[k for k in ("base","username","password","shopCode") if not cfg.get(k)]
+    if faltan: raise RuntimeError("Falta configurar "+", ".join(faltan)+" (botón ⚙️ Bistrosoft en la app).")
     print(f"Conectando a Bistrosoft ({start} a {end})...")
     tok=get_token(cfg["base"],cfg["username"],cfg["password"])
     items=fetch_all(cfg["base"],tok,cfg["shopCode"],start,end)

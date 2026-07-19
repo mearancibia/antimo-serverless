@@ -9,12 +9,27 @@ BACKUPS=os.path.join(DATOS,"_backups")
 BACKUP_KEEP=20          # versiones que se conservan por archivo
 NO_BACKUP={"bistro_config.json"}   # credenciales: no multiplicar copias en claro
 PORT=8733
-def _load(name,default):
+MAX_BODY=8*1024*1024    # tope del cuerpo de un POST (el import de stock mas grande no llega a 1MB)
+# Los handlers hacen read-modify-write sobre los JSON y el server es multi-hilo: sin esto, dos
+# guardados solapados (tabular rapido entre inputs de OPEX ya los genera) pierden una edicion.
+_LOCK=threading.RLock()
+class DatosCorruptos(Exception):
+    """Un override existe pero no se puede parsear. NO es lo mismo que 'todavia no existe':
+    devolver el default en ese caso hace que el siguiente _save lo pise con un solo item."""
+    pass
+def _load(name,default,estricto=False):
+    """estricto=True para todo read-modify-write: ante un archivo ilegible aborta el guardado
+    en vez de arrancar de cero y borrar lo que habia."""
     p=os.path.join(DATOS,name)
-    if os.path.exists(p):
-        try: return json.load(open(p,encoding="utf-8"))
-        except Exception: return default
-    return default
+    if not os.path.exists(p): return default
+    try:
+        with open(p,encoding="utf-8") as f: return json.load(f)
+    except Exception as e:
+        if estricto:
+            raise DatosCorruptos(f"{name} está corrupto ({e}). No se guardó nada para no "
+                                 f"pisar los datos. Hay copias en datos/_backups/.")
+        print("WARN: no pude leer",name,"->",e)
+        return default
 def _backup(name):
     """Copia la version previa a datos/_backups/ antes de pisarla. Nunca interrumpe el guardado."""
     if name in NO_BACKUP: return
@@ -32,13 +47,21 @@ def _backup(name):
     except Exception as e:
         print("WARN: no pude respaldar",name,"->",e)
 def _save(name,obj):
-    _backup(name)
-    json.dump(obj,open(os.path.join(DATOS,name),"w",encoding="utf-8"),ensure_ascii=False,indent=1)
+    """Escritura ATOMICA: tmp + os.replace. open(...,'w') trunca el archivo antes de escribir,
+    asi que si el proceso muere en el medio (cerrar la ventana es la forma documentada de cerrar
+    la app) queda un JSON cortado — que es justo lo que _load no sabe distinguir de uno nuevo."""
+    with _LOCK:
+        _backup(name)
+        p=os.path.join(DATOS,name); tmp=p+".tmp"
+        with open(tmp,"w",encoding="utf-8") as f:
+            json.dump(obj,f,ensure_ascii=False,indent=1)
+            f.flush(); os.fsync(f.fileno())
+        os.replace(tmp,p)
 OPEX_DESDE_0="2000-01-01"
 def _opex_periodos():
     """opex.json normalizado a vigencias [{desde,items}], ordenadas. El formato viejo
     (lista plana de rubros) se lee como una unica vigencia que rige desde siempre."""
-    raw=_load("opex.json",[])
+    raw=_load("opex.json",[],estricto=True)
     if not raw: return [{"desde":OPEX_DESDE_0,"items":[]}]
     if isinstance(raw[0],dict) and "items" in raw[0]:
         return sorted([p for p in raw if isinstance(p,dict)],key=lambda p:str(p.get("desde") or OPEX_DESDE_0))
@@ -115,6 +138,26 @@ class H(http.server.SimpleHTTPRequestHandler):
         self.send_response(code); self.send_header("Content-Type",ctype+"; charset=utf-8")
         self.send_header("Content-Length",str(len(b))); self.send_header("Cache-Control","no-store"); self.end_headers()
         self.wfile.write(b)
+    def _origen_confiable(self):
+        """Un POST solo puede venir de la propia pagina de ANTIMO. Tres chequeos:
+        1) Content-Type application/json: obliga al navegador a hacer preflight en cualquier
+           pedido cross-origin, y el preflight falla porque no mandamos cabeceras CORS. Esto es
+           lo que corta el CSRF: sin el chequeo, una web cualquiera manda text/plain (que no
+           dispara preflight), el server igual hace json.loads del body, y escribe en disco.
+        2) Origin: los navegadores lo mandan siempre en POST. Si viene, tiene que ser loopback.
+           curl y los scripts locales no lo mandan y siguen funcionando.
+        3) Host: bloquea DNS rebinding (un dominio que resuelve a 127.0.0.1 alcanza el server
+           aunque este bindeado a loopback)."""
+        ct=(self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ct!="application/json": return False
+        org=self.headers.get("Origin")
+        if org is not None and urllib.parse.urlparse(org).hostname not in ("127.0.0.1","localhost"):
+            return False
+        return (self.headers.get("Host") or "").split(":")[0] in ("127.0.0.1","localhost")
+    def do_HEAD(self):
+        """NO heredar el de SimpleHTTPRequestHandler: sirve toda la carpeta del proyecto y
+        deja ver que existe (y cuanto pesa) datos/bistro_config.json, que do_GET bloquea."""
+        self.do_GET()
     def do_GET(self):
         path=urllib.parse.urlparse(self.path).path
         if path in ("/","/index.html"):
@@ -130,13 +173,26 @@ class H(http.server.SimpleHTTPRequestHandler):
         if path=="/api/ping": return self._send(200,'{"app":true}')
         return self._send(404,"not found")
     def do_POST(self):
+        if not self._origen_confiable():
+            return self._send(403,'{"ok":false,"error":"origen no permitido"}')
         path=urllib.parse.urlparse(self.path).path
-        ln=int(self.headers.get("Content-Length") or 0)
+        # el int() estaba FUERA del try: un Content-Length no numerico mataba el hilo sin
+        # responder nada, y el navegador quedaba esperando hasta el timeout.
+        try:
+            ln=int(self.headers.get("Content-Length") or 0)
+            if ln<0 or ln>MAX_BODY: raise ValueError("tamaño fuera de rango")
+        except ValueError:
+            return self._send(400,'{"ok":false,"error":"Content-Length inválido"}')
         try: data=json.loads(self.rfile.read(ln) or b"{}")
         except Exception: data={}
+        # Serializa las mutaciones. El server es multi-hilo y todos los handlers hacen
+        # read-modify-write sobre los mismos JSON: dos POST solapados pierden una edicion.
+        with _LOCK:
+            return self._post_dispatch(path,data)
+    def _post_dispatch(self,path,data):
         try:
             if path=="/api/config":
-                c=_load("bistro_config.json",{})
+                c=_load("bistro_config.json",{},estricto=True)
                 c["base"]=data.get("base") or c.get("base") or "https://ar-api.bistrosoft.com"
                 c["username"]=data.get("username","").strip() or c.get("username","")
                 if data.get("password"): c["password"]=data["password"]
@@ -144,21 +200,21 @@ class H(http.server.SimpleHTTPRequestHandler):
                 _save("bistro_config.json",c)
                 return self._send(200,json.dumps({"ok":True}))
             if path=="/api/receta":
-                r=_load("recetas_extra.json",{}); r[data["receta"]]=[[i[0],i[1]] for i in data["ingredientes"]]; _save("recetas_extra.json",r)
+                r=_load("recetas_extra.json",{},estricto=True); r[data["receta"]]=[[i[0],i[1]] for i in data["ingredientes"]]; _save("recetas_extra.json",r)
             elif path=="/api/precio":
-                p=_load("precios_override.json",{}); p[data["insumo"]]=float(data["precio"]); _save("precios_override.json",p)
+                p=_load("precios_override.json",{},estricto=True); p[data["insumo"]]=float(data["precio"]); _save("precios_override.json",p)
             elif path=="/api/opex":
-                o=_load("opex_override.json",{}); o[data["item"]]=float(data["monto"]); _save("opex_override.json",o)
+                o=_load("opex_override.json",{},estricto=True); o[data["item"]]=float(data["monto"]); _save("opex_override.json",o)
             elif path=="/api/combo":
                 comp=data.get("componentes") or []
                 if not comp: return self._send(200,json.dumps({"ok":False,"error":"El combo quedó sin componentes"}))
-                c=_load("combos_extra.json",{}); c[data["producto"]]=[[x[0],x[1],x[2]] for x in comp]; _save("combos_extra.json",c)
+                c=_load("combos_extra.json",{},estricto=True); c[data["producto"]]=[[x[0],x[1],x[2]] for x in comp]; _save("combos_extra.json",c)
             elif path=="/api/pour":
                 # rendimiento (ml) de un pour. rend vacio/0 => vuelve al valor del Excel.
                 key=str(data.get("key","")).strip()
                 if not key: return self._send(200,json.dumps({"ok":False,"error":"Falta el producto"}))
                 rend=data.get("rend")
-                p=_load("pours_extra.json",{})
+                p=_load("pours_extra.json",{},estricto=True)
                 if rend in (None,"",0,"0"): p.pop(key,None)
                 else:
                     try: rend=float(rend)
@@ -171,7 +227,7 @@ class H(http.server.SimpleHTTPRequestHandler):
                 iso=str(data.get("iso","")).strip()
                 if not re.match(r"^\d{4}-\d{2}-\d{2}$",iso):
                     return self._send(200,json.dumps({"ok":False,"error":"Fecha inválida"}))
-                c=_load("dias_cerrados.json",{})
+                c=_load("dias_cerrados.json",{},estricto=True)
                 if data.get("cerrado"): c[iso]=data.get("motivo","") or "Cerrado"
                 else: c.pop(iso,None)
                 _save("dias_cerrados.json",c)
@@ -179,7 +235,7 @@ class H(http.server.SimpleHTTPRequestHandler):
                 # conteo manual de un insumo vigilado. cantidad vacia/0 => dejar de vigilarlo.
                 insumo=str(data.get("insumo","")).strip()
                 if not insumo: return self._send(200,json.dumps({"ok":False,"error":"Falta el insumo"}))
-                s=_load("stock.json",{})
+                s=_load("stock.json",{},estricto=True)
                 cant=data.get("cantidad")
                 if cant in (None,"",0,"0"): s.pop(insumo,None)
                 else:
@@ -201,7 +257,7 @@ class H(http.server.SimpleHTTPRequestHandler):
                 # aborta todo el import por una fila mal formada.
                 fecha=str(data.get("fecha") or "").strip()
                 if not re.match(r"^\d{4}-\d{2}-\d{2}$",fecha): fecha=datetime.date.today().isoformat()
-                s=_load("stock.json",{}); aplicadas=0
+                s=_load("stock.json",{},estricto=True); aplicadas=0
                 for row in (data.get("items") or []):
                     insumo=str(row.get("insumo","")).strip()
                     cant=row.get("cantidad")
@@ -221,7 +277,7 @@ class H(http.server.SimpleHTTPRequestHandler):
                 # al valor de la hoja "Lista de Precios" (si la tenia).
                 key=str(data.get("key","")).strip()
                 if not key: return self._send(200,json.dumps({"ok":False,"error":"Falta el producto"}))
-                p=_load("precio_lista_override.json",{})
+                p=_load("precio_lista_override.json",{},estricto=True)
                 precio=data.get("precio")
                 if precio in (None,"",0,"0"): p.pop(key,None)
                 else:
@@ -234,7 +290,7 @@ class H(http.server.SimpleHTTPRequestHandler):
                 # marca manual de precio mal cargado en el POS. estado: "si" | "no" | "" (limpiar)
                 key=str(data.get("key","")).strip()
                 if not key: return self._send(200,json.dumps({"ok":False,"error":"Falta el producto"}))
-                s=_load("sospechosos.json",{}); est=str(data.get("estado","") or "")
+                s=_load("sospechosos.json",{},estricto=True); est=str(data.get("estado","") or "")
                 if est not in ("si","no"): s.pop(key,None)
                 else: s[key]={"estado":est,"motivo":data.get("motivo","") or "",
                               "ts":datetime.datetime.now().isoformat(timespec="seconds")}
@@ -271,19 +327,19 @@ class H(http.server.SimpleHTTPRequestHandler):
                 pos=str(data.get("pos","")).strip()
                 if not pos: return self._send(200,json.dumps({"ok":False,"error":"Falta el nombre"}))
                 tipo=data.get("tipo","receta")
-                mex=[e for e in _load("maestro_extra.json",[]) if str(e.get("pos","")).strip().upper()!=pos.upper()]
+                mex=[e for e in _load("maestro_extra.json",[],estricto=True) if str(e.get("pos","")).strip().upper()!=pos.upper()]
                 entry={"pos":pos,"cat":data.get("cat") or "GENERICO","canon":data.get("canon") or pos,
                        "tipo":tipo,"factor":float(data.get("factor") or (2 if tipo=="promo_2x1" else 1)),
                        "rend":(float(data["rend"]) if data.get("rend") not in (None,"","0",0) else None),
                        "costeo":"","nota":data.get("nota","") or "Creado desde la app"}
                 if tipo in ("receta","promo_2x1"):
                     entry["costeo"]="Receta: "+pos
-                    r=_load("recetas_extra.json",{}); r[pos]=[[i[0],i[1]] for i in data.get("ingredientes",[])]; _save("recetas_extra.json",r)
+                    r=_load("recetas_extra.json",{},estricto=True); r[pos]=[[i[0],i[1]] for i in data.get("ingredientes",[])]; _save("recetas_extra.json",r)
                 elif tipo in ("botella","pour","directo"):
                     entry["costeo"]="Insumo: "+str(data.get("insumo","")).strip()
                 elif tipo=="combo":
                     entry["costeo"]="Combo definido en app"
-                    c=_load("combos_extra.json",{}); c[pos]=[[x[0],float(x[1]),x[2]] for x in data.get("componentes",[])]; _save("combos_extra.json",c)
+                    c=_load("combos_extra.json",{},estricto=True); c[pos]=[[x[0],float(x[1]),x[2]] for x in data.get("componentes",[])]; _save("combos_extra.json",c)
                 mex.append(entry); _save("maestro_extra.json",mex)
             elif path=="/api/excel":
                 dst=generate_excel()
@@ -293,8 +349,13 @@ class H(http.server.SimpleHTTPRequestHandler):
                 if not ok: return self._send(200,json.dumps({"ok":False,"log":log}))
             else:
                 return self._send(404,'{"ok":false}')
+        except DatosCorruptos as e:
+            return self._send(409,json.dumps({"ok":False,"error":str(e)}))
         except Exception as e:
-            return self._send(200,json.dumps({"ok":False,"error":str(e)}))
+            # str(e) filtraba rutas absolutas del sistema al cliente. La traza completa va al
+            # log local (la ventana de la app), el cliente recibe algo generico.
+            print("ERROR en",path,"->",repr(e))
+            return self._send(500,json.dumps({"ok":False,"error":"Error interno; mirá la ventana de la app"}))
         ok,log=run_pipeline()
         d=json.load(open(os.path.join(BASE,"datos_dashboard.json"),encoding="utf-8")) if ok else {}
         return self._send(200,json.dumps({"ok":ok,"data":d,"log":log[-400:]}))

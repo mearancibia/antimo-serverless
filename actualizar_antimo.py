@@ -24,29 +24,41 @@ PDF_ALL=_find_all(["*CAJA*.pdf","*MOVIMIENTO*.pdf","*cierre*.pdf","*.pdf"],[ENTR
 assert DG,"No encontre datos_general.xlsx en /datos"
 assert RANKS,"No encontre rankings en /entrada"
 TPL=os.path.join(BASE,"dashboard_tpl.html")
-def reparar_ranking(src):
-    tmp=tempfile.mkdtemp(); dst=os.path.join(tmp,"rank.xlsx")
-    with zipfile.ZipFile(src) as z: z.extractall(tmp)
-    ws=os.path.join(tmp,"xl","worksheets","sheet1.xml")
-    if os.path.exists(ws):
-        x=open(ws,encoding="utf-8").read()
-        x=re.sub(r"<mergeCells.*?</mergeCells>","",x,flags=re.S); x=re.sub(r"<mergeCell [^>]*/>","",x)
-        open(ws,"w",encoding="utf-8").write(x)
-    with zipfile.ZipFile(dst,"w",zipfile.ZIP_DEFLATED) as z:
-        for root,_,files in os.walk(tmp):
-            for f in files:
-                fp=os.path.join(root,f)
-                if fp!=dst: z.write(fp,os.path.relpath(fp,tmp))
-    return dst
+import shutil, contextlib
+@contextlib.contextmanager
+def ranking_reparado(src):
+    """Extrae el xlsx sin mergeCells a un temporal y LO BORRA al salir.
+    Antes era mkdtemp() sin limpieza: como el pipeline corre en cada arranque y despues de
+    cada POST, se acumulaba un directorio por archivo de entrada/ y por guardado (se llegaron
+    a juntar 464, cada uno con un xlsx descomprimido entero)."""
+    tmp=tempfile.mkdtemp(prefix="antimo_rank_")
+    try:
+        dst=os.path.join(tmp,"rank.xlsx")
+        with zipfile.ZipFile(src) as z: z.extractall(tmp)
+        ws=os.path.join(tmp,"xl","worksheets","sheet1.xml")
+        if os.path.exists(ws):
+            with open(ws,encoding="utf-8") as f: x=f.read()
+            x=re.sub(r"<mergeCells.*?</mergeCells>","",x,flags=re.S); x=re.sub(r"<mergeCell [^>]*/>","",x)
+            with open(ws,"w",encoding="utf-8") as f: f.write(x)
+        with zipfile.ZipFile(dst,"w",zipfile.ZIP_DEFLATED) as z:
+            for root,_,files in os.walk(tmp):
+                for f in files:
+                    fp=os.path.join(root,f)
+                    if fp!=dst: z.write(fp,os.path.relpath(fp,tmp))
+        yield dst
+    finally:
+        shutil.rmtree(tmp,ignore_errors=True)
 def _money(s):
     m=re.search(r"-?[\d\.]+,\d{2}", s); return float(m.group(0).replace(".","").replace(",",".")) if m else None
 def parse_caja(pdf):
     if not pdf: return None
     try: import pdfplumber
     except Exception:
-        try:
-            import subprocess,sys; subprocess.run([sys.executable,"-m","pip","install","pdfplumber","--break-system-packages","-q"],check=False); import pdfplumber
-        except Exception: return None
+        # No autoinstalar: --break-system-packages puede alterar el Python del sistema, y una
+        # descarga de red no anunciada contradice que la app sea offline. Las cajas ya vienen
+        # por la API; el PDF es opcional.
+        print("Aviso: los PDF de caja necesitan pdfplumber (pip3 install pdfplumber). Se omiten.")
+        return None
     try:
         with pdfplumber.open(pdf) as p: txt="\n".join((pg.extract_text() or "") for pg in p.pages)
     except Exception: return None
@@ -64,22 +76,17 @@ def parse_caja(pdf):
             if mv is not None: ret.append([con[:40],mv])
     c["detalle_retiros"]=ret
     return c
+# El workbook se cargaba DOS veces (y Costo_Base se recorria tres): la segunda carga descartaba
+# la primera y reconstruia COSTO identico. Una sola pasada.
 wb = openpyxl.load_workbook(DG, data_only=True)
-COSTO = {}
+COSTO = {}; CB_CAT = {}
 for r in list(wb["Costo_Base"].iter_rows(values_only=True))[1:]:
     if r[1] is None: continue
     COSTO[r[1]] = {"precio": r[2], "pres": r[3], "cant_base": r[4], "unidad": r[5], "cxu": r[6]}
-CB_CAT={}
-for r in list(wb["Costo_Base"].iter_rows(values_only=True))[1:]:
-    if r[1] is not None: CB_CAT[r[1]]=r[0]
+    CB_CAT[r[1]] = r[0]
 
 def norm(s):
     return " ".join(str(s).strip().upper().split()) if s is not None else ""
-wb = openpyxl.load_workbook(DG, data_only=True)
-COSTO = {}
-for r in list(wb["Costo_Base"].iter_rows(values_only=True))[1:]:
-    if r[1] is None: continue
-    COSTO[r[1]] = {"precio": r[2], "pres": r[3], "cant_base": r[4], "unidad": r[5], "cxu": r[6]}
 # Lista de Precios (hoja del Excel base): precio OFICIAL, complementario al PVP promedio real
 # que sale de las ventas.
 # Match en dos pasos, NUNCA fuzzy (Regla #0 — no adivinar a qué producto corresponde un precio):
@@ -238,7 +245,12 @@ def costo_ingrediente(ing,qty):
     p=parse_qty(qty)
     if p is None: return (None,f"cant no parseada:{qty}")
     cxu=COSTO[insumo]["cxu"]; ub_i=COSTO[insumo]["unidad"]
+    # Una celda vacia en la columna cxu de Costo_Base (fila a medio cargar, formula con #DIV/0!)
+    # hacia val*None -> TypeError sin capturar, que abortaba TODO el pipeline y dejaba la app sin
+    # regenerar. Se trata como cualquier otro dato faltante: N/D para ese producto (Regla #0).
+    if cxu is None: return (None,f"insumo sin costo por unidad:{insumo}")
     if p[0]=="LATA":
+        if COSTO[insumo]["cant_base"] is None: return (None,f"insumo sin cantidad base:{insumo}")
         return (p[1]*COSTO[insumo]["cant_base"]*cxu,None)
     val,ub=p
     if ub=="u":
@@ -289,8 +301,11 @@ def costear_combo(k):
     t=0.0; errs=[]
     for ins,cant,u in COMBOS[k]:
         if ins not in COSTO: errs.append(f"insumo no encontrado:{ins}"); continue
+        if COSTO[ins]["cxu"] is None: errs.append(f"insumo sin costo por unidad:{ins}"); continue
         if u=="ml": t+=cant*COSTO[ins]["cxu"]
-        elif u=="lata": t+=cant*COSTO[ins]["cant_base"]*COSTO[ins]["cxu"]
+        elif u=="lata":
+            if COSTO[ins]["cant_base"] is None: errs.append(f"insumo sin cantidad base:{ins}"); continue
+            t+=cant*COSTO[ins]["cant_base"]*COSTO[ins]["cxu"]
         else: errs.append(f"unidad no soportada:{u}")
     return (None,errs) if errs else (t,[])
 def insumo_pour(c): return c.replace("Insumo:","").strip()
@@ -320,17 +335,19 @@ def costear_producto(k):
         return {"costo":c,"tipo":t}
     if t=="botella":
         ins=insumo_pour(str(m["costeo"])); real=INSUMO_ALIAS.get(ins,ins)
-        if real in COSTO: return {"costo":COSTO[real]["precio"],"tipo":t}
-        return {"nd":True,"motivo":f"botella no hallada:{ins}"}
+        if real in COSTO and COSTO[real]["precio"] is not None: return {"costo":COSTO[real]["precio"],"tipo":t}
+        return {"nd":True,"motivo":f"botella sin precio:{ins}" if real in COSTO else f"botella no hallada:{ins}"}
     if t=="pour":
         ins=insumo_pour(str(m["costeo"])); real=INSUMO_ALIAS.get(ins,ins)
-        if real in COSTO and m["rend"]: return {"costo":m["rend"]*COSTO[real]["cxu"],"tipo":t}
-        return {"nd":True,"motivo":f"pour sin insumo/rend:{ins}"}
+        if real in COSTO and m["rend"] and COSTO[real]["cxu"] is not None:
+            return {"costo":m["rend"]*COSTO[real]["cxu"],"tipo":t}
+        return {"nd":True,"motivo":f"pour sin insumo/rend/costo:{ins}"}
     if t=="directo":
         ins=insumo_pour(str(m["costeo"])); real=INSUMO_ALIAS.get(ins,ins)
         if real in COSTO:
-            if m["rend"]: return {"costo":m["rend"]*COSTO[real]["cxu"],"tipo":t}
-            return {"costo":COSTO[real]["precio"],"tipo":t}
+            if m["rend"] and COSTO[real]["cxu"] is not None: return {"costo":m["rend"]*COSTO[real]["cxu"],"tipo":t}
+            if not m["rend"] and COSTO[real]["precio"] is not None: return {"costo":COSTO[real]["precio"],"tipo":t}
+            return {"nd":True,"motivo":f"directo sin costo:{ins}"}
         return {"nd":True,"motivo":f"directo sin insumo:{ins}"}
     return {"nd":True,"motivo":f"tipo desconocido:{t}"}
 # ===== EXPLOSION DE CONSUMO (reposicion) =====
@@ -506,9 +523,11 @@ def _ym_de(path):
 prods={}; dias={}; consumo_dia={}; split={}
 for path in RANKS:
     ym=_ym_de(path)
-    try: ws=openpyxl.load_workbook(reparar_ranking(path),data_only=True).active
+    try:
+        # las filas se materializan DENTRO del with: al salir se borra el temporal
+        with ranking_reparado(path) as _rp:
+            rows=list(openpyxl.load_workbook(_rp,data_only=True).active.iter_rows(values_only=True))
     except Exception as e: print("WARN",os.path.basename(path),e); continue
-    rows=list(ws.iter_rows(values_only=True))
     hdr=None; header=[]
     for i,row in enumerate(rows[:6]):
         vals=[str(c).strip().lower() if c is not None else "" for c in row]
@@ -523,9 +542,9 @@ for path in RANKS:
         if not r or cN is None or r[cN] is None: continue
         nombre=r[cN]
         try: u=int(r[cV] or 0)
-        except: u=0
+        except (TypeError,ValueError): u=0
         try: monto=float(r[cM] or 0)
-        except: monto=0.0
+        except (TypeError,ValueError): monto=0.0
         if u==0 and monto==0: continue
         # El ranking trae la fecha como "DD-MM" (sin año); el año sale del nombre del archivo
         # (api_ventas_YYYY-MM.xlsx). Si no se puede deducir, se descarta el año en vez de inventar
@@ -577,7 +596,7 @@ for k,p in prods.items():
             _rn=str(_m.get("costeo") or "").replace("Receta:","").strip()
             base["receta_nombre"]=_rn
             base["receta_ings"]=[[i[0],i[1]] for i in RECETAS.get(norm(_rn),[])]
-        elif _t=="combo" and norm(_m.get("cat","")) is not None:
+        elif _t=="combo":
             _cc=COMBOS.get(k)
             if _cc: base["combo_comp"]=[[x[0],x[1],x[2]] for x in _cc]
         base["editable"]=_t in ("receta","promo_2x1","combo")
@@ -715,7 +734,11 @@ DATA={"generado":datetime.date.today().isoformat(),"logo":logo_uri,"opex":opex_t
       "opex_detalle":opex_detalle,"dias":dias_list,"productos":productos,
       "insumos":insumos_meta,"consumo_dia":consumo_dia,"cajas":cajas,"dias_cerrados":CERRADOS,"stock":STOCK,
       "opex_periodos":opex_periodos}
-tpl=open(TPL,encoding="utf-8").read()
-open(os.path.join(BASE,"dashboard_ANTIMO.html"),"w",encoding="utf-8").write(tpl.replace("@@DATA@@", json.dumps(DATA,ensure_ascii=False)))
-json.dump(DATA,open(os.path.join(BASE,"datos_dashboard.json"),"w"),ensure_ascii=False)
+with open(TPL,encoding="utf-8") as f: tpl=f.read()
+# encoding explicito: sin el, open() usa el del locale y un "Cachaça"/"CUMPLEAÑOS" revienta a
+# mitad de escritura, dejando truncado justo el archivo que la app sirve.
+with open(os.path.join(BASE,"dashboard_ANTIMO.html"),"w",encoding="utf-8") as f:
+    f.write(tpl.replace("@@DATA@@", json.dumps(DATA,ensure_ascii=False)))
+with open(os.path.join(BASE,"datos_dashboard.json"),"w",encoding="utf-8") as f:
+    json.dump(DATA,f,ensure_ascii=False)
 print(f"OK. Dias:{len(dias_list)} Productos:{len(productos)} (N/D {sum(1 for p in productos if p.get('nd'))}) Insumos:{len(insumos_meta)} Cajas:{len(cajas)} OPEX:${opex_total:,.0f}")
