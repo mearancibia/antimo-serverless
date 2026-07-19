@@ -132,6 +132,66 @@ def generate_excel():
         for e in iex: ws.append([e.get("nombre"),e.get("precio"),e.get("pres"),e.get("cant_base"),e.get("unidad"),e.get("cxu")])
     wb.save(dst); return dst
 
+# Pantalla de primer arranque (instalacion nueva, sin ventas todavia). Mismo criterio que el
+# resto: un solo archivo, sin dependencias, sin nada externo.
+PAGINA_PRIMER_ARRANQUE="""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>ANTIMO · Primeros pasos</title><style>
+body{background:#0f1419;color:#e8edf2;font:15px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;
+ max-width:620px;margin:0 auto;padding:50px 24px}
+h1{font-size:26px;margin-bottom:6px}
+.sub{color:#8a97a6;margin-bottom:28px}
+.card{background:#1a222c;border:1px solid #2b3644;border-radius:12px;padding:20px 22px;margin-bottom:14px}
+.paso{display:flex;gap:14px;align-items:flex-start}
+.num{background:#e8834a;color:#151515;font-weight:700;border-radius:50%;width:26px;height:26px;
+ display:flex;align-items:center;justify-content:center;flex:0 0 26px;font-size:13px}
+label{display:block;font-size:11px;color:#8a97a6;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 3px}
+input{background:#212b37;color:#e8edf2;border:1px solid #2b3644;border-radius:8px;padding:9px 11px;
+ font-size:14px;width:100%}
+button{background:#e8834a;color:#151515;border:0;border-radius:8px;padding:11px 18px;font-size:14px;
+ font-weight:600;cursor:pointer;margin-top:16px}
+button:disabled{opacity:.5;cursor:default}
+#msg{margin-top:14px;font-size:13.5px;min-height:20px}
+.ok{color:#4a9d7f}.err{color:#c85a54}
+</style></head><body>
+<h1>Bienvenido a ANTIMO</h1>
+<div class="sub">Falta un paso para empezar: conectar tu cuenta de Bistrosoft y traer las ventas.</div>
+<div class="card"><div class="paso"><div class="num">1</div><div style="flex:1">
+ <b>Conecta tu cuenta</b>
+ <div style="color:#8a97a6;font-size:13.5px">Son los mismos datos con los que entras a Bistrosoft.
+  Quedan guardados solo en esta computadora.</div>
+ <label>Usuario (email)</label><input id="u" autocomplete="off">
+ <label>Contrase&ntilde;a</label><input id="p" type="password" autocomplete="off">
+ <label>C&oacute;digo de tienda (shopCode)</label><input id="s" autocomplete="off">
+</div></div></div>
+<div class="card"><div class="paso"><div class="num">2</div><div style="flex:1">
+ <b>Tra&eacute; las ventas</b>
+ <div style="color:#8a97a6;font-size:13.5px">La primera vez puede tardar un rato: baja todo el
+  historial disponible. Despu&eacute;s el tablero abre solo.</div>
+ <button id="go">Conectar y traer ventas</button>
+ <div id="msg"></div>
+</div></div></div>
+<script>
+const $=i=>document.getElementById(i);
+$('go').onclick=async()=>{
+ const u=$('u').value.trim(),p=$('p').value,s=$('s').value.trim();
+ if(!u||!p||!s){$('msg').className='err';$('msg').textContent='Completa los tres campos.';return;}
+ $('go').disabled=true;$('msg').className='';$('msg').textContent='Guardando la cuenta...';
+ const post=(url,body)=>fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify(body)}).then(r=>r.json());
+ try{
+  const c=await post('/api/config',{base:'https://ar-api.bistrosoft.com',username:u,password:p,shopCode:s});
+  if(!c.ok)throw new Error('No pude guardar la cuenta');
+  $('msg').textContent='Trayendo las ventas... (puede tardar varios minutos, no cierres esta ventana)';
+  const j=await post('/api/pull',{});
+  if(j.ok){$('msg').className='ok';$('msg').textContent='Listo. Abriendo el tablero...';
+   setTimeout(()=>location.reload(),1200);}
+  else{$('msg').className='err';
+   $('msg').textContent='No se pudieron traer las ventas: '+((j.log||j.error||'').slice(-260)||'error desconocido');
+   $('go').disabled=false;}
+ }catch(e){$('msg').className='err';$('msg').textContent='Error: '+e.message;$('go').disabled=false;}
+};
+</script></body></html>"""
+
 class H(http.server.SimpleHTTPRequestHandler):
     def _send(self,code,body,ctype="application/json"):
         b=body.encode("utf-8") if isinstance(body,str) else body
@@ -162,8 +222,12 @@ class H(http.server.SimpleHTTPRequestHandler):
         path=urllib.parse.urlparse(self.path).path
         if path in ("/","/index.html"):
             f=os.path.join(BASE,"dashboard_ANTIMO.html")
-            if os.path.exists(f): return self._send(200,open(f,encoding="utf-8").read(),"text/html")
-            return self._send(404,"no dashboard")
+            if os.path.exists(f):
+                with open(f,encoding="utf-8") as fh: return self._send(200,fh.read(),"text/html")
+            # Instalacion nueva: todavia no hay ventas, asi que el tablero no existe. Antes esto
+            # devolvia "no dashboard" y el usuario quedaba sin ningun lugar donde configurar la
+            # cuenta ni traer las ventas. Se sirve una pantalla de primer arranque.
+            return self._send(200,PAGINA_PRIMER_ARRANQUE,"text/html")
         if path=="/api/data":
             f=os.path.join(BASE,"datos_dashboard.json")
             return self._send(200,open(f,encoding="utf-8").read()) if os.path.exists(f) else self._send(404,'{}')

@@ -21,8 +21,21 @@ DG=_find(["datos_general.xlsx","datos general.xlsx","*general*.xlsx"],[DATOS,BAS
 RANKS=_find_all(["*anking*.xlsx","*ent*.xlsx","*Vent*.xlsx","api_*.xlsx"],[ENTRADA])
 PDF_SRC=_find(["*CAJA*.pdf","*MOVIMIENTO*.pdf","*cierre*.pdf","*.pdf"],[ENTRADA,BASE])
 PDF_ALL=_find_all(["*CAJA*.pdf","*MOVIMIENTO*.pdf","*cierre*.pdf","*.pdf"],[ENTRADA])
-assert DG,"No encontre datos_general.xlsx en /datos"
-assert RANKS,"No encontre rankings en /entrada"
+# Una instalacion nueva todavia no tiene ventas: sin esto salia un traceback de Python, que
+# para el dueño de un bar no dice absolutamente nada. Se sale limpio con instrucciones.
+if not DG:
+    print("\n  Falta el archivo de costos.\n")
+    print("  Tiene que estar en:  datos/datos_general.xlsx")
+    print("  Si lo moviste o renombraste, volvelo a dejar ahi.\n")
+    raise SystemExit(2)
+if not RANKS:
+    print("\n  Todavia no hay ventas cargadas, asi que no hay nada que calcular.\n")
+    print("  Para traerlas:")
+    print("    1) Abri ANTIMO (doble clic en run_ANTIMO_app)")
+    print("    2) Configura tu cuenta con el boton  Bistrosoft")
+    print("    3) Apreta  Traer ventas\n")
+    print("  (Tambien podes correr:  python3 conector_bistrosoft.py)\n")
+    raise SystemExit(2)
 TPL=os.path.join(BASE,"dashboard_tpl.html")
 import shutil, contextlib
 @contextlib.contextmanager
