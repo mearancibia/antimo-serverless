@@ -80,13 +80,34 @@ COSTO = {}
 for r in list(wb["Costo_Base"].iter_rows(values_only=True))[1:]:
     if r[1] is None: continue
     COSTO[r[1]] = {"precio": r[2], "pres": r[3], "cant_base": r[4], "unidad": r[5], "cxu": r[6]}
-# Lista de Precios (hoja del Excel base): precio OFICIAL, complementario al PVP promedio real que
-# sale de las ventas. Match solo por nombre normalizado EXACTO — nunca fuzzy-match, para no
-# arriesgar cruzar dos productos distintos por error (Regla #0).
-PRECIO_LISTA={}
+# Lista de Precios (hoja del Excel base): precio OFICIAL, complementario al PVP promedio real
+# que sale de las ventas.
+# Match en dos pasos, NUNCA fuzzy (Regla #0 — no adivinar a qué producto corresponde un precio):
+#   1) por nombre normalizado EXACTO;
+#   2) si no hay, por nombre "aplanado": mismas letras y números ignorando espacios, puntuación
+#      y tildes. Eso cubre solo diferencias de tipeo del POS ("2 X 1. APEROL" vs "2 x 1 APEROL",
+#      "FERNET+COCA" vs "FERNET + COCA", "CUMPLEANOS" vs "CUMPLEAÑOS") — la cadena de letras y
+#      dígitos tiene que ser IDÉNTICA, así que NO empareja cosas como "CORONA 330" con
+#      "CORONA 33O" (cero vs letra O) ni "COCA 600CC" con "COCA": esos siguen sin match a
+#      propósito, porque podrían ser productos distintos y eso lo decide el dueño.
+import unicodedata as _ud
+def _aplanar(s):
+    s=_ud.normalize("NFD",str(s).upper())
+    s="".join(c for c in s if _ud.category(c)!="Mn")   # saca tildes/diéresis
+    return re.sub(r"[^A-Z0-9]","",s)
+PRECIO_LISTA={}; _PL_APL={}; _apl_dup=set()
 if "Lista de Precios" in wb.sheetnames:
     for r in list(wb["Lista de Precios"].iter_rows(values_only=True))[1:]:
-        if r[1] is not None and r[2] is not None: PRECIO_LISTA[norm(r[1])]=r[2]
+        if r[1] is None or r[2] is None: continue
+        PRECIO_LISTA[norm(r[1])]=r[2]
+        a=_aplanar(r[1])
+        if a in _PL_APL and _PL_APL[a]!=r[2]: _apl_dup.add(a)   # ambiguo: dos precios distintos
+        _PL_APL[a]=r[2]
+for a in _apl_dup: _PL_APL.pop(a,None)                          # ante la duda, no matchear
+def precio_lista_de(k):
+    """precio de lista de un producto por su key. None si no hay match seguro."""
+    if k in PRECIO_LISTA: return PRECIO_LISTA[k]                # exacto (incluye overrides)
+    return _PL_APL.get(_aplanar(k))                             # aplanado, solo si es inequívoco
 EQUI = {"cucharada":(12,"g"),"bocha":(60,"g"),"hoja":(0.5,"g"),"gajo":(15,"g"),"rodaja":(12,"g"),
         "medida":(60,"ml"),"trago":(60,"ml"),"shot":(45,"ml"),"lata red bull":(250,"ml"),
         "lata speed":(473,"ml"),"poron":(330,"ml"),"a gusto":(15,"g"),"aceituna":(5,"g")}
@@ -509,7 +530,7 @@ for k,p in prods.items():
     byday={f:[bd[0],round(bd[1])] for f,bd in p["byday"].items()}
     # "key" = nombre normalizado y unificado: es la identidad estable del producto
     # (el POS puede escribirlo distinto). Con ella se guardan las marcas del dueño.
-    base={"pos":p["raw"],"key":k,"cat":cat,"grupo":grupo,"byday":byday,"precio_lista":PRECIO_LISTA.get(k)}
+    base={"pos":p["raw"],"key":k,"cat":cat,"grupo":grupo,"byday":byday,"precio_lista":precio_lista_de(k)}
     _sp=SOSP.get(k) or {}
     if _sp.get("estado"):
         base["susp"]=_sp["estado"]; base["susp_motivo"]=_sp.get("motivo","") or ""

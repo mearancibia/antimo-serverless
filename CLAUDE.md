@@ -164,11 +164,26 @@ API, que trae comensales y detalle por operador).
 el Excel base desde siempre, nadie la usaba). Es el precio **oficial** — el verdadero "PVP" en el
 sentido comercial habitual (Precio de Venta al Público) — complementario al **promedio real de
 venta** que se calcula de las ventas (`byday`, columna "Prom. venta" en las tablas) — no lo
-reemplaza. Match **solo por nombre normalizado EXACTO** (`PRECIO_LISTA` en `actualizar_antimo.py`)
-— nunca fuzzy-match, para no arriesgar cruzar dos productos distintos por error (Regla #0): de 105
-items en la lista, 78 matchean así; el resto son diferencias de formato (espacios, puntuación) o
-typos ya conocidos ("CORONA 330" vs "CORONA 33O", "HEINEKEN" vs "HEINIKEN" en el POS) que no se
-intenta adivinar. En Rentabilidad y Recetas se muestra junto al promedio real (`fPrecioLista()`),
+reemplaza.
+
+**Match en dos pasos** (`precio_lista_de()` en `actualizar_antimo.py`), **nunca fuzzy** (Regla #0
+— no adivinar a qué producto corresponde un precio):
+1. Por nombre normalizado **exacto**.
+2. Si no hay, por nombre **aplanado** (`_aplanar()`): mismas letras y dígitos ignorando espacios,
+   puntuación y tildes. La cadena resultante tiene que ser **idéntica**, así que solo cubre
+   diferencias de tipeo del POS: `"2 x 1 APEROL"`↔`"2 X 1.  APEROL"`, `"FERNET + COCA"`↔
+   `"FERNET+COCA"`, `"CUMPLEANOS"`↔`"CUMPLEAÑOS"`. Si dos filas del Excel se aplanan al mismo
+   texto con **precios distintos**, se descarta el match (ambiguo) en vez de elegir uno.
+
+Lo que el paso 2 deliberadamente **NO** empareja, porque podrían ser productos distintos y eso lo
+decide el dueño: `"CORONA 330"` vs `"CORONA 33O"` (cero vs letra O), `"COCA 600CC"` vs `"COCA"`,
+`"HEINEKEN CHICA"` vs `"HEINIKEN CHICA"` (typo), `"SPRITE 600CC"` vs `"SPRITE"`. Esos quedan sin
+precio hasta que se carguen a mano desde la app (o se corrija el nombre en el Excel/POS).
+Resultado sobre los datos reales: 90 de 109 productos con precio (79 con match exacto solo).
+⚠️ Caso especial sin resolver: el Excel tiene `Gin Aconcagua` ($9.500) **y** `GIN ACONCAGUA VASO`
+($9.000) como líneas separadas, pero `UNIFICAR` fusiona ambos en un producto — hoy gana $9.500.
+
+En Rentabilidad y Recetas se muestra junto al promedio real (`fPrecioLista()`),
 resaltado en naranja cuando difiere más de `PRECIO_LISTA_UMBRAL` (5%) — eso puede señalar un
 descuento, un cambio de precio a mitad de período, o algo mal cargado en el POS. Ya reveló algo
 interesante: BEEFEATER + TONICA (lista $80.000, promedio real $50.000, -37.5%) es uno de los
