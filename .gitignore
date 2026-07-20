@@ -14,6 +14,11 @@ datos/cajas_api.json
 # Config local de Claude Code (permisos de sesion, no es parte del proyecto)
 **/.claude/settings.local.json
 
+# Paquete armado para instalar en otra Mac: es una COPIA del propio proyecto
+# (+ un ZIP binario y un .git anidado). Versionarlo duplicaria el repo en cada
+# rearmado y los binarios no se pueden sacar despues del historial.
+SISTEMITA_LISTO/
+
 # Backups y temporales
 datos/*backup*.xlsx
 datos/_backups/
