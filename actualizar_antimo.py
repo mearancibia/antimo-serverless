@@ -617,7 +617,11 @@ for k,p in prods.items():
 
 # ---- metadata de insumos (para compras) ----
 insumos_meta={}
-for insumo in set(i for cd in consumo_dia.values() for i in cd):
+# sorted(), no set(): el orden de un set varia entre corridas (hashing aleatorio), asi que dos
+# corridas con los MISMOS datos generaban archivos con distinto orden de claves. No cambia nada
+# funcional (en JSON el orden no significa nada), pero hace que comparar dos carpetas byte a byte
+# sea util: cualquier diferencia pasa a significar algo de verdad.
+for insumo in sorted(set(i for cd in consumo_dia.values() for i in cd)):
     c=COSTO.get(insumo,{}); s=split.get(insumo,{"BEBIDA":0,"COMIDA":0})
     insumos_meta[insumo]={"cxu":c.get("cxu",0),"precio":c.get("precio",0),"cant_base":c.get("cant_base",0),"present":c.get("pres",""),
         "unidad":c.get("unidad",""),"cb_cat":CB_CAT.get(insumo,"Otros"),
