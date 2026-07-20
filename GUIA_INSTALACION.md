@@ -18,7 +18,7 @@ Copiá la carpeta **ANTIMO** completa a tu Escritorio (o donde prefieras). Que q
 Pasa cuando la carpeta viajó por mail, pendrive o ZIP: macOS le saca el permiso de arranque a los archivos. **Se arregla en 20 segundos y una sola vez:**
 
 1. Abrí **Terminal** (apretá `⌘ + barra espaciadora`, escribí `Terminal`, Enter).
-2. Escribí `bash` y **una espacio** — sin apretar Enter todavía.
+2. Escribí `bash` y **un espacio** — sin apretar Enter todavía.
 3. **Arrastrá** el archivo `INSTALAR_ANTIMO.command` desde el Finder hasta la ventana de Terminal. Se va a escribir solo.
 4. Ahora sí, apretá **Enter**.
 
