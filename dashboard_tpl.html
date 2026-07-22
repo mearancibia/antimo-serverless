@@ -13,10 +13,19 @@ h1{font-size:20px}.badge{font-size:11px;background:var(--card2);border:1px solid
 .tabs button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
 .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px}
 .ctl{display:flex;flex-direction:column;gap:2px}.ctl label{font-size:9.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px}
-select,input[type=search]{background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px}
+/* input[type=date] estaba fuera de esta regla: quedaba con el alto por defecto del navegador
+   (22px), por debajo del minimo de 24px, justo en los dos controles que mas se tocan. */
+select,input[type=search],input[type=date]{background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px}
+/* Botones chicos dentro de tablas y tarjetas. Antes se escribia el padding a mano en cada
+   lugar (2px) y quedaban en 20px de alto: por debajo del minimo de 24x24 de WCAG 2.2. */
+.btn.sm{padding:5px 10px;font-size:11.5px;min-height:28px}
 input[type=search]{min-width:140px}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .chip{background:#2a2016;border:1px solid var(--accent);color:#f0d9c4;border-radius:20px;padding:3px 10px;font-size:11.5px;cursor:pointer}.chip b{color:#fff}
+/* aviso de datos ocultos: NO es un filtro para quitar como los otros chips, es plata que no se
+   esta viendo. Se distingue en verde (accion recomendada) y con mas presencia. */
+.chip.nuevas{background:#16281f;border-color:var(--pos);color:#bfe3d2;font-weight:600;padding:5px 12px;font-size:12px}
+.chip.nuevas:hover{background:#1c3428}
 .kpis{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:12px;margin-top:14px}
 @media(max-width:760px){.kpis{grid-template-columns:1fr 1fr}}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
@@ -298,7 +307,20 @@ try{Object.assign(st,JSON.parse(localStorage.getItem('antimo2')||'{}'));}catch(e
 if(!ISO[st.desde])st.desde=DK(DIAS[0]);if(!ISO[st.hasta])st.hasta=DK(DIAS[DIAS.length-1]);
 if(ISO[st.desde]>ISO[st.hasta]){st.desde=DK(DIAS[0]);st.hasta=DK(DIAS[DIAS.length-1]);}
 if(!ISO[st.desdeB])st.desdeB=DK(DIAS[0]);if(!ISO[st.hastaB])st.hastaB=DK(DIAS[0]);
-function save(){try{localStorage.setItem('antimo2',JSON.stringify({tab:st.tab,desde:st.desde,hasta:st.hasta,catgrp:st.catgrp,compras:st.compras,exclSusp:st.exclSusp}));}catch(e){}}
+// ---- noches nuevas que quedarían fuera de la vista ----
+// El rango se recuerda entre sesiones. Si se traen ventas nuevas, el rango guardado sigue
+// terminando en la noche vieja y las nuevas NO se ven — mientras el badge de arriba dice
+// "Datos hasta <la nueva>", que es peor: confirma que llegaron y no invita a revisar el filtro.
+// Pasó de verdad: 2 noches y $3.532.000 fuera de todos los KPIs, sin ningún aviso.
+//   - Si el rango terminaba en la última noche disponible (`hastaAlFinal`), se estira solo:
+//     era "hasta lo último", no una fecha elegida a dedo.
+//   - Si la fecha se eligió a propósito, NO se toca: se avisa con un chip clickeable.
+// `hastaAlFinal` no existe en los localStorage viejos: ahí se avisa en vez de mover nada
+// (cambiar la vista sin permiso es peor que avisar de más).
+function nochesNuevas(){return DIAS.filter(d=>d.iso>ISO[st.hasta]);}
+if(st.hastaAlFinal&&nochesNuevas().length) st.hasta=DK(DIAS[DIAS.length-1]);
+function save(){try{localStorage.setItem('antimo2',JSON.stringify({tab:st.tab,desde:st.desde,hasta:st.hasta,catgrp:st.catgrp,compras:st.compras,exclSusp:st.exclSusp,
+ hastaAlFinal:ISO[st.hasta]===DIAS[DIAS.length-1].iso}));}catch(e){}}
 let APP=false;
 function applyData(d){if(!d||!d.dias)return;DATA=d;DIAS=DATA.dias;ISO=Object.fromEntries(DIAS.map(x=>[DK(x),x.iso||DK(x)]));_patC=null;_cdCache=null;if(!ISO[st.desde])st.desde=DK(DIAS[0]);if(!ISO[st.hasta])st.hasta=DK(DIAS[DIAS.length-1]);rerender();}
 function toast(m){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a222c;border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:8px;z-index:99;font-size:13px';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';clearTimeout(window._tt);window._tt=setTimeout(()=>t.style.opacity='0',2200);}
@@ -433,7 +455,16 @@ function buildControls(){
 // solo chips ACCIONABLES (con ✕ para quitar el filtro). El chip informativo de fechas se sacó:
 // las fechas ya están en los selectores de arriba y no era clickeable, confundía.
 function renderChips(){const ch=[];
- if(st.catgrp!=='all')ch.push(`<span class="chip" data-c="catgrp">${st.catgrp.slice(2)} ✕</span>`);
+ // aviso de noches nuevas fuera del rango: primero de todo, porque significa plata que no se
+ // está viendo. Clickeable = estira el rango hasta la última noche.
+ const nn=nochesNuevas();
+ if(nn.length){
+  // mismo criterio que totals(): sin productos N/D. Si no, el chip promete una cifra y el KPI
+  // de Ventas sube otra distinta (la diferencia son los N/D, que tienen su propia alerta).
+  let plata=0;nn.forEach(d=>DATA.productos.forEach(p=>{if(p.nd)return;const bd=p.byday[DK(d)];if(bd)plata+=bd[1];}));
+  ch.push(`<span class="chip nuevas" data-c="nuevas" title="El rango que quedó guardado termina antes que los datos. Clic para incluirlas.">📅 ${nn.length} noche${nn.length>1?'s':''} nueva${nn.length>1?'s':''} sin mostrar (${nn.map(d=>ddmmOf(d.iso)).join(', ')}) · ${fM(plata)} → ver</span>`);
+ }
+ if(st.catgrp!=='all')ch.push(`<span class="chip" data-c="catgrp">${esc(st.catgrp.slice(2))} ✕</span>`);
  if(st.search)ch.push(`<span class="chip" data-c="search">"${esc(st.search)}" ✕</span>`);
  if(st.exclSusp)ch.push(`<span class="chip" data-c="exs">⚠️ sin sospechosos ✕</span>`);
  // mgF/claseF NO van acá: son filtros de análisis acotados a Rentabilidad (su estado ya se ve
@@ -442,22 +473,32 @@ function renderChips(){const ch=[];
  document.getElementById('chips').innerHTML=ch.join('');
  document.querySelectorAll('#chips .chip[data-c]').forEach(el=>el.onclick=()=>{const c=el.dataset.c;
   if(c==='catgrp')st.catgrp='all';if(c==='search')st.search='';if(c==='exs')st.exclSusp=false;
+  if(c==='nuevas')st.hasta=DK(DIAS[DIAS.length-1]);
   rerender();});}
 
 // ---------- RESUMEN ----------
 function renderKPIs(){
- const t=totals(st.desde,st.hasta);let pv=null;
- if(st.cmp){pv=totals(st.desdeB,st.hastaB);}else{const pr=prevRange(st.desde,st.hasta);pv=pr?totals(pr.a,pr.b):null;}
- const prov=opexRango(st.desde,st.hasta).pend>0?' · PROVIS.':'';
+ const t=totals(st.desde,st.hasta);let pv=null,prRango=null;
+ if(st.cmp){pv=totals(st.desdeB,st.hastaB);}else{prRango=prevRange(st.desde,st.hasta);pv=prRango?totals(prRango.a,prRango.b):null;}
+ // Sin período anterior, los 4 KPIs mostraban un "—" pelado que se lee como "algo se rompió".
+ // Se dice por qué: el rango arranca en la primera noche que existe, no hay contra qué comparar.
+ const sinPrev=!st.cmp&&!prRango;
+ const _pend=opexRango(st.desde,st.hasta).pend;
+ const prov=_pend>0?` · <span title="${_pend} rubro${_pend>1?'s':''} del OPEX está${_pend>1?'n':''} en $0 sin confirmar, así que el resultado puede mejorar o empeorar cuando los cargues. Ver solapa OPEX.">OPEX provisorio</span>`:'';
  const dd=calDaysRange(st.desde,st.hasta);
  const pieResop=t.opexProrrateado
   ? `margen − OPEX prorrateado (${(t.share*100).toFixed(1)}% de las ventas)`
   : `margen − OPEX (${dd} días)`;
  const pieTicket=t.opexProrrateado?`${t.comensales} comensales · solo lo filtrado`:`${t.comensales} comensales`;
- const k=[['hero','Resultado operativo',f0(t.resop),dchip(delta(t.resop,pv&&pv.resop))+prov,pieResop],
-  ['','Ventas',fM(t.ventas),dchip(delta(t.ventas,pv&&pv.ventas)),t.U+' unidades'],
-  ['','Margen bruto',t.mgpct.toFixed(1)+'%',dchip(delta(t.mgpct,pv&&pv.mgpct)),f0(t.mb)],
-  ['','Ticket promedio',t.ticket?f0(t.ticket):'—',dchip(delta(t.ticket,pv&&pv.ticket)),pieTicket]];
+ // el motivo se dice UNA vez (en el KPI principal); repetirlo en los cuatro sería ruido
+ const dch=(a,b,conMotivo)=>sinPrev
+  ? (conMotivo?'<span class="mut" title="El rango arranca en la primera noche que hay cargada, así que no existe un período previo del mismo largo contra el cual comparar. Elegí un rango más corto para ver la variación.">no hay con qué comparar</span>'
+             :'<span class="mut">—</span>')
+  : dchip(delta(a,b));
+ const k=[['hero','Resultado operativo',f0(t.resop),dch(t.resop,pv&&pv.resop,true)+prov,pieResop],
+  ['','Ventas',fM(t.ventas),dch(t.ventas,pv&&pv.ventas),t.U+' unidades'],
+  ['','Margen bruto',t.mgpct.toFixed(1)+'%',dch(t.mgpct,pv&&pv.mgpct),f0(t.mb)],
+  ['','Ticket promedio',t.ticket?f0(t.ticket):'—',dch(t.ticket,pv&&pv.ticket),pieTicket]];
  document.getElementById('kpis').innerHTML=k.map(x=>`<div class="kpi ${x[0]}"><div class="l">${x[1]}</div><div class="v">${x[2]}</div><div class="d">${x[3]}</div><div class="l" style="margin-top:3px;text-transform:none;letter-spacing:0">${x[4]}</div></div>`).join('');
  // Comparación: SOLO las métricas que el P&L comparado no muestra (ventas, margen bruto y
  // resultado ya salen ahí, repetirlas era ruido). Acá quedan las de eficiencia/volumen.
@@ -579,7 +620,7 @@ function renderCompletitud(){
  const abre=DOWSEM.filter(w=>p.abre[w]),ult=DIAS[DIAS.length-1];
  const cerrEnRango=Object.keys(cerr).filter(iso=>iso>=ISO[st.desde]&&iso<=ISO[st.hasta]).sort();
  const dia=(f,txt)=>APP
-  ?`<button class="btn" data-iso="${f.iso}" style="padding:2px 8px;font-size:11.5px">${txt}</button>`
+  ?`<button class="btn sm" data-iso="${f.iso}">${txt}</button>`
   :`<span class="chip" style="cursor:default">${txt}</span>`;
  let h=`<div class="card"><div class="h3">🗓️ Completitud de datos</div>`;
  if(!fal.length&&!lag.length){
@@ -593,7 +634,7 @@ function renderCompletitud(){
  }
  h+=`<div class="legend" style="margin-top:8px">Patrón detectado: abre <b>${abre.join(', ')}</b> · sin actividad: ${DOWSEM.filter(w=>!p.abre[w]&&p.tot[w]).map(w=>w+' ('+(p.con[w]||0)+'/'+p.tot[w]+')').join(' · ')||'—'}.
   Las noches se rotulan por su <b>fecha de cierre</b>: la noche del sábado figura como domingo.</div>`;
- if(cerrEnRango.length)h+=`<div class="legend" style="margin-top:4px">Marcadas cerradas: ${cerrEnRango.map(iso=>APP?`<button class="btn" data-open="${iso}" style="padding:1px 7px;font-size:11px">${ddmmOf(iso)} ✕</button>`:ddmmOf(iso)).join(' ')}</div>`;
+ if(cerrEnRango.length)h+=`<div class="legend" style="margin-top:4px">Marcadas cerradas: ${cerrEnRango.map(iso=>APP?`<button class="btn sm" data-open="${iso}">${ddmmOf(iso)} ✕</button>`:ddmmOf(iso)).join(' ')}</div>`;
  host.innerHTML=h+`</div>`;
  host.querySelectorAll('button[data-iso]').forEach(b=>b.onclick=()=>apiPost('/api/dia_cerrado',{iso:b.dataset.iso,cerrado:true,motivo:'No abrió'}));
  host.querySelectorAll('button[data-open]').forEach(b=>b.onclick=()=>apiPost('/api/dia_cerrado',{iso:b.dataset.open,cerrado:false}));
@@ -609,7 +650,7 @@ function renderStock(){
   <td class="n">${fRestante(c)} u.</td>
   <td class="n" style="${c.critico?'color:var(--neg);font-weight:600':''}">${fQuiebre(c)}</td>
   <td class="mut">hace ${c.diasDesdeConteo}d</td>
-  <td>${APP?`<button class="btn" data-stk="${esc(c.insumo)}" style="padding:2px 8px;font-size:11.5px">recontar</button>`:''}</td></tr>`;};
+  <td>${APP?`<button class="btn sm" data-stk="${esc(c.insumo)}">recontar</button>`:''}</td></tr>`;};
  const host2=`<div class="card"><div class="h3">📦 Stock vigilado</div>
   <table><tr><th>Insumo</th><th>Presentación</th><th class="n">Queda (u.)</th><th>Se agota</th><th>Conteo</th><th></th></tr>${list.map(row).join('')}</table>
   <div class="legend" style="margin-top:6px">"Queda" está en unidades de presentación (botellas/paquetes), no en ml/g. "Se agota" proyecta noche por noche con el ritmo reciente (~3 semanas), separando findes de semana. Si comprás sin recontar, el número se desactualiza — por eso se muestra hace cuánto fue el último conteo.</div></div>`;
@@ -853,7 +894,7 @@ function renderRecetas(){
  let cc='';
  list.forEach((p,i)=>{if(p.cat!==cc){cc=p.cat;h+=`<tr class="grpsub"><td colspan="7">${isFood(p.cat)?'🍔':'🍹'} ${esc(p.cat)}</td></tr>`;}
   const editable=!p.nd&&(p.tipo==='receta'||p.tipo==='promo_2x1'||p.tipo==='combo'||p.tipo==='pour');
-  const btn=editable?`<button class="btn ${APP?'on':''}" data-i="${i}" style="padding:3px 9px"${APP?'':' disabled'}>✏️ Editar</button>`:`<button class="btn" data-i="${i}" style="padding:3px 9px">👁 Ver</button>`;
+  const btn=editable?`<button class="btn sm ${APP?'on':''}" data-i="${i}"${APP?'':' disabled'}>✏️ Editar</button>`:`<button class="btn sm" data-i="${i}">👁 Ver</button>`;
   h+=`<tr><td>${esc(p.pos)}${suspBadge(p)}</td><td class="mut">${p.nd?'sin datos':esc(p.tipo)}</td><td class="n">${p.nd?'—':f0(p.costo)}</td><td class="n">${f0(p.pv||0)}</td><td class="n">${fPrecioLista(p.precio_lista,p.pv,p.key)}</td><td class="n" style="${p.nd?'':mgColor(p.mgpct)}">${p.nd?'—':(p.mgpct+'%')}</td><td>${btn}</td></tr>`;});
  document.getElementById('tRecetas').innerHTML=h;
  document.querySelectorAll('#tRecetas button[data-i]').forEach(b=>b.onclick=()=>showModal(window._recList[+b.dataset.i],true));
@@ -1143,8 +1184,8 @@ function renderCostos(){
  ins.forEach(([nm,m])=>{const pc=APP?`<input type="number" class="prin" data-ins="${esc(nm)}" value="${Math.round(m.precio||0)}" style="width:110px;text-align:right;background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 6px">`:f0(m.precio);
   const c=stockCalc(nm);
   const stk=!APP?(c?fRestante(c)+' u.':'—')
-   :c?`<button class="btn" data-stk="${esc(nm)}" style="padding:2px 8px;font-size:11.5px;${c.critico?'border-color:var(--neg);color:var(--neg)':''}">${Math.max(0,c.restante).toFixed(1)}u · ${fQuiebreCompact(c)}</button>`
-   :`<button class="btn" data-stk="${esc(nm)}" style="padding:2px 8px;font-size:11.5px">+ vigilar</button>`;
+   :c?`<button class="btn sm" data-stk="${esc(nm)}" style="${c.critico?'border-color:var(--neg);color:var(--neg)':''}">${Math.max(0,c.restante).toFixed(1)}u · ${fQuiebreCompact(c)}</button>`
+   :`<button class="btn sm" data-stk="${esc(nm)}">+ vigilar</button>`;
   h+=`<tr><td>${esc(nm)}</td><td class="mut">${esc(m.cb_cat||'')}</td><td class="mut">${esc(m.present||'')}</td><td class="n">${pc}</td><td class="n mut">${(m.cxu||0).toFixed(2)}/${m.unidad||''}</td><td>${stk}</td></tr>`;});
  el.innerHTML=h;
  wireSort(el,'csSort','csDir',renderCostos,k=>k==='insumo'||k==='cb_cat');

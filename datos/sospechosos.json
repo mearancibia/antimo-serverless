@@ -18,5 +18,15 @@
   "estado": "no",
   "motivo": "",
   "ts": "2026-07-17T10:53:26"
+ },
+ "AGUA CON GAS": {
+  "estado": "no",
+  "motivo": "",
+  "ts": "2026-07-21T20:59:13"
+ },
+ "COCA ZERO": {
+  "estado": "no",
+  "motivo": "",
+  "ts": "2026-07-21T20:59:23"
  }
 }
