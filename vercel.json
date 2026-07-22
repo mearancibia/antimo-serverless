@@ -1,6 +1,6 @@
 {
   "builds": [
-    { "src": "api/index.py", "use": "@vercel/python", "config": { "includeFiles": ["engine.py", "sources.py", "sl_common.py", "handlers.py"] } },
+    { "src": "api/index.py", "use": "@vercel/python", "config": { "includeFiles": ["engine.py", "sources.py", "sl_common.py", "handlers.py", "bistro.py"], "maxDuration": 60 } },
     { "src": "index.html", "use": "@vercel/static" }
   ],
   "routes": [

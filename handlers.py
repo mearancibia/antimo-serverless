@@ -258,11 +258,6 @@ ROUTES = {
     "opex_vigencia": _opex_vigencia, "producto": _producto,
 }
 
-# POST que NO recalculan (funciones que no corren en la nube todavía): responden un mensaje claro.
-MSG_PULL = ("El pull de Bistrosoft todavía no corre en la nube (Fase 3). Actualizá las ventas "
-            "corriendo el conector en la Mac (python3 conector_bistrosoft.py) y después "
-            "python3 scripts/seed_supabase.py.")
+# POST que NO recalcula y no aplica en la nube (no hay filesystem persistente donde dejar el Excel).
 MSG_EXCEL = ("Generar el Excel completo se hace desde la app local (run_ANTIMO_app), no desde la nube.")
-MSG_CONFIG = ("Traer ventas desde la nube todavía no está disponible (Fase 3). Las ventas se "
-              "actualizan corriendo el conector en la Mac y volviendo a subir con seed_supabase.py.")
-NORECOMPUTE = {"pull": MSG_PULL, "excel": MSG_EXCEL, "config": MSG_CONFIG}
+NORECOMPUTE = {"excel": MSG_EXCEL}

@@ -90,3 +90,48 @@ def save_opex(sb, ps):
 
 
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+# ---------------------------------------------------------------- Bistrosoft (config + pull)
+def get_bistro_config(sb):
+    r = sb.table("app_meta").select("value").eq("key", "bistro_config").execute().data
+    return (r[0]["value"] if r else None) or {}
+
+
+def save_bistro_config(sb, cfg):
+    sb.table("app_meta").upsert({"key": "bistro_config", "value": cfg}).execute()
+
+
+def _chunks(lst, n=500):
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
+def write_pull(sb, rank, cajas):
+    """Escribe el resultado del pull en Supabase, con la MISMA semántica que el conector local:
+    - ventas: reemplaza cada MES completo (borra las filas de ese YYYY-MM y reinserta las del pull).
+      Por eso el pull arranca en el 1 de un mes (default_range): así los meses del rango se
+      reescriben enteros y no se pierde nada.
+    - cajas: se FUSIONAN por noche (upsert por fecha_key), no se sobreescriben las viejas."""
+    nv = 0
+    for ym, cells in rank.items():
+        rows = []
+        for (ddmm, prod), (q, amt) in cells.items():
+            dd, mm = (ddmm.split("-") + ["", ""])[:2]
+            iso = f"{ym[:4]}-{mm}-{dd}" if (mm and dd) else ""
+            rows.append({"nombre": prod, "fecha": ddmm, "iso": iso,
+                         "unidades": int(round(q)), "monto": round(amt)})
+        # borrar el mes entero antes de reinsertar (equivale a reescribir api_ventas_YYYY-MM.xlsx)
+        sb.table("ventas").delete().like("iso", ym + "-%").execute()
+        for ch in _chunks(rows):
+            if ch:
+                sb.table("ventas").insert(ch).execute()
+        nv += len(rows)
+    nc = 0
+    caja_rows = [{"fecha_key": c.get("fecha_key") or c.get("fecha_iso") or c.get("fecha"), "data": c}
+                 for c in cajas if (c.get("fecha_key") or c.get("fecha_iso") or c.get("fecha"))]
+    for ch in _chunks(caja_rows):
+        if ch:
+            sb.table("cajas").upsert(ch).execute()
+    nc = len(caja_rows)
+    return nv, nc

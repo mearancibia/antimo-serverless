@@ -6,8 +6,9 @@ import os, json
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-from sl_common import client, recompute
+from sl_common import (client, recompute, get_bistro_config, save_bistro_config, write_pull)
 from handlers import ROUTES, NORECOMPUTE
+import bistro
 
 
 def _origen_confiable(headers):
@@ -47,9 +48,16 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(500, {"ok": False, "error": str(e)})
         if name == "config":
-            return self._send(200, {"base": "https://ar-api.bistrosoft.com", "username": "",
-                                    "shopCode": "", "configured": False, "cloud": True,
-                                    "nota": NORECOMPUTE["config"]})
+            try:
+                sb = client()
+                c = get_bistro_config(sb)
+                # NUNCA devolver el password
+                return self._send(200, {"base": c.get("base", "https://ar-api.bistrosoft.com"),
+                                        "username": c.get("username", ""), "shopCode": c.get("shopCode", ""),
+                                        "configured": bool(c.get("username") and c.get("password")),
+                                        "cloud": True})
+            except Exception as e:
+                return self._send(500, {"ok": False, "error": str(e)})
         return self._send(404, {"ok": False, "error": "not found"})
 
     def do_POST(self):
@@ -62,7 +70,47 @@ class handler(BaseHTTPRequestHandler):
         except Exception:
             return self._send(400, {"ok": False, "error": "cuerpo inválido"})
 
-        # POST que no recalculan (pull/excel/config): mensaje claro, sin tocar datos.
+        # --- Bistrosoft: guardar credenciales ---
+        if name == "config":
+            try:
+                sb = client()
+                c = get_bistro_config(sb)
+                c["base"] = data.get("base") or c.get("base") or "https://ar-api.bistrosoft.com"
+                c["username"] = (data.get("username") or "").strip() or c.get("username", "")
+                if data.get("password"):
+                    c["password"] = data["password"]
+                c["shopCode"] = str(data.get("shopCode") or "").strip() or c.get("shopCode", "")
+                save_bistro_config(sb, c)
+                return self._send(200, {"ok": True})
+            except Exception as e:
+                print("ERROR en config ->", repr(e))
+                return self._send(500, {"ok": False, "error": str(e)})
+
+        # --- Bistrosoft: traer ventas y escribirlas en Supabase, luego recalcular ---
+        if name == "pull":
+            try:
+                sb = client()
+                cfg = get_bistro_config(sb)
+                faltan = [k for k in ("base", "username", "password", "shopCode") if not cfg.get(k)]
+                if faltan:
+                    return self._send(200, {"ok": False,
+                        "error": "Falta configurar " + ", ".join(faltan) + " (botón ⚙️ Bistrosoft)."})
+                start = str(data.get("start") or "").strip()
+                end = str(data.get("end") or "").strip()
+                if not start or not end:
+                    start, end = bistro.default_range()
+                tok = bistro.get_token(cfg["base"], cfg["username"], cfg["password"])
+                items = bistro.fetch_all(cfg["base"], tok, cfg["shopCode"], start, end)
+                rank, cajas = bistro.parse_items(items)
+                nv, nc = write_pull(sb, rank, cajas)
+                DATA = recompute(sb)
+                return self._send(200, {"ok": True, "data": DATA,
+                    "log": f"{len(items)} transacciones · {nv} filas de ventas · {nc} noches de caja"})
+            except Exception as e:
+                print("ERROR en pull ->", repr(e))
+                return self._send(200, {"ok": False, "error": str(e)})
+
+        # POST que no aplica en la nube (excel): mensaje claro, sin tocar datos.
         if name in NORECOMPUTE:
             return self._send(200, {"ok": False, "error": NORECOMPUTE[name]})
 

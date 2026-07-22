@@ -40,14 +40,22 @@ POST (escriben override + recalculan): `/api/precio`, `/api/receta`, `/api/preci
 `/api/pour`, `/api/combo`, `/api/sospechoso`, `/api/dia_cerrado`, `/api/stock`, `/api/stock_bulk`,
 `/api/costos_bulk`, `/api/opex_save`, `/api/opex_vigencia`, `/api/producto`.
 
-## Lo que queda para una Fase 3 (traer ventas desde la nube)
+## Fase 3 — traer ventas desde la nube (HECHA)
 
-`/api/pull` y `/api/config` **no** corren el conector de Bistrosoft en la nube todavía (requiere
-correr el conector server-side contra la API externa con credenciales, y no se pudo testear contra
-la API real). Responden con un mensaje claro. `/api/excel` tampoco aplica (no hay filesystem
-persistente). Mientras tanto, **las ventas nuevas se actualizan corriendo el conector en la Mac +
-`seed_supabase.py`** — todo lo demás (editar recetas, costos, OPEX, stock, combos, etc.) ya
-recalcula al instante en la nube.
+- **`bistro.py`** — lógica pura del conector (token JWT → TransactionDetailReport paginado →
+  `parse_items`), extraída de `conector_bistrosoft.py`. Solo usa `requests` + stdlib.
+- **`POST /api/config`** — guarda las credenciales de Bistrosoft en Supabase (`app_meta.bistro_config`).
+  GET nunca devuelve el password. Las credenciales las ingresa el dueño desde el modal ⚙️ del tablero.
+- **`POST /api/pull`** — lee las credenciales, trae las transacciones de Bistrosoft, y con
+  `write_pull()` escribe en Supabase: `ventas` (reemplaza cada MES completo — por eso el rango
+  arranca el 1 de un mes) y `cajas` (fusiona por noche con upsert). Después recalcula y devuelve DATA.
+  Acepta `{start,end}` opcional; por defecto usa el rango del conector (1 del mes pasado a mañana).
+- `requirements.txt` suma `requests`. `maxDuration:60` en vercel.json para pulls largos.
+
+`/api/excel` sigue sin aplicar en la nube (no hay filesystem persistente para dejar el archivo).
+
+⚠️ Backfills muy largos pueden superar el tope de tiempo de la función: para esos, correr el
+conector local + `seed_supabase.py`. El pull incremental (rango por defecto) anda bien.
 
 ## Setup / re-deploy
 
