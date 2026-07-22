@@ -220,12 +220,10 @@ habría quedado desactualizado a la primera modificación.
 - Los componentes por separado suman el combo, en los tres casos.
 - Un combo que se referencia a sí mismo da N/D en vez de colgar el pipeline (probado).
 
-⚠️ **Un supuesto a confirmar:** en el Premium, "degustaciones de papas" (en plural, sin número) se
-cargó como **1 unidad** de `DEGUSTACION DE PAPAS`. Si fueran 2, el costo sube a $86.856 y el margen
-baja de 64% a 61%.
-
-⚠️ **La botella del Premium es a elección** (gin Brighton o vodka Smirnoff). Se costea con la más
-cara — Brighton, $8.990 contra $8.800 — para no subestimar. La diferencia real es de $190.
+**Dos detalles del Premium, ambos confirmados por el dueño el 22-07:**
+- "degustaciones de papas" (venía en plural y sin número) es **1 sola** `DEGUSTACION DE PAPAS`.
+- La botella es a elección del cliente (gin Brighton o vodka Smirnoff) y se costea con la **más
+  cara** — Brighton, $8.990 contra $8.800 — para no subestimar el costo. Diferencia real: $190.
 
 **Quedan 5, todos de monto muy chico:**
 
