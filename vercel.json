@@ -1,7 +1,13 @@
 {
-  "functions": {
-    "api/*.py": {
-      "maxDuration": 15
-    }
-  }
+  "builds": [
+    { "src": "api/*.py", "use": "@vercel/python" },
+    { "src": "index.html", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/ping", "dest": "/api/ping.py" },
+    { "src": "/api/data", "dest": "/api/data.py" },
+    { "src": "/api/precio", "dest": "/api/precio.py" },
+    { "src": "/api/receta", "dest": "/api/receta.py" },
+    { "src": "/", "dest": "/index.html" }
+  ]
 }
