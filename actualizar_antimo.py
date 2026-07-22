@@ -308,15 +308,30 @@ COMBOS={norm("SMIRNOFF + 4 ENERGIZANTES"):[("Vodka Smirnoff",700,"ml"),("Energiz
         norm("ABSOLUT + 4 ENERGIZANTES"):[("Vodka Absolut",700,"ml"),("Energizante Speed",4,"lata")],
         norm("BARON B + ENERGIZANTE"):[("Espumante / Champagne Baron B",750,"ml"),("Energizante Speed",2,"lata")],
         norm("SERNOVA + 4 ENERGIZANTES"):[("Vodka Sernova",700,"ml"),("Energizante Speed",4,"lata")]}
-def costear_combo(k):
-    # componentes editables desde la app: si alguno no existe en Costo_Base (typo, insumo
-    # borrado), el combo va a N/D en vez de tirar abajo todo el pipeline.
+def costear_combo(k,_visitados=None):
+    """Componentes editables desde la app: si alguno no existe en Costo_Base (typo, insumo
+    borrado), el combo va a N/D en vez de tirar abajo todo el pipeline.
+
+    La unidad "producto" permite componer un combo con OTROS PRODUCTOS ya costeados
+    ("5 pizzas + 2 papas") en vez de repetir sus ingredientes a mano. Eso mantiene el vínculo:
+    si mañana cambia la receta de la pizza, el combo se actualiza solo. Multiplicar los
+    ingredientes a mano habría dado el mismo número hoy y habría quedado desactualizado."""
+    _visitados=(_visitados or set())|{k}
     t=0.0; errs=[]
     for ins,cant,u in COMBOS[k]:
+        if u=="producto":
+            pk=norm(ins)
+            if pk in _visitados: errs.append(f"combo circular:{ins}"); continue
+            sub=costear_producto(pk,_visitados)
+            if sub.get("nd"): errs.append(f"componente sin costo:{ins} ({sub.get('motivo','')})"); continue
+            t+=cant*sub["costo"]; continue
         if ins not in COSTO: errs.append(f"insumo no encontrado:{ins}"); continue
         if COSTO[ins]["cxu"] is None: errs.append(f"insumo sin costo por unidad:{ins}"); continue
         if u=="ml": t+=cant*COSTO[ins]["cxu"]
         elif u=="lata":
+            if COSTO[ins]["cant_base"] is None: errs.append(f"insumo sin cantidad base:{ins}"); continue
+            t+=cant*COSTO[ins]["cant_base"]*COSTO[ins]["cxu"]
+        elif u=="unidad":
             if COSTO[ins]["cant_base"] is None: errs.append(f"insumo sin cantidad base:{ins}"); continue
             t+=cant*COSTO[ins]["cant_base"]*COSTO[ins]["cxu"]
         else: errs.append(f"unidad no soportada:{u}")
@@ -329,14 +344,14 @@ INSUMO_ALIAS={"Gin Beefeater":"Gin Beefeater","Gin Aconcagua":"Gin Aconcagua","A
  "Sprite 600cc":"Sprite 600cc","Agua Con Gas / Sin Gas":"Agua Con Gas / Sin Gas","Agua Saborizada":"Agua Saborizada",
  "Limonada base":"Limonada base (Clásica/Frutos Rojos/Pomelada)","Energizante Speed":"Energizante Speed",
  "Energizante Red Bull":"Energizante Red Bull","Agua Tónica":"Agua Tónica"}
-def costear_producto(k):
+def costear_producto(k,_visitados=None):
     m=MAESTRO.get(k)
     if not m: return {"nd":True,"motivo":"no está en Maestro"}
     t=m["tipo"]
     if t=="sin_datos": return {"nd":True,"motivo":"sin_datos"}
     if t=="combo":
         if k in COMBOS:
-            c,errs=costear_combo(k)
+            c,errs=costear_combo(k,_visitados)
             if c is None: return {"nd":True,"motivo":"; ".join(errs[:2])}
             return {"costo":c,"tipo":t}
         return {"nd":True,"motivo":"combo sin composición"}
@@ -383,17 +398,27 @@ def qty_ingrediente(ing,qty):
         if insumo in PIECE_G: return (insumo,val/PIECE_G[insumo],"u",None)
         return (None,None,None,f"pieza sin peso:{ing}")
     return (insumo,val,ub_i,None)
-def explotar_producto(k):
+def explotar_producto(k,_visitados=None):
     m=MAESTRO.get(k)
     if not m: return None
     t=m["tipo"]; out=[]
     if t=="sin_datos": return None
     if t=="combo":
         if k not in COMBOS: return None
+        _visitados=(_visitados or set())|{k}
         for ins,cant,u in COMBOS[k]:
+            # componente que es OTRO PRODUCTO: se explota en cadena, asi la lista de compras
+            # de un combo de cumpleaños termina en harina, queso y papas, no en "5 pizzas"
+            if u=="producto":
+                pk=norm(ins)
+                if pk in _visitados: return None
+                sub=explotar_producto(pk,_visitados)
+                if sub is None: return None
+                for i2,q2,u2 in sub: out.append((i2,q2*cant,u2))
+                continue
             if ins not in COSTO: return None  # mismo insumo faltante que en costear_combo -> N/D, no crash
             if u=="ml": out.append((ins,cant,COSTO[ins]["unidad"]))
-            elif u=="lata": out.append((ins,cant*COSTO[ins]["cant_base"],COSTO[ins]["unidad"]))
+            elif u in ("lata","unidad"): out.append((ins,cant*COSTO[ins]["cant_base"],COSTO[ins]["unidad"]))
         return out
     if t in ("receta","promo_2x1"):
         rec=norm(str(m["costeo"] or "").replace("Receta:","").strip())

@@ -10,5 +10,61 @@
    4,
    "lata"
   ]
+ ],
+ "Combo cumpleaños": [
+  [
+   "PIZZA COMUN",
+   5,
+   "producto"
+  ],
+  [
+   "PAPAS CLASICAS",
+   2,
+   "producto"
+  ]
+ ],
+ "Combo cumpleaños 2": [
+  [
+   "PIZZA COMUN",
+   10,
+   "producto"
+  ],
+  [
+   "PAPAS CLASICAS",
+   4,
+   "producto"
+  ]
+ ],
+ "Combo Cumpleaños Premium": [
+  [
+   "PIZZA COMUN",
+   5,
+   "producto"
+  ],
+  [
+   "DEGUSTACION DE PAPAS",
+   1,
+   "producto"
+  ],
+  [
+   "PICADA DORREGO",
+   1,
+   "producto"
+  ],
+  [
+   "NUGGETS",
+   2,
+   "producto"
+  ],
+  [
+   "Gin Brighton",
+   700,
+   "ml"
+  ],
+  [
+   "Energizante Speed",
+   3,
+   "lata"
+  ]
  ]
 }

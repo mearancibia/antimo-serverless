@@ -350,7 +350,14 @@ Cada producto vendido se busca en el Maestro por su nombre POS → `Tipo_venta`:
 - **pour**: `rendimiento_ml / contenido_botella × precio` (X ml del insumo).
 - **botella**: costo 1:1 de la botella entera.
 - **directo**: costo del insumo por porción.
-- **combo**: mini-receta (botella + N latas) — vive en un dict `COMBOS` en el código + `combos_extra.json`.
+- **combo**: mini-receta — vive en un dict `COMBOS` en el código + `combos_extra.json`.
+  Cada componente es `[nombre, cantidad, unidad]` con unidad `ml`, `lata`, `unidad` o
+  **`producto`**. Esta última permite componer un combo con OTROS PRODUCTOS ya costeados
+  ("5 pizzas + 2 papas", los combos de cumpleaños) en vez de repetir sus ingredientes a mano:
+  **mantiene el vínculo**, así que si cambia la receta de la pizza el combo se actualiza solo.
+  `costear_combo` y `explotar_producto` resuelven la cadena de forma recursiva (la lista de
+  compras de un combo termina en harina y queso, no en "5 pizzas"), con guarda contra
+  referencias circulares — un combo que se referencia a sí mismo da N/D, no cuelga el pipeline.
 - **sin_datos** / sin mapear → **N/D**.
 
 Detalles: hay un diccionario `ALIAS` que mapea nombres de ingredientes de receta a insumos de

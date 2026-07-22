@@ -157,7 +157,7 @@ Queda fuera del alcance de cualquier verificación automática:
 
 ## 8. Pendientes reales (no son errores de cálculo)
 
-### 8.1 Productos sin costear: de 18 a 8 (resuelto parcialmente el 22-07)
+### 8.1 Productos sin costear: de 18 a 5 (resuelto el 22-07)
 
 Tras esta verificación se mapearon 8 de los 18. **Ninguno era un producto nuevo**: el POS había
 empezado a mandar otro nombre para productos que ya estaban costeados.
@@ -199,20 +199,45 @@ botella entera $5.999.
 que el Gin Brighton ($8.837), pero el insumo cuesta 5,7 veces más. Vale la pena revisar el precio
 de venta.
 
-**Quedan 8, y ninguno se puede resolver sin decisiones del dueño:**
+Por último se cargaron los tres combos de cumpleaños, que eran el 93% de lo que faltaba:
+
+| Combo | Composición | Costo | Precio | Margen |
+|---|---|---|---|---|
+| Cumpleaños (10 pers.) | 5 pizzas + 2 papas | $40.283 | $75.000 | 46% |
+| Cumpleaños 2 (20 pers.) | 10 pizzas + 4 papas | $80.566 | $150.000 | 46% |
+| Cumpleaños Premium | 5 pizzas + degustación + picada Dorrego + 2 nuggets + 1 botella + 3 Speed | $79.473 | $220.000 | 64% |
+
+Para cargarlos hubo que **extender el motor**: los combos solo aceptaban insumos crudos (botellas,
+latas) y estos se componen de **productos** (pizzas, papas, picada). Ahora un componente puede ser
+otro producto ya costeado, lo que mantiene el vínculo — si cambia la receta de la pizza, los tres
+combos se actualizan solos. Multiplicar los ingredientes a mano habría dado el mismo número hoy y
+habría quedado desactualizado a la primera modificación.
+
+**Controles que cierran:**
+- El Combo 2 es exactamente el doble del Combo 1: $80.566,293333 contra $80.566,293333, idénticos
+  al sexto decimal (la diferencia de 10 centavos que aparece en el JSON es el redondeo a 1 decimal
+  con que se publica el costo).
+- Los componentes por separado suman el combo, en los tres casos.
+- Un combo que se referencia a sí mismo da N/D en vez de colgar el pipeline (probado).
+
+⚠️ **Un supuesto a confirmar:** en el Premium, "degustaciones de papas" (en plural, sin número) se
+cargó como **1 unidad** de `DEGUSTACION DE PAPAS`. Si fueran 2, el costo sube a $86.856 y el margen
+baja de 64% a 61%.
+
+⚠️ **La botella del Premium es a elección** (gin Brighton o vodka Smirnoff). Se costea con la más
+cara — Brighton, $8.990 contra $8.800 — para no subestimar. La diferencia real es de $190.
+
+**Quedan 5, todos de monto muy chico:**
 
 | Producto | Unidades | Facturado | Qué falta |
 |---|---|---|---|
-| Combo cumpleaños | 12 | $900.000 | qué incluye |
-| Combo Cumpleaños Premium | 1 | $220.000 | qué incluye |
-| Combo cumpleaños 2 | 1 | $150.000 | qué incluye |
 | fernet botella | 1 | $50.000 | ver abajo |
 | RABAS | 1 | $13.500 | receta |
 | SPEED CHICO | 2 | $10.000 | si es la lata chica o el mismo Speed |
 | ALBA | 1 | $8.000 | qué es |
 | cuba libre | 1 | $8.000 | receta |
 
-Total: **$1.359.500 (1,3% de las ventas)**. Los tres Combos concentran el 93%.
+Total: **$89.500 (0,08% de las ventas)**, contra los $4.903.000 (4,6%) del inicio.
 
 ⚠️ **`fernet botella` merece una mirada:** ya existen `BOTELLA FERNET` ($70.000) y
 `BOTELLA DE FERNET` ($65.000). Son tres nombres para lo que parece el mismo producto, a tres
@@ -237,4 +262,4 @@ El Excel tiene `Gin Aconcagua` ($9.500) y `GIN ACONCAGUA VASO` ($9.000) como lí
 
 Los números que muestra el tablero son confiables **en la medida en que lo sean las recetas y los precios cargados**, que es lo único que no se puede verificar por software.
 
-Tras la verificación se cerraron 10 de los 18 productos sin costear (ver §8.1): quedan 8, que son el **1,3% de las ventas** y todos requieren datos que solo puede aportar el dueño. Los tres Combos de cumpleaños concentran $1.270.000 de esos $1.359.500.
+Tras la verificación se cerraron 13 de los 18 productos sin costear (ver §8.1): quedan 5, que suman **$89.500 — el 0,08% de las ventas**, contra el 4,6% del inicio. A esta altura el tablero refleja el negocio prácticamente completo.

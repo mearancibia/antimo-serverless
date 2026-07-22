@@ -438,5 +438,35 @@
   "rend": 60,
   "costeo": "Insumo: Whisky Jack Daniels",
   "nota": "Botella de 750ml a $55.000 y trago de 60ml (confirmado por el dueño). 60ml es la misma medida que el resto de los destilados del bar."
+ },
+ {
+  "pos": "Combo cumpleaños",
+  "cat": "PARA PICAR Y PAPAS",
+  "canon": "Combo cumpleaños",
+  "tipo": "combo",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Combo definido en app",
+  "nota": "10 personas CLASSIC: 5 pizzas + 2 porciones de papas."
+ },
+ {
+  "pos": "Combo cumpleaños 2",
+  "cat": "PARA PICAR Y PAPAS",
+  "canon": "Combo cumpleaños 2",
+  "tipo": "combo",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Combo definido en app",
+  "nota": "20 personas CLASSIC: 10 pizzas muzzarella + 4 porciones de papas comunes."
+ },
+ {
+  "pos": "Combo Cumpleaños Premium",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Combo Cumpleaños Premium",
+  "tipo": "combo",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Combo definido en app",
+  "nota": "20 personas PREMIUM: 5 pizzas + degustación de papas + 1 picada Dorrego + 2 porciones de nuggets + 1 botella (gin Brighton o vodka Smirnoff, se costea con la más cara) + 3 Speed de 473ml."
  }
 ]
