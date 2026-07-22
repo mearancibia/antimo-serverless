@@ -408,5 +408,15 @@
   "rend": null,
   "costeo": "Receta: BRIGHTON + TONICA",
   "nota": "Servicio de botella: botella entera de Gin Brighton (700ml) + botella de tónica 1,5L (confirmado por el dueño). Guarnición para 6 tragos."
+ },
+ {
+  "pos": "GIN TONIC",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Gin Tonic",
+  "tipo": "receta",
+  "factor": 1,
+  "rend": null,
+  "costeo": "Receta: GIN TONIC",
+  "nota": "Lleva Gin Brighton (confirmado por el dueño). Receta propia para no depender del ingrediente genérico, que resuelve al gin más barato."
  }
 ]

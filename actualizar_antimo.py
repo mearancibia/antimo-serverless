@@ -426,7 +426,18 @@ UNIFICAR={norm("speed"):norm("SPEED"),norm("redbull"):norm("REDBULL"),
  norm("Gin aconcagua vaso"):norm("Gin Aconcagua"),
  norm("VASO LIMONADA FRUTOS ROJOS"):norm("LIMONADA FRUTOS ROJOS"),
  norm("VASO LIMONADA FR"):norm("LIMONADA FRUTOS ROJOS"),
- norm("GIN BRIGTON"):norm("Gin Brighton")}  # typo del POS, confirmado por el dueño: mismo producto
+ norm("GIN BRIGTON"):norm("Gin Brighton"),   # typo del POS, confirmado por el dueño
+ # El POS empezó a mandar el nombre con el envase; son los MISMOS productos que ya estaban
+ # costeados. Las cuatro gaseosas ya figuraban como equivalencias confirmadas por el dueño en
+ # PRECIO_LISTA_ALIAS (ahí en el sentido inverso: el producto corto tomaba el precio de lista
+ # del nombre largo). Evidencia: el promedio de venta coincide dentro del 5%.
+ norm("COCA 600CC"):      norm("COCA"),           #  -0%
+ norm("SPRITE 600CC"):    norm("SPRITE"),         #  -3%
+ norm("COCA ZERO 600CC"): norm("COCA ZERO"),      #  -4%
+ norm("FANTA 600CC"):     norm("FANTA"),          #  -5%
+ norm("POMELADA"):        norm("LIMONADA POMELADA"),      #   0%
+ norm("SMIRNOFF + ENERGIZANTE"): norm("Smirnoff + Speed"),#  -1%, confirmado por el dueño
+ norm("ABSOLUT + ENERGIZANTE"):  norm("Absolut + Speed")} #  +6%, confirmado por el dueño
 FOOD_CATS={"HAMBURGUESAS Y SANDWICH","PARA PICAR Y PAPAS","PIZZAS","ENSALADAS","SIN TACC Y VEGGIE","POSTRES"}
 def grupo_cat(cat): return "COMIDA" if str(cat).upper() in FOOD_CATS else "BEBIDA"
 DOW=["Lun","Mar","Mie","Jue","Vie","Sab","Dom"]

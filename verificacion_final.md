@@ -1,6 +1,6 @@
 # Verificación final — ANTIMO
 
-**Fecha:** 22-07-2026 · **Datos:** 50 noches (14-05 al 21-07), 116 productos, 120 insumos, 51 cierres de caja
+**Fecha:** 22-07-2026 · **Datos:** 50 noches (14-05 al 21-07), 116 productos al momento de verificar (109 tras unificar nombres), 120 insumos, 51 cierres de caja
 
 **Alcance:** fórmulas del tablero, costeo de los 116 productos, cruce contra Bistrosoft, casos borde y coherencia entre solapas.
 
@@ -157,22 +157,56 @@ Queda fuera del alcance de cualquier verificación automática:
 
 ## 8. Pendientes reales (no son errores de cálculo)
 
-### 8.1 18 productos sin costear — $4.903.000 (4,6% de las ventas)
+### 8.1 Productos sin costear: de 18 a 10 (resuelto parcialmente el 22-07)
 
-Aparecen en las ventas pero **no aportan margen**, así que la rentabilidad real es distinta de la que muestra el tablero. Los más grandes:
+Tras esta verificación se mapearon 8 de los 18. **Ninguno era un producto nuevo**: el POS había
+empezado a mandar otro nombre para productos que ya estaban costeados.
 
-| Producto | Unidades | Facturado | Motivo |
+| Nombre del POS | Se unificó con | Evidencia |
+|---|---|---|
+| COCA 600CC | COCA | promedio de venta −0% |
+| SPRITE 600CC | SPRITE | −3% |
+| COCA ZERO 600CC | Coca Zero | −4% |
+| FANTA 600CC | FANTA | −5% |
+| POMELADA | LIMONADA POMELADA | 0% |
+| SMIRNOFF + ENERGIZANTE | Smirnoff + Speed | −1%, confirmado por el dueño |
+| ABSOLUT + ENERGIZANTE | Absolut + Speed | +6%, confirmado por el dueño |
+| GIN TONIC | receta propia con Gin Brighton | confirmado por el dueño |
+
+Las cuatro gaseosas ya figuraban como equivalencias confirmadas por el dueño en
+`PRECIO_LISTA_ALIAS` (ahí en el sentido inverso: el nombre corto tomaba el precio de lista del
+largo), así que el mapeo no es una suposición nueva.
+
+`GIN TONIC` es el único que necesitó receta propia: la del Excel usa el ingrediente genérico
+`Gin (Brighton/Beefeater)`, que resuelve al gin más barato. Se fijó Gin Brighton explícito, mismo
+criterio que el resto de la familia (ver §7 de CLAUDE.md).
+
+**Impacto:** $3.364.500 de ventas que antes no entraban en ningún cálculo ahora sí. Los productos
+sin costear pasaron de **$4.903.000 (4,6%)** a **$1.538.500 (1,4%)**.
+
+**Quedan 10, y ninguno se puede resolver sin decisiones del dueño:**
+
+| Producto | Unidades | Facturado | Qué falta |
 |---|---|---|---|
-| GIN TONIC | 153 | $1.533.000 | no está en Maestro |
-| ABSOLUT + ENERGIZANTE | 85 | $1.263.000 | no está en Maestro |
-| Combo cumpleaños | 12 | $900.000 | falta la composición |
-| SMIRNOFF + ENERGIZANTE | 39 | $390.000 | no está en Maestro |
-| Combo Cumpleaños Premium | 1 | $220.000 | falta la composición |
-| Combo cumpleaños 2 | 1 | $150.000 | falta la composición |
+| Combo cumpleaños | 12 | $900.000 | qué incluye |
+| Combo Cumpleaños Premium | 1 | $220.000 | qué incluye |
+| Combo cumpleaños 2 | 1 | $150.000 | qué incluye |
+| JACK DANIELS | 14 | $119.000 | precio de la botella |
+| COPA DE VINO | 15 | $60.000 | cuántos ml sirve la copa |
+| fernet botella | 1 | $50.000 | ver abajo |
+| RABAS | 1 | $13.500 | receta |
+| SPEED CHICO | 2 | $10.000 | si es la lata chica o el mismo Speed |
+| ALBA | 1 | $8.000 | qué es |
+| cuba libre | 1 | $8.000 | receta |
 
-Los tres primeros son productos que **ya existen con otro nombre** en el sistema (hay GIN TONIC con receta, y combos de vodka + energizante): probablemente sea cuestión de mapear el nombre del POS. Los Combos de cumpleaños requieren que el dueño defina qué incluyen.
+⚠️ **`fernet botella` merece una mirada:** ya existen `BOTELLA FERNET` ($70.000) y
+`BOTELLA DE FERNET` ($65.000). Son tres nombres para lo que parece el mismo producto, a tres
+precios distintos ($50.000 el tercero). Puede ser un descuento, una botella más chica, o algo mal
+cargado en el POS — no se unificó porque la diferencia de precio es demasiado grande para asumir
+que son lo mismo.
 
-El tablero ya avisa de esto en la alerta *"18 productos sin costear"* y en la solapa Caja › N/D. **No es un error del sistema: es información que falta cargar.**
+⚠️ **`COPA DE VINO` NO es `BOTELLA VINO`**, aunque el nombre se parezca: $4.000 contra $20.000.
+Una copa es una porción servida de la botella y necesita su propia definición de rendimiento.
 
 ### 8.2 Dos productos que venden bajo costo
 
@@ -190,4 +224,4 @@ El Excel tiene `Gin Aconcagua` ($9.500) y `GIN ACONCAGUA VASO` ($9.000) como lí
 
 Los números que muestra el tablero son confiables **en la medida en que lo sean las recetas y los precios cargados**, que es lo único que no se puede verificar por software.
 
-Antes de entregar, lo que más valor agrega es **cerrar los 18 productos sin costear**: son el 4,6% de las ventas y hoy el margen real del bar es mejor o peor que el que se ve, en una proporción desconocida.
+Tras la verificación se cerraron 8 de los 18 productos sin costear (ver §8.1): quedan 10, que son el **1,4% de las ventas** y todos requieren datos que solo puede aportar el dueño. Los tres Combos de cumpleaños concentran $1.270.000 de esos $1.538.500.
