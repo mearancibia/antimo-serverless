@@ -1,61 +1,61 @@
-# Migración a Vercel + Supabase — Fase 1
+# Migración a Vercel + Supabase
 
-Este documento vive junto al `CLAUDE.md` original (que describe la versión 100% local del
-proyecto). Esta carpeta (`BETA Vercel/INSTALABLE_ANTIMO`) es un fork experimental hacia una
-arquitectura serverless: **no reemplaza** la app local todavía, es un primer paso.
+Fork serverless de ANTIMO (la app local sigue existiendo sin cambios). Vive en
+`BETA Vercel/INSTALABLE_ANTIMO/`.
 
-## Qué se hizo en esta fase
-
-- `index.html`: copia de `dashboard_tpl.html` con un solo cambio (`let DATA=@@DATA@@;` →
-  `let DATA={};`). El resto del JavaScript no se tocó — sigue siendo el mismo frontend vanilla,
-  detecta "modo app" pegándole a `/api/ping` y trae los datos de `/api/data`, igual que en local.
-- `/api/ping.py`, `/api/data.py`: sirven el DATA calculado, ahora desde una tabla de Supabase
-  (`antimo_data`) en vez del archivo `datos_dashboard.json` local.
-- `/api/precio.py`, `/api/receta.py`: los dos overrides editables de esta primera etapa
-  (precio de insumo, receta). Escriben en Supabase (`precios_override`, `recetas_extra`).
-- `supabase_schema.sql`: crea las 3 tablas de arriba, con RLS activado (solo la service_role
-  key —usada server-side— puede escribir; la app nunca expone esa key al navegador).
-- `scripts/seed_supabase.py`: sube el `datos_dashboard.json` + overrides que ya existen
-  localmente a Supabase. Correlo una vez después de aplicar el schema.
-
-## Limitación central de esta fase (léela antes de asumir que "ya funciona todo")
-
-El motor de costeo (`actualizar_antimo.py`, ~800 líneas: Excel con `openpyxl`, PDF con
-`pdfplumber`, toda la lógica de recetas/combos/BCG) **no corre dentro de las funciones
-serverless**. Guardar un precio o una receta desde el tablero:
-
-1. Persiste el override en Supabase (no se pierde nada).
-2. **NO** recalcula costos ni márgenes al instante, a diferencia de la app local.
-
-El tablero avisa esto explícitamente: el toast dice "Guardado (recálculo pendiente — fase 2)"
-en vez de fingir un recálculo que no pasó (Regla #0 del proyecto: nunca inventar/ocultar que un
-número no está actualizado). Para reflejar un cambio en los números:
+## Arquitectura
 
 ```
-python3 actualizar_antimo.py          # local, con los overrides ya bajados de Supabase o
-                                       # editados a mano en datos/*.json
-python3 scripts/seed_supabase.py      # sube el datos_dashboard.json nuevo
+Navegador (index.html, JS vanilla)
+   │  fetch /api/*
+   ▼
+Funciones serverless Python (/api/*.py)  ──►  engine.compute(SupabaseSource)  ──►  Supabase
+   ping/data (GET)                              (motor de costeo puro)              (datos + overrides)
+   precio/receta/… (POST): escriben override → recalculan → devuelven DATA fresca
 ```
 
-## Endpoints que YA NO están portados (pendientes de fase 2)
+- **`engine.py`** — el motor de costeo, refactor de `actualizar_antimo.py` a una **función pura**
+  `compute(src) -> (DATA, opex_seed)`. Los diccionarios grandes (ALIAS, EQUI, UNIFICAR, COMBOS,
+  INSUMO_ALIAS, PIECE_G, etc.) son lógica de negocio y viven acá como código. Solo usa stdlib.
+- **`sources.py`** — capa de datos con dos implementaciones que arman el mismo `src`:
+  `LocalSource` (Excel + rankings + `datos/*.json`, para la app local y para verificar) y
+  `SupabaseSource` (lee de las tablas de Supabase; **no** necesita openpyxl).
+- **`sl_common.py`** — cliente Supabase + `recompute()` + `make_handler(apply)` (boilerplate de los
+  endpoints: chequeo de origen, parseo, escribir override → recalcular → devolver DATA).
+- **`/api/*.py`** — un archivo por endpoint, mínimos (definen `apply(data, sb)` y
+  `handler = make_handler(apply)`).
 
-Todo lo demás que la app local expone via POST sigue sin existir acá — clickearlos en el
-tablero va a dar un error de red, no un crash de la página:
-`/api/opex_save`, `/api/opex_vigencia`, `/api/pour`, `/api/combo`, `/api/producto`,
-`/api/sospechoso`, `/api/dia_cerrado`, `/api/stock`, `/api/stock_bulk`, `/api/costos_bulk`,
-`/api/precio_lista`, `/api/excel`, `/api/pull`, `/api/config`.
+## Verificación (Regla #0: el refactor no cambia ningún número)
 
-La fase 2 natural es portar `actualizar_antimo.py` para que lea su maestro (hoy el Excel
-`datos/datos_general.xlsx`) y sus overrides desde Supabase en vez de archivos locales, y
-correrlo desde una función serverless (o un cron) en cada edición — recién ahí "guardar y
-recalcular al instante" vuelve a ser real en la nube.
+Dos gates que corren sin Supabase real y dieron **idéntico** al `datos_dashboard.json` original:
+1. `compute(LocalSource())` == `datos_dashboard.json` (las 13 secciones).
+2. Round-trip completo: LocalSource → filas del seed → SupabaseSource → `compute` == local.
+3. Endpoints end-to-end contra un cliente Supabase falso (cambiar precio recalcula costos, OPEX,
+   sospechosos, pours). Todo OK.
 
-## Setup para desplegar
+## Endpoints portados (Fase 2 — recálculo REAL en la nube)
 
-1. Crear las 3 tablas: pegar `supabase_schema.sql` en el SQL Editor de Supabase.
-2. Completar `.env` (nunca commitear) a partir de `.env.example` con `SUPABASE_URL` y
-   `SUPABASE_SERVICE_KEY` (la *service role*, no la *anon*).
-3. Sembrar los datos: `pip install -r requirements.txt && python3 scripts/seed_supabase.py`
-   (con las mismas dos variables exportadas en la shell).
-4. En Vercel: importar el repo, cargar `SUPABASE_URL` y `SUPABASE_SERVICE_KEY` como Environment
-   Variables del proyecto (Settings → Environment Variables) y deployar.
+GET: `/api/ping`, `/api/data`.
+POST (escriben override + recalculan): `/api/precio`, `/api/receta`, `/api/precio_lista`,
+`/api/pour`, `/api/combo`, `/api/sospechoso`, `/api/dia_cerrado`, `/api/stock`, `/api/stock_bulk`,
+`/api/costos_bulk`, `/api/opex_save`, `/api/opex_vigencia`, `/api/producto`.
+
+## Lo que queda para una Fase 3 (traer ventas desde la nube)
+
+`/api/pull` y `/api/config` **no** corren el conector de Bistrosoft en la nube todavía (requiere
+correr el conector server-side contra la API externa con credenciales, y no se pudo testear contra
+la API real). Responden con un mensaje claro. `/api/excel` tampoco aplica (no hay filesystem
+persistente). Mientras tanto, **las ventas nuevas se actualizan corriendo el conector en la Mac +
+`seed_supabase.py`** — todo lo demás (editar recetas, costos, OPEX, stock, combos, etc.) ya
+recalcula al instante en la nube.
+
+## Setup / re-deploy
+
+1. **Schema**: pegar `supabase_schema.sql` en el SQL Editor de Supabase (es idempotente).
+2. **Seed**: con `SUPABASE_URL` y `SUPABASE_SERVICE_KEY` (service_role) exportadas:
+   `pip install -r requirements.txt && python3 scripts/seed_supabase.py`
+   (sube datos maestros, ventas, cajas, overrides y el DATA calculado).
+3. **Vercel**: las dos env vars cargadas en el proyecto (Settings → Environment Variables) y deploy.
+
+⚠️ **Tras cambios en el esquema hay que re-correr el seed** para poblar las tablas nuevas, si no
+los endpoints que las leen fallan.

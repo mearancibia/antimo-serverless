@@ -1,8 +1,17 @@
--- ANTIMO — esquema mínimo para la fase 1 de la migración a Supabase.
--- Correr una vez en el SQL Editor del proyecto de Supabase (Settings → SQL Editor → New query).
+-- ANTIMO — esquema completo para la arquitectura serverless (Vercel + Supabase).
+-- Correr en el SQL Editor del proyecto de Supabase. Es idempotente (create if not exists):
+-- se puede volver a correr sin romper nada.
+--
+-- Modelo: el motor de costeo (engine.py) corre en las funciones /api y lee TODO de acá.
+--   - Tablas de DATOS MAESTROS (del Excel base): costo_base, lista_precios, recetas,
+--     maestro_productos, opex_base. Se siembran una vez con scripts/seed_supabase.py.
+--   - Tablas de DATOS del negocio: ventas (rankings), cajas (cierres). También se siembran;
+--     los pulls futuros de Bistrosoft las actualizan.
+--   - Tablas de OVERRIDE (ediciones del dueño desde el tablero): las escriben los endpoints.
+--   - antimo_data: el DATA calculado (cache del último recálculo), lo lee /api/data.
+--   - app_meta: pares clave→JSON para cosas sueltas (logo data-URI, opex.json, opex_cero).
 
--- DATA calculada (equivalente a datos_dashboard.json). Una sola fila (id=1): el motor local
--- sigue siendo la única fuente de verdad del cálculo; scripts/seed_supabase.py sube el resultado.
+-- ================= DATA calculada (cache que sirve /api/data) =================
 create table if not exists antimo_data (
   id int primary key default 1,
   data jsonb not null,
@@ -11,22 +20,107 @@ create table if not exists antimo_data (
   constraint antimo_data_singleton check (id = 1)
 );
 
--- Overrides editables desde el tablero (fase 1: precios y recetas).
-create table if not exists precios_override (
-  insumo text primary key,
-  precio numeric not null,
+-- ================= metadatos sueltos (logo, opex.json editable, opex_cero) =================
+create table if not exists app_meta (
+  key text primary key,
+  value jsonb,
   updated_at timestamptz not null default now()
 );
 
-create table if not exists recetas_extra (
+-- ================= DATOS MAESTROS (del Excel base) =================
+create table if not exists costo_base (
   nombre text primary key,
-  ingredientes jsonb not null,
-  updated_at timestamptz not null default now()
+  cb_cat text,
+  precio numeric,
+  pres text,
+  cant_base numeric,
+  unidad text,
+  cxu numeric
 );
 
--- RLS activado y sin policies: bloquea cualquier acceso con la clave "anon" (la que podría
--- terminar expuesta en el navegador). Los endpoints en /api usan la service_role key, que
--- siempre bypassea RLS — no hace falta ninguna policy para que el propio backend funcione.
-alter table antimo_data enable row level security;
-alter table precios_override enable row level security;
-alter table recetas_extra enable row level security;
+create table if not exists lista_precios (
+  nombre text primary key,      -- ya normalizado (norm())
+  precio numeric
+);
+
+create table if not exists recetas (
+  nombre text primary key,      -- Recetas Bebidas + Comida
+  ingredientes jsonb not null   -- [[ingrediente, cantidad], ...]
+);
+
+create table if not exists maestro_productos (
+  pos text primary key,
+  cat text, canon text, tipo text,
+  factor numeric, rend numeric, costeo text, nota text
+);
+
+create table if not exists opex_base (
+  id bigint generated always as identity primary key,
+  cat text, item text, cantidad numeric, unitario numeric, monto numeric
+);
+
+-- ================= DATOS del negocio (Bistrosoft) =================
+-- ventas: una fila por (producto, noche). El motor agrupa por 'iso' (fecha ISO completa).
+create table if not exists ventas (
+  id bigint generated always as identity primary key,
+  nombre text not null,
+  fecha text,        -- "DD-MM" (etiqueta cruda del POS)
+  iso text,          -- "YYYY-MM-DD" (o "" si no se pudo deducir el año)
+  unidades numeric,
+  monto numeric,
+  unique (nombre, iso, fecha)
+);
+
+-- cajas: el cierre de cada noche tal cual lo arma el conector (jsonb completo).
+create table if not exists cajas (
+  fecha_key text primary key,   -- clave estable por noche
+  data jsonb not null
+);
+
+-- ================= OVERRIDES (ediciones del dueño) =================
+create table if not exists precios_override (
+  insumo text primary key, precio numeric not null, updated_at timestamptz not null default now()
+);
+create table if not exists recetas_extra (
+  nombre text primary key, ingredientes jsonb not null, updated_at timestamptz not null default now()
+);
+create table if not exists precio_lista_override (
+  key text primary key, precio numeric not null, updated_at timestamptz not null default now()
+);
+create table if not exists pours_extra (
+  key text primary key, rend numeric not null, updated_at timestamptz not null default now()
+);
+create table if not exists maestro_extra (
+  pos text primary key, data jsonb not null, updated_at timestamptz not null default now()
+);
+create table if not exists insumos_extra (
+  nombre text primary key, data jsonb not null, updated_at timestamptz not null default now()
+);
+create table if not exists combos_extra (
+  pos text primary key, componentes jsonb not null, updated_at timestamptz not null default now()
+);
+create table if not exists sospechosos (
+  key text primary key, data jsonb not null, updated_at timestamptz not null default now()
+);
+create table if not exists dias_cerrados (
+  iso text primary key, motivo text, updated_at timestamptz not null default now()
+);
+create table if not exists stock (
+  insumo text primary key, data jsonb not null, updated_at timestamptz not null default now()
+);
+
+-- ================= RLS: bloquea la clave anon; la service_role (server-side) siempre bypassa =================
+-- Los endpoints en /api usan SUPABASE_SERVICE_KEY (service_role), que ignora RLS. Con RLS
+-- activado y sin policies, cualquier acceso con la clave anon (la que podría filtrarse al
+-- navegador) queda bloqueado. No hace falta ninguna policy para que el backend funcione.
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'antimo_data','app_meta','costo_base','lista_precios','recetas','maestro_productos',
+    'opex_base','ventas','cajas','precios_override','recetas_extra','precio_lista_override',
+    'pours_extra','maestro_extra','insumos_extra','combos_extra','sospechosos','dias_cerrados','stock'
+  ] loop
+    execute format('alter table %I enable row level security;', t);
+  end loop;
+end $$;
