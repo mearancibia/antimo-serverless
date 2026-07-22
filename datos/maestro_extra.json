@@ -418,5 +418,25 @@
   "rend": null,
   "costeo": "Receta: GIN TONIC",
   "nota": "Lleva Gin Brighton (confirmado por el dueño). Receta propia para no depender del ingrediente genérico, que resuelve al gin más barato."
+ },
+ {
+  "pos": "COPA DE VINO",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Copa de Vino",
+  "tipo": "pour",
+  "factor": 1,
+  "rend": 150,
+  "costeo": "Insumo: Vino Blanco / Tinto (Botella/Copa)",
+  "nota": "150 ml por copa (confirmado por el dueño). Se sirve de la misma botella de 750ml que BOTELLA VINO: rinde 5 copas."
+ },
+ {
+  "pos": "JACK DANIELS",
+  "cat": "BEBIDAS CON ALCOHOL",
+  "canon": "Jack Daniels",
+  "tipo": "pour",
+  "factor": 1,
+  "rend": 60,
+  "costeo": "Insumo: Whisky Jack Daniels",
+  "nota": "Botella de 750ml a $55.000 y trago de 60ml (confirmado por el dueño). 60ml es la misma medida que el resto de los destilados del bar."
  }
 ]

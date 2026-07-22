@@ -157,7 +157,7 @@ Queda fuera del alcance de cualquier verificación automática:
 
 ## 8. Pendientes reales (no son errores de cálculo)
 
-### 8.1 Productos sin costear: de 18 a 10 (resuelto parcialmente el 22-07)
+### 8.1 Productos sin costear: de 18 a 8 (resuelto parcialmente el 22-07)
 
 Tras esta verificación se mapearon 8 de los 18. **Ninguno era un producto nuevo**: el POS había
 empezado a mandar otro nombre para productos que ya estaban costeados.
@@ -184,20 +184,35 @@ criterio que el resto de la familia (ver §7 de CLAUDE.md).
 **Impacto:** $3.364.500 de ventas que antes no entraban en ningún cálculo ahora sí. Los productos
 sin costear pasaron de **$4.903.000 (4,6%)** a **$1.538.500 (1,4%)**.
 
-**Quedan 10, y ninguno se puede resolver sin decisiones del dueño:**
+Después se cargaron dos más con datos del dueño:
+
+| Producto | Cómo se resolvió | Resultado |
+|---|---|---|
+| COPA DE VINO | pour de **150 ml** de la misma botella de 750 ml que `BOTELLA VINO` | costo $1.200, margen 70% |
+| JACK DANIELS | insumo nuevo (**750 ml a $55.000**) + pour de **60 ml** | costo $4.400, margen 48% |
+
+La copa de vino tiene un control de sensatez que cierra: 5 copas de 150 ml cuestan $6.000 y la
+botella entera $5.999.
+
+⚠️ **JACK DANIELS queda con 48% de margen, muy por debajo del resto de los destilados** (Jagger
+80%, Tanqueray 80%, Brighton 91%). No es un error de cálculo: se vende a $8.500, casi lo mismo
+que el Gin Brighton ($8.837), pero el insumo cuesta 5,7 veces más. Vale la pena revisar el precio
+de venta.
+
+**Quedan 8, y ninguno se puede resolver sin decisiones del dueño:**
 
 | Producto | Unidades | Facturado | Qué falta |
 |---|---|---|---|
 | Combo cumpleaños | 12 | $900.000 | qué incluye |
 | Combo Cumpleaños Premium | 1 | $220.000 | qué incluye |
 | Combo cumpleaños 2 | 1 | $150.000 | qué incluye |
-| JACK DANIELS | 14 | $119.000 | precio de la botella |
-| COPA DE VINO | 15 | $60.000 | cuántos ml sirve la copa |
 | fernet botella | 1 | $50.000 | ver abajo |
 | RABAS | 1 | $13.500 | receta |
 | SPEED CHICO | 2 | $10.000 | si es la lata chica o el mismo Speed |
 | ALBA | 1 | $8.000 | qué es |
 | cuba libre | 1 | $8.000 | receta |
+
+Total: **$1.359.500 (1,3% de las ventas)**. Los tres Combos concentran el 93%.
 
 ⚠️ **`fernet botella` merece una mirada:** ya existen `BOTELLA FERNET` ($70.000) y
 `BOTELLA DE FERNET` ($65.000). Son tres nombres para lo que parece el mismo producto, a tres
@@ -205,8 +220,6 @@ precios distintos ($50.000 el tercero). Puede ser un descuento, una botella más
 cargado en el POS — no se unificó porque la diferencia de precio es demasiado grande para asumir
 que son lo mismo.
 
-⚠️ **`COPA DE VINO` NO es `BOTELLA VINO`**, aunque el nombre se parezca: $4.000 contra $20.000.
-Una copa es una porción servida de la botella y necesita su propia definición de rendimiento.
 
 ### 8.2 Dos productos que venden bajo costo
 
@@ -224,4 +237,4 @@ El Excel tiene `Gin Aconcagua` ($9.500) y `GIN ACONCAGUA VASO` ($9.000) como lí
 
 Los números que muestra el tablero son confiables **en la medida en que lo sean las recetas y los precios cargados**, que es lo único que no se puede verificar por software.
 
-Tras la verificación se cerraron 8 de los 18 productos sin costear (ver §8.1): quedan 10, que son el **1,4% de las ventas** y todos requieren datos que solo puede aportar el dueño. Los tres Combos de cumpleaños concentran $1.270.000 de esos $1.538.500.
+Tras la verificación se cerraron 10 de los 18 productos sin costear (ver §8.1): quedan 8, que son el **1,3% de las ventas** y todos requieren datos que solo puede aportar el dueño. Los tres Combos de cumpleaños concentran $1.270.000 de esos $1.359.500.

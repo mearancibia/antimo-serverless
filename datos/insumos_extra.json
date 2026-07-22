@@ -34,5 +34,14 @@
   "unidad": "ml",
   "cxu": 85.3333,
   "cb_cat": "Bebidas - Destilados y Licores"
+ },
+ {
+  "nombre": "Whisky Jack Daniels",
+  "precio": 55000,
+  "pres": "750ml",
+  "cant_base": 750,
+  "unidad": "ml",
+  "cxu": 73.33333333333333,
+  "cb_cat": "Bebidas - Destilados y Licores"
  }
 ]
