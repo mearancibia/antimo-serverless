@@ -1,27 +1,10 @@
 {
   "builds": [
-    { "src": "api/*.py", "use": "@vercel/python", "config": { "includeFiles": ["engine.py", "sources.py", "sl_common.py"] } },
+    { "src": "api/index.py", "use": "@vercel/python", "config": { "includeFiles": ["engine.py", "sources.py", "sl_common.py", "handlers.py"] } },
     { "src": "index.html", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/ping", "dest": "/api/ping.py" },
-    { "src": "/api/data", "dest": "/api/data.py" },
-    { "src": "/api/config", "dest": "/api/config.py" },
-    { "src": "/api/pull", "dest": "/api/pull.py" },
-    { "src": "/api/excel", "dest": "/api/excel.py" },
-    { "src": "/api/precio", "dest": "/api/precio.py" },
-    { "src": "/api/receta", "dest": "/api/receta.py" },
-    { "src": "/api/precio_lista", "dest": "/api/precio_lista.py" },
-    { "src": "/api/pour", "dest": "/api/pour.py" },
-    { "src": "/api/combo", "dest": "/api/combo.py" },
-    { "src": "/api/sospechoso", "dest": "/api/sospechoso.py" },
-    { "src": "/api/dia_cerrado", "dest": "/api/dia_cerrado.py" },
-    { "src": "/api/stock", "dest": "/api/stock.py" },
-    { "src": "/api/stock_bulk", "dest": "/api/stock_bulk.py" },
-    { "src": "/api/costos_bulk", "dest": "/api/costos_bulk.py" },
-    { "src": "/api/opex_save", "dest": "/api/opex_save.py" },
-    { "src": "/api/opex_vigencia", "dest": "/api/opex_vigencia.py" },
-    { "src": "/api/producto", "dest": "/api/producto.py" },
+    { "src": "/api/([^/?]+).*", "dest": "/api/index.py?__name=$1" },
     { "src": "/", "dest": "/index.html" }
   ]
 }
