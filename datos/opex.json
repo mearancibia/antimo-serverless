@@ -199,12 +199,6 @@
     "item": "Prestmaos",
     "cantidad": 1,
     "unitario": 0
-   },
-   {
-    "cat": "Otros",
-    "item": "Prestamos",
-    "cantidad": 1,
-    "unitario": 1500000
    }
   ]
  }

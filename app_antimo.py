@@ -336,6 +336,44 @@ class H(http.server.SimpleHTTPRequestHandler):
                         except (TypeError,ValueError): pass
                     s[insumo]=entry; aplicadas+=1
                 _save("stock.json",s)
+            elif path=="/api/costos_bulk":
+                # Importacion masiva desde el CSV de Costos: precios y/o conteos de stock, en UNA
+                # sola pasada. De a uno serian ~370ms por item (cada POST re-corre el motor): con
+                # 120 insumos son 43 segundos con la app aparentemente colgada.
+                # El frontend ya mostro la vista previa y el dueño confirmo; aca se revalida todo
+                # igual, porque el endpoint es alcanzable sin pasar por esa pantalla.
+                pv=data.get("precios") or []; sk=data.get("stock") or []
+                if not pv and not sk:
+                    return self._send(400,json.dumps({"ok":False,"error":"No vino ningún cambio"}))
+                nprec=0; nstk=0
+                if pv:
+                    p=_load("precios_override.json",{},estricto=True)
+                    for e in pv:
+                        nm=str(e.get("insumo","")).strip()
+                        try: val=float(e.get("precio"))
+                        except (TypeError,ValueError): continue
+                        # 0 o negativo NO se acepta: a diferencia del stock, aca no significa
+                        # "dejar de vigilar" — un insumo gratis falsea todos los margenes.
+                        if not nm or val<=0: continue
+                        p[nm]=val; nprec+=1
+                    _save("precios_override.json",p)
+                if sk:
+                    fecha=str(data.get("fecha") or "").strip()
+                    if not re.match(r"^\d{4}-\d{2}-\d{2}$",fecha): fecha=datetime.date.today().isoformat()
+                    s=_load("stock.json",{},estricto=True)
+                    for e in sk:
+                        nm=str(e.get("insumo","")).strip()
+                        try: cant=float(e.get("cantidad"))
+                        except (TypeError,ValueError): continue
+                        if not nm or cant<=0: continue
+                        entry={"cant":cant,"fecha":fecha}
+                        try:
+                            u=float(e.get("umbral_dias"))
+                            if u>0: entry["umbral_dias"]=u
+                        except (TypeError,ValueError): pass
+                        s[nm]=entry; nstk+=1
+                    _save("stock.json",s)
+                print(f"Importacion masiva: {nprec} precios, {nstk} conteos de stock")
             elif path=="/api/precio_lista":
                 # editar el precio de lista de un producto sin tocar el Excel. vacio/0 => volver
                 # al valor de la hoja "Lista de Precios" (si la tenia).

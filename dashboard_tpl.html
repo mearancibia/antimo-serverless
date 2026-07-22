@@ -148,8 +148,8 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 
 <div id="tab-costos" class="tab-pane hidden">
   <div class="card"><div class="h3">💲 Costos de insumos <span class="mut" id="costoshint" style="font-weight:400"></span>
-     <button class="btn hidden" id="stkExport" style="margin-left:auto">⬇ Exportar stock</button>
-     <button class="btn hidden" id="stkImport">⬆ Importar stock</button>
+     <button class="btn hidden" id="stkExport" style="margin-left:auto" title="Baja un CSV con todos los insumos: precio actual, presentación y stock. Editalo en Excel y volvé a subirlo.">⬇ Exportar precios y stock</button>
+     <button class="btn hidden" id="stkImport" title="Subí el CSV editado. Antes de aplicar nada vas a ver exactamente qué cambia.">⬆ Importar precios y stock</button>
      <input type="file" id="stkImportFile" accept=".csv" class="hidden">
      <input type="search" id="fCostBuscar" placeholder="buscar insumo"></div>
    <div class="scroll"><table id="tCostos"></table></div></div>
@@ -1018,14 +1018,38 @@ function exportCSV(){const rows=comprasRows();const esRepo=st.compras==='repo';
 // sola vez y decidir ahi mismo cuales vigilar, completando solo esas filas. Cantidad en unidades
 // de presentacion (mismo criterio que el resto de stock), no en ml/g.
 function exportStockCSV(){
- const rows=[['Insumo','Presentacion','Cantidad_actual','Umbral_noches']];
+ const rows=[['Insumo','Presentacion','Precio_actual','Cantidad_actual','Umbral_noches']];
  Object.keys(DATA.insumos).sort().forEach(nm=>{
   const m=DATA.insumos[nm],c=(DATA.stock||{})[nm];
-  rows.push([nm, m.present||'', c?c.cant:'', c&&c.umbral_dias?c.umbral_dias:'']);
+  // el precio va sin separador de miles a proposito: cuanto menos formato tenga la celda,
+  // menos chances de que la planilla lo devuelva como "8.990,00" (ver parseNumES)
+  rows.push([nm, m.present||'', Math.round(m.precio||0), c?c.cant:'', c&&c.umbral_dias?c.umbral_dias:'']);
  });
  const csv='﻿'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
- a.download='stock_ANTIMO_'+isoOf(new Date())+'.csv';document.body.appendChild(a);a.click();a.remove();
+ a.download='costos_ANTIMO_'+isoOf(new Date())+'.csv';document.body.appendChild(a);a.click();a.remove();
+}
+// Numeros escritos por una planilla en español. El parser viejo hacia replace(',','.') sobre la
+// PRIMERA coma: con stock andaba ("12,5"), pero con precios es una bomba — "8.990,00" quedaba
+// "8.990.00" y parseFloat lo leia 8,99. Mil veces menos, sin ningun error visible, y todos los
+// margenes de los productos que usan ese insumo pasaban a ~100%.
+function parseNumES(v){
+ let s=(''+(v==null?'':v)).trim().replace(/\s/g,'').replace(/^\$/,'');
+ if(!s)return null;
+ const hayPunto=s.includes('.'),hayComa=s.includes(',');
+ if(hayPunto&&hayComa){
+  // conviven los dos: el ULTIMO es el decimal ("8.990,00" es-AR · "8,990.00" en-US)
+  s=s.lastIndexOf(',')>s.lastIndexOf('.') ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'');
+ }else if(hayComa){
+  s=s.replace(',','.');                     // solo coma = decimal (convencion es-AR)
+ }else if(hayPunto){
+  // solo punto: ambiguo. Grupos de 3 digitos = separador de miles ("8.990" -> 8990,
+  // "1.234.567" -> 1234567). Un precio con milesimas no existe, asi que es seguro.
+  const p=s.split('.');
+  if(p.length>2||(p.length===2&&p[1].length===3))s=p.join('');
+ }
+ const n=parseFloat(s);
+ return isFinite(n)?n:null;
 }
 // parser CSV minimo: comillas + ';' + CRLF, el mismo formato que ya generan las exportaciones.
 function parseCSV(text){
@@ -1043,29 +1067,114 @@ function parseCSV(text){
  if(field||row.length){row.push(field);rows.push(row);}
  return rows.filter(r=>!(r.length===1&&r[0]===''));
 }
+// a cuantos productos le cambia el costo tocar este insumo (para mostrar el alcance real)
+function alcanceInsumo(nm){
+ let n=0;DATA.productos.forEach(p=>{if(!p.nd&&(p.breakdown||[]).some(b=>b.insumo===nm))n++;});return n;
+}
+const VARIACION_SOSPECHOSA=50;   // % de cambio de precio a partir del cual se resalta la fila
 async function importStockFile(file){
  const text=await file.text();
  const rows=parseCSV(text);
  if(rows.length<2){toast('Archivo vacío o con formato inesperado');return;}
  const hdr=rows[0].map(h=>h.trim().toLowerCase());
- const iIns=hdr.indexOf('insumo'),iCant=hdr.indexOf('cantidad_actual'),iUmb=hdr.indexOf('umbral_noches');
- if(iIns<0||iCant<0){toast('El archivo debe tener columnas Insumo y Cantidad_actual');return;}
- const items=[];
+ const iIns=hdr.indexOf('insumo'),iCant=hdr.indexOf('cantidad_actual'),
+       iUmb=hdr.indexOf('umbral_noches'),iPre=hdr.indexOf('precio_actual');
+ if(iIns<0){toast('El archivo debe tener una columna Insumo');return;}
+ if(iCant<0&&iPre<0){toast('El archivo debe tener Precio_actual y/o Cantidad_actual');return;}
+ const precios=[],stock=[],noExisten=[],invalidas=[];
  for(let i=1;i<rows.length;i++){
-  const r=rows[i],insumo=(r[iIns]||'').trim(),cantRaw=(r[iCant]||'').trim().replace(',','.');
-  // vacio o 0 explicito -> no tocar: nunca se deja de vigilar un insumo por accidente via import.
-  if(!insumo||!cantRaw) continue;
-  const cant=parseFloat(cantRaw); if(!(cant>0)) continue;
-  const item={insumo,cantidad:cant};
-  if(iUmb>=0){const u=(r[iUmb]||'').trim().replace(',','.');if(u&&+u>0)item.umbral_dias=+u;}
-  items.push(item);
+  const r=rows[i],insumo=(r[iIns]||'').trim();
+  if(!insumo)continue;
+  const m=DATA.insumos[insumo];
+  // Regla #0: no se adivina a qué insumo se parece. Se reporta y esa fila no se aplica.
+  if(!m){if((r[iPre]||'').trim()||(r[iCant]||'').trim())noExisten.push(insumo);continue;}
+  // ---- precio ----
+  if(iPre>=0){
+   const crudo=(r[iPre]||'').trim();
+   if(crudo){
+    const p=parseNumES(crudo);
+    // 0 NO significa "borrar" como en stock: un insumo gratis rompe los márgenes en silencio
+    if(p===null||p<=0)invalidas.push(`${insumo}: precio "${crudo}"`);
+    else if(Math.round(p)!==Math.round(m.precio||0)){
+     const ant=m.precio||0;
+     precios.push({insumo,antes:ant,ahora:p,pct:ant?((p-ant)/ant*100):null,afecta:alcanceInsumo(insumo)});
+    }
+   }
+  }
+  // ---- stock ----
+  if(iCant>=0){
+   const crudo=(r[iCant]||'').trim();
+   // vacío o 0 => no tocar: un 0 de arrastre no debe dejar de vigilar un insumo
+   if(crudo&&crudo!=='0'){
+    const c=parseNumES(crudo);
+    if(c===null||c<=0)invalidas.push(`${insumo}: cantidad "${crudo}"`);
+    else{
+     const it={insumo,cantidad:c};
+     if(iUmb>=0){const u=parseNumES((r[iUmb]||'').trim());if(u&&u>0)it.umbral_dias=u;}
+     const act=(DATA.stock||{})[insumo];
+     stock.push(Object.assign(it,{antes:act?act.cant:null}));
+    }
+   }
+  }
  }
- if(!items.length){toast('No se encontraron filas con cantidad válida');return;}
- const hoy=isoOf(new Date());
- const fecha=prompt(`¿Fecha del conteo para estas ${items.length} filas? (AAAA-MM-DD)`,hoy);
- if(!fecha) return;
- if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha.trim())){toast('Fecha inválida. Usá AAAA-MM-DD');return;}
- await apiPost('/api/stock_bulk',{items,fecha:fecha.trim()});
+ if(!precios.length&&!stock.length){
+  toast(noExisten.length?`Ninguna fila se pudo aplicar: ${noExisten.length} insumos no existen`
+                        :'No hay cambios para aplicar (todo igual a lo que ya está cargado)');
+  return;
+ }
+ previewImportModal(precios,stock,noExisten,invalidas);
+}
+// Vista previa OBLIGATORIA. Un precio mal importado no se nota: el margen sigue mostrando un
+// número creíble y contamina todos los productos que usan ese insumo. Verlo antes de aplicar
+// es lo que convierte un desastre silencioso en un susto.
+function previewImportModal(precios,stock,noExisten,invalidas){
+ const raros=precios.filter(p=>p.pct!=null&&Math.abs(p.pct)>=VARIACION_SOSPECHOSA);
+ const fp=n=>(n>=0?'+':'')+n.toFixed(0)+'%';
+ let h=`<div class="ovl" id="ovl"><div class="modal" style="max-width:680px"><span class="mclose" id="mx">✕</span>
+  <h2>Revisá los cambios antes de aplicar</h2>`;
+ if(raros.length)h+=`<div class="warn" style="margin-top:10px">⚠️ <b>${raros.length} precio${raros.length>1?'s cambian':' cambia'} más de ${VARIACION_SOSPECHOSA}%.</b>
+   Revisá que no sea un error de formato de la planilla (un "8.990,00" mal leído da $8,99).</div>`;
+ if(precios.length){
+  h+=`<div class="h3" style="margin-top:14px">💲 Precios que cambian (${precios.length})</div>
+   <div class="scroll" style="max-height:230px"><table><tr><th>Insumo</th><th class="n">Antes</th><th class="n">Ahora</th><th class="n">Var.</th><th class="n">Productos</th></tr>`
+   +precios.map(p=>{const raro=p.pct!=null&&Math.abs(p.pct)>=VARIACION_SOSPECHOSA;
+    return `<tr${raro?' style="background:rgba(200,90,84,.18)"':''}><td>${raro?'⚠️ ':''}${esc(p.insumo)}</td>
+     <td class="n mut">${f0(p.antes)}</td><td class="n"><b>${f0(p.ahora)}</b></td>
+     <td class="n" style="color:${p.pct==null?'var(--mut)':p.pct>0?'var(--neg)':'var(--pos)'}">${p.pct==null?'—':fp(p.pct)}</td>
+     <td class="n mut">${p.afecta}</td></tr>`;}).join('')
+   +`</table></div><div class="legend">"Productos" = a cuántos les cambia el costo. El precio por unidad se recalcula solo.</div>`;
+ }
+ if(stock.length){
+  h+=`<div class="h3" style="margin-top:14px">📦 Conteos de stock (${stock.length})</div>
+   <div class="scroll" style="max-height:180px"><table><tr><th>Insumo</th><th class="n">Antes</th><th class="n">Ahora</th></tr>`
+   +stock.map(s=>`<tr><td>${esc(s.insumo)}</td><td class="n mut">${s.antes==null?'sin vigilar':s.antes}</td><td class="n"><b>${s.cantidad}</b></td></tr>`).join('')
+   +`</table></div>`;
+ }
+ if(noExisten.length)h+=`<div class="warn" style="margin-top:12px"><b>${noExisten.length} insumo${noExisten.length>1?'s no existen':' no existe'} y se ignora${noExisten.length>1?'n':''}:</b>
+   <div class="legend" style="margin-top:4px">${noExisten.slice(0,12).map(esc).join(' · ')}${noExisten.length>12?' … y '+(noExisten.length-12)+' más':''}</div>
+   <div class="legend" style="margin-top:4px">Revisá que el nombre esté igual que en la tabla de Costos (mayúsculas y espacios cuentan). No se adivina a cuál te referías.</div></div>`;
+ if(invalidas.length)h+=`<div class="warn" style="margin-top:8px"><b>${invalidas.length} valor${invalidas.length>1?'es ilegibles o ≤0 que se ignoran':' ilegible o ≤0 que se ignora'}:</b>
+   <div class="legend" style="margin-top:4px">${invalidas.slice(0,8).map(esc).join(' · ')}${invalidas.length>8?' …':''}</div></div>`;
+ const fechaHoy=isoOf(new Date());
+ if(stock.length)h+=`<div style="margin-top:12px"><div class="ml">Fecha del conteo físico</div>
+   <input id="impFecha" type="date" value="${fechaHoy}" max="${fechaHoy}" style="${EDINP}"></div>`;
+ h+=`<div style="margin-top:16px"><button class="btn on" id="impOk">Aplicar ${precios.length?precios.length+' precio'+(precios.length>1?'s':''):''}${precios.length&&stock.length?' y ':''}${stock.length?stock.length+' conteo'+(stock.length>1?'s':''):''}</button>
+   <button class="btn" id="impNo">Cancelar</button></div>
+   <div class="legend" style="margin-top:6px">Se guarda una copia de seguridad antes de aplicar (datos/_backups/).</div>
+   </div></div>`;
+ document.getElementById('modalHost').innerHTML=h;
+ const close=()=>document.getElementById('modalHost').innerHTML='';
+ document.getElementById('mx').onclick=close;document.getElementById('impNo').onclick=close;
+ document.getElementById('ovl').onclick=e=>{if(e.target.id==='ovl')close();};
+ document.getElementById('impOk').onclick=async()=>{
+  const f=(document.getElementById('impFecha')||{}).value||fechaHoy;
+  close();toast('Aplicando…');
+  const j=await apiPost('/api/costos_bulk',{
+   precios:precios.map(p=>({insumo:p.insumo,precio:p.ahora})),
+   stock:stock.map(s=>{const o={insumo:s.insumo,cantidad:s.cantidad};if(s.umbral_dias)o.umbral_dias=s.umbral_dias;return o;}),
+   fecha:f});
+  if(j&&j.ok)toast(`Listo: ${precios.length} precio(s) y ${stock.length} conteo(s) aplicados ✓`);
+ };
 }
 
 // ---------- CAJA ----------

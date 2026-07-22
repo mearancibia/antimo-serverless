@@ -312,7 +312,26 @@ se toca este código:** los 119 insumos tienen `cant_base`/`present` válidos, v
 casos especiales que rompan la conversión, pero cualquier insumo nuevo sin esos campos sí la
 rompería (división por 1 por defecto, silenciosa).
 
-**Exportar/importar stock en bloque:** botones en Costos (`stkExport`/`stkImport`), APP-only.
+**Exportar/importar precios y stock en bloque:** botones en Costos (`stkExport`/`stkImport`), APP-only.
+El CSV lleva `Precio_actual` **y** `Cantidad_actual`: una celda vacía significa "no tocar", así que
+se puede completar solo la columna que interesa. Endpoint único `/api/costos_bulk` (precios +
+stock en una sola pasada: de a uno serían ~370ms por ítem, o 43s para los 120 insumos).
+
+⚠️ **Dos cosas que NO hay que aflojar acá**, porque un precio mal importado no se nota — el margen
+sigue mostrando un número creíble y contamina todos los productos que usan ese insumo (el hielo
+está en 35 recetas, las limas en 22):
+1. **La vista previa es obligatoria** (`previewImportModal`): muestra antes→después, la variación
+   %, a cuántos productos afecta cada insumo, y resalta los cambios de más de
+   `VARIACION_SOSPECHOSA` (50%). Es lo que convierte un desastre silencioso en un susto.
+2. **`parseNumES()` para todo número que venga de una planilla.** El parser viejo hacía
+   `replace(',','.')` sobre la primera coma: con stock andaba (`"12,5"`), pero un precio
+   `"8.990,00"` (como lo escribe Excel en es-AR) quedaba `"8.990.00"` y `parseFloat` lo leía
+   **8,99** — mil veces menos, sin ningún error visible. Cubre es-AR, en-US, `$` y espacios;
+   13 casos verificados.
+
+Insumo que no existe → se reporta y **no se aplica esa fila** (Regla #0: no se adivina a cuál se
+parecía). Precio `0` o negativo → se rechaza (a diferencia del stock, donde 0 significa "dejar de
+vigilar"; un insumo gratis falsea los márgenes en silencio).
 Exporta los 119 insumos completos (no solo los vigilados) como CSV con columnas
 `Insumo;Presentacion;Cantidad_actual;Umbral_noches` — así el dueño hace un conteo físico general
 una vez y decide ahí mismo cuáles vigilar. El import usa una **sola fecha para todo el lote**
@@ -406,7 +425,7 @@ es promo de tragos sueltos — el precio es el que delata cuál es cuál.
 
 `GET /` (dashboard), `GET /api/data`, `GET /api/ping`, `GET /api/config`.
 `POST`: `/api/receta`, `/api/precio`, `/api/pour`, `/api/combo`, `/api/producto`, `/api/sospechoso`,
-`/api/dia_cerrado`, `/api/stock`, `/api/opex_save`, `/api/opex_vigencia`, `/api/config`,
+`/api/dia_cerrado`, `/api/stock`, `/api/stock_bulk`, `/api/costos_bulk`, `/api/opex_save`, `/api/opex_vigencia`, `/api/config`,
 `/api/pull` (trae de Bistrosoft), `/api/excel` (genera `datos_general_actualizado.xlsx`). Cada POST escribe el
 override (con backup previo) y re-corre el motor.
 ⚠️ `/api/opex` (escribe `opex_override.json`) quedó **sin uso** desde que se agregaron las vigencias
