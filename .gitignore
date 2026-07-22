@@ -27,6 +27,14 @@ _dbg.py
 *.pyc
 .DS_Store
 
+# Migración Vercel + Supabase: credenciales y entorno, nunca a git
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+.vercel/
+
 # Archivo: legado pre-ANTIMO y cosas superadas por mejoras posteriores.
 # _archivo/docs_superados/ SÍ se versiona (valor histórico, son .md chicos).
 _archivo/viejo/
