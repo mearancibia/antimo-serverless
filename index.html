@@ -298,9 +298,9 @@ function wireSort(table,sortField,dirField,renderFn,ascByDefault){
 function cmpVals(av,bv){return av>bv?1:av<bv?-1:0;}
 // CLAVE de un día = su fecha ISO completa (el motor indexa byday/consumo_dia así). `d.fecha`
 // es solo la etiqueta "DD-MM" para mostrar: dos años distintos comparten etiqueta pero no clave.
-const DK=d=>d.iso||d.fecha;
-let DIAS=DATA.dias, ISO=Object.fromEntries(DATA.dias.map(d=>[DK(d),d.iso||DK(d)]));
-let st={tab:'resumen',desde:DK(DIAS[0]),hasta:DK(DIAS[DIAS.length-1]),catgrp:'all',search:'',sort:'mgtot',dir:-1,ci:(DATA.cajas.length-1),compras:'real',cmp:false,desdeB:DK(DIAS[0]),hastaB:DK(DIAS[0]),rGrupo:'todos',rCat:'all',rTipo:'all',rSearch:'',opCat:'all',opSearch:'',exclSusp:false,opVig:null,
+const DK=d=>d?(d.iso||d.fecha):'';
+let DIAS=DATA.dias||[], ISO=Object.fromEntries((DATA.dias||[]).map(d=>[DK(d),d.iso||DK(d)]));
+let st={tab:'resumen',desde:DK(DIAS[0]),hasta:DK(DIAS[DIAS.length-1]),catgrp:'all',search:'',sort:'mgtot',dir:-1,ci:((DATA.cajas||[]).length-1),compras:'real',cmp:false,desdeB:DK(DIAS[0]),hastaB:DK(DIAS[0]),rGrupo:'todos',rCat:'all',rTipo:'all',rSearch:'',opCat:'all',opSearch:'',exclSusp:false,opVig:null,
 rSort:null,rDir:1,cpSort:null,cpDir:1,csSort:null,csDir:1,oxSort:null,oxDir:1,
 mgF:null,claseF:null};
 try{Object.assign(st,JSON.parse(localStorage.getItem('antimo2')||'{}'));}catch(e){}
@@ -1442,6 +1442,10 @@ const _fcb=document.getElementById('fCostBuscar');if(_fcb)_fcb.oninput=()=>rende
 document.getElementById('stkExport').onclick=exportStockCSV;
 document.getElementById('stkImport').onclick=()=>document.getElementById('stkImportFile').click();
 document.getElementById('stkImportFile').onchange=async(e)=>{const f=e.target.files[0];if(f)await importStockFile(f);e.target.value='';};
-fetch('/api/ping').then(r=>r.json()).then(j=>{if(j&&j.app){APP=true;fetch('/api/data').then(r=>r.json()).then(d=>applyData(d)).catch(()=>rerender());}}).catch(()=>{});
-rerender();
+// Serverless: DATA arranca vacío y llega por fetch (a diferencia del local, que la embebe).
+// rerender() con DATA vacío rompe las funciones de render, así que solo se corre cuando ya
+// hay datos; applyData() lo dispara al resolver el fetch.
+const _hayDatos=()=>typeof DATA!=='undefined'&&DATA.dias&&DATA.dias.length;
+fetch('/api/ping').then(r=>r.json()).then(j=>{if(j&&j.app){APP=true;fetch('/api/data').then(r=>r.json()).then(d=>applyData(d)).catch(()=>{if(_hayDatos())rerender();});}}).catch(()=>{});
+if(_hayDatos())rerender();
 </script></body></html>
