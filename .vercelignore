@@ -1,0 +1,19 @@
+# No hace falta desplegar nada de esto en Vercel — son cosas del lado local (motor,
+# conector, datos, docs). Sacarlos del build evita además que Vercel confunda archivos
+# .py viejos (ej. _archivo/verificacion/) con posibles "entrypoints" de las funciones reales
+# en /api.
+_archivo/
+documentacion/
+datos/
+entrada/
+scripts/
+*.xlsx
+*.command
+app_antimo.py
+actualizar_antimo.py
+conector_bistrosoft.py
+dashboard_ANTIMO.html
+dashboard_tpl.html
+datos_dashboard.json
+logo.png
+SISTEMITA_LISTO/
