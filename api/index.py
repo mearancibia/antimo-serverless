@@ -7,7 +7,7 @@ AUTENTICACIÓN: salvo /api/login (y /api/ping para detección de modo), TODO exi
 AUDITORÍA: cada acción (editar/borrar/pull/config/login/logout) se registra en audit_log con el
 usuario (sacado de la sesión verificada, infalsificable), la acción y el payload (password redactado).
 """
-import json
+import json, os
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -20,6 +20,10 @@ import auth
 # endpoints que NO requieren sesión
 PUBLIC_GET = {"ping"}
 PUBLIC_POST = {"login"}
+
+# Entorno: "dev" en el proyecto de desarrollo (env var ANTIMO_ENV=dev), "prod" por defecto.
+# El frontend lo usa para mostrar el cartel de DESARROLLO y no confundir los dos tableros.
+ENV = os.environ.get("ANTIMO_ENV", "prod")
 
 
 def _origen_confiable(headers):
@@ -53,12 +57,12 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         name = self._name()
         if name == "ping":
-            return self._send(200, {"app": True})
+            return self._send(200, {"app": True, "env": ENV})
         user = self._user()
         if name == "me":
             if not user:
-                return self._send(401, {"ok": False, "error": "no autenticado"})
-            return self._send(200, {"ok": True, "user": user})
+                return self._send(401, {"ok": False, "error": "no autenticado", "env": ENV})
+            return self._send(200, {"ok": True, "user": user, "env": ENV})
         if not user:
             return self._send(401, {"ok": False, "error": "no autenticado"})
         # --- a partir de acá, autenticado ---

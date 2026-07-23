@@ -28,6 +28,11 @@ button:disabled{opacity:.5;cursor:default}
 </form>
 <script>
 const $=i=>document.getElementById(i);
+// Cartel de entorno: el backend informa env='dev' (ANTIMO_ENV) para saber a cuál estás entrando.
+fetch('/api/ping').then(r=>r.json()).then(j=>{if(j&&j.env==='dev'){
+ const d=document.createElement('div');d.textContent='⚠️ ENTORNO DE DESARROLLO';
+ d.style.cssText='position:fixed;top:0;left:0;right:0;background:#8a4b12;color:#ffe6cc;text-align:center;padding:7px;font-weight:600;font-size:13px;letter-spacing:.3px';
+ document.body.insertBefore(d,document.body.firstChild);}}).catch(()=>{});
 $('f').addEventListener('submit',async e=>{
  e.preventDefault();
  const u=$('u').value.trim(),p=$('p').value;

@@ -71,6 +71,32 @@ conector local + `seed_supabase.py`. El pull incremental (rango por defecto) and
   teclado (getpass, no se ve ni queda en el historial) y la guarda hasheada. Uno por usuario.
 - Secreto de firma: env var `SESSION_SECRET` (si no está, usa el service key como fallback).
 
+## Dos entornos: desarrollo y producción
+
+| | Producción | Desarrollo |
+|---|---|---|
+| Rama de git | `main` | `dev` |
+| Supabase | `guufxgjvvtyaiwyprkgl` | `ldubhqrxawwcsbehctso` |
+| `ANTIMO_ENV` | (sin definir) | `dev` |
+| Cartel en pantalla | — | ⚠️ ENTORNO DE DESARROLLO |
+
+**El mismo código sirve para los dos**: la conexión sale de las env vars (`SUPABASE_URL`,
+`SUPABASE_SERVICE_KEY`), así que cada proyecto de Vercel apunta a su propia base. No hay ramas de
+código con credenciales ni condicionales por entorno.
+
+**Flujo de trabajo:** se desarrolla y prueba en `dev` (que deploya al Vercel de desarrollo contra la
+base de desarrollo). Cuando el cambio está verificado, se mergea a `main` → producción.
+
+```
+git checkout dev            # trabajar acá
+...cambios...
+git push origin dev         # deploya a desarrollo, se prueba
+git checkout main && git merge dev && git push origin main   # recién ahí, a producción
+```
+
+⚠️ Cada entorno necesita su propio `SESSION_SECRET` y sus propios usuarios (`crear_usuario.py`
+apuntando a esa base): las sesiones de uno NO valen en el otro, que es justamente lo que se busca.
+
 ## Setup / re-deploy
 
 1. **Schema**: pegar `supabase_schema.sql` en el SQL Editor de Supabase (es idempotente).

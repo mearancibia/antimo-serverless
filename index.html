@@ -1455,7 +1455,16 @@ const _hayDatos=()=>typeof DATA!=='undefined'&&DATA.dias&&DATA.dias.length;
 const _act=document.getElementById('actbtn');if(_act)_act.onclick=()=>location.href='/actividad';
 const _lo=document.getElementById('logoutbtn');
 if(_lo)_lo.onclick=async()=>{try{await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});}catch(e){}location.href='/login';};
-fetch('/api/me').then(r=>r.json()).then(j=>{const b=document.getElementById('userbadge');if(b&&j&&j.user)b.textContent='👤 '+j.user;}).catch(()=>{});
+// Cartel del entorno de desarrollo: el backend informa env='dev' (env var ANTIMO_ENV) para que
+// no se confunda este tablero con el de producción al editar precios/recetas.
+function bannerDev(){
+ if(document.getElementById('devbanner'))return;
+ const d=document.createElement('div');d.id='devbanner';
+ d.textContent='⚠️ ENTORNO DE DESARROLLO — los cambios acá NO afectan producción';
+ d.style.cssText='position:sticky;top:0;z-index:9999;background:#8a4b12;color:#ffe6cc;text-align:center;padding:7px 10px;font-weight:600;font-size:13px;letter-spacing:.3px';
+ document.body.insertBefore(d,document.body.firstChild);
+}
+fetch('/api/me').then(r=>r.json()).then(j=>{const b=document.getElementById('userbadge');if(b&&j&&j.user)b.textContent='👤 '+j.user;if(j&&j.env==='dev')bannerDev();}).catch(()=>{});
 fetch('/api/data').then(r=>{if(r.status===401){location.href='/login';return null;}return r.json();})
  .then(d=>{if(d){APP=true;applyData(d);}}).catch(()=>{if(_hayDatos())rerender();});
 if(_hayDatos())rerender();
