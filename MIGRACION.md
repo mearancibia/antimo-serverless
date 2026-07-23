@@ -75,7 +75,7 @@ conector local + `seed_supabase.py`. El pull incremental (rango por defecto) and
 
 | | Producción | Desarrollo |
 |---|---|---|
-| Rama de git | `main` | `dev` |
+| Rama de git | `main` | `desarrollo` |
 | Supabase | `guufxgjvvtyaiwyprkgl` | `ldubhqrxawwcsbehctso` |
 | `ANTIMO_ENV` | (sin definir) | `dev` |
 | Cartel en pantalla | — | ⚠️ ENTORNO DE DESARROLLO |
@@ -84,14 +84,14 @@ conector local + `seed_supabase.py`. El pull incremental (rango por defecto) and
 `SUPABASE_SERVICE_KEY`), así que cada proyecto de Vercel apunta a su propia base. No hay ramas de
 código con credenciales ni condicionales por entorno.
 
-**Flujo de trabajo:** se desarrolla y prueba en `dev` (que deploya al Vercel de desarrollo contra la
+**Flujo de trabajo:** se desarrolla y prueba en `desarrollo` (que deploya al Vercel de desarrollo contra la
 base de desarrollo). Cuando el cambio está verificado, se mergea a `main` → producción.
 
 ```
-git checkout dev            # trabajar acá
+git checkout desarrollo     # trabajar acá
 ...cambios...
-git push origin dev         # deploya a desarrollo, se prueba
-git checkout main && git merge dev && git push origin main   # recién ahí, a producción
+git push origin desarrollo  # deploya a desarrollo, se prueba
+git checkout main && git merge desarrollo && git push origin main   # recién ahí, a producción
 ```
 
 ⚠️ Cada entorno necesita su propio `SESSION_SECRET` y sus propios usuarios (`crear_usuario.py`
