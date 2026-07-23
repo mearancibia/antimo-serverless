@@ -322,7 +322,11 @@ if(st.hastaAlFinal&&nochesNuevas().length) st.hasta=DK(DIAS[DIAS.length-1]);
 function save(){try{localStorage.setItem('antimo2',JSON.stringify({tab:st.tab,desde:st.desde,hasta:st.hasta,catgrp:st.catgrp,compras:st.compras,exclSusp:st.exclSusp,
  hastaAlFinal:ISO[st.hasta]===DIAS[DIAS.length-1].iso}));}catch(e){}}
 let APP=false;
-function applyData(d){if(!d||!d.dias)return;DATA=d;DIAS=DATA.dias;ISO=Object.fromEntries(DIAS.map(x=>[DK(x),x.iso||DK(x)]));_patC=null;_cdCache=null;if(!ISO[st.desde])st.desde=DK(DIAS[0]);if(!ISO[st.hasta])st.hasta=DK(DIAS[DIAS.length-1]);rerender();}
+function applyData(d){if(!d||!d.dias)return;DATA=d;DIAS=DATA.dias;ISO=Object.fromEntries(DIAS.map(x=>[DK(x),x.iso||DK(x)]));_patC=null;_cdCache=null;if(!ISO[st.desde])st.desde=DK(DIAS[0]);if(!ISO[st.hasta])st.hasta=DK(DIAS[DIAS.length-1]);
+ // st.ci (caja seleccionada) arranca en -1 cuando DATA venía vacío (serverless); al llegar los
+ // datos hay que dejarlo en un índice válido, si no cajas[st.ci] es undefined y cajaIso() crashea.
+ const _nc=(DATA.cajas||[]).length;if(st.ci==null||st.ci<0||st.ci>=_nc)st.ci=_nc-1;
+ rerender();}
 function toast(m){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a222c;border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:8px;z-index:99;font-size:13px';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';clearTimeout(window._tt);window._tt=setTimeout(()=>t.style.opacity='0',2200);}
 async function apiPost(path,body){document.body.style.cursor='progress';try{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();document.body.style.cursor='';if(j.ok){applyData(j.data);toast('Guardado y recalculado ✓');}else toast('Error: '+(j.error||(j.log||'').slice(-120)||'?'));return j;}catch(e){document.body.style.cursor='';toast('Error de conexión con la app');}}
 async function pull(){toast('Trayendo ventas de Bistrosoft…');const j=await apiPost('/api/pull',{});if(j&&j.ok)toast('Ventas actualizadas ✓');}
@@ -358,7 +362,7 @@ function snapH(iso){const c=DIAS.filter(d=>d.iso<=iso);return DK(c[c.length-1]||
 // Si el DD-MM no resuelve contra ISO[], NO se inventa el año: se devuelve '' y la caja queda
 // sin cruzar (visible), en vez de cruzarse contra el año equivocado (silencioso). Acá había un
 // '2026' hardcodeado que sobrevivió a la migración a ISO y rompía solo a partir de 2027.
-function cajaIso(c){if(c.iso)return c.iso;if(ISO[c.fecha])return ISO[c.fecha];if(c.fecha_key){const m=(''+c.fecha_key).match(/(\d{2})\/(\d{2})\/(\d{4})/);if(m)return m[3]+'-'+m[2]+'-'+m[1];}return '';}
+function cajaIso(c){if(!c)return '';if(c.iso)return c.iso;if(ISO[c.fecha])return ISO[c.fecha];if(c.fecha_key){const m=(''+c.fecha_key).match(/(\d{2})\/(\d{2})\/(\d{4})/);if(m)return m[3]+'-'+m[2]+'-'+m[1];}return '';}
 function calDaysRange(a,b){const ia=ISO[a],ib=ISO[b];return Math.max(1,Math.round((new Date(ib)-new Date(ia))/864e5)+1);}
 // ----- OPEX con vigencias -----
 // Cada dia usa el OPEX que regia ESE dia: un periodo que cruza un cambio de vigencia
