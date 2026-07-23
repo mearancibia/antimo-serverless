@@ -109,6 +109,25 @@ create table if not exists stock (
   insumo text primary key, data jsonb not null, updated_at timestamptz not null default now()
 );
 
+-- ================= AUTENTICACIÓN + AUDITORÍA =================
+-- Usuarios de la app (un solo nivel de acceso, sin roles). El password se guarda HASHEADO
+-- (PBKDF2-SHA256 con sal), nunca en texto plano. Se cargan con scripts/crear_usuario.py.
+create table if not exists users (
+  username text primary key,
+  password_hash text not null,
+  created_at timestamptz not null default now()
+);
+
+-- Registro de auditoría: TODO lo que hace cada usuario (editar/borrar/pull/login/logout).
+create table if not exists audit_log (
+  id bigint generated always as identity primary key,
+  ts timestamptz not null default now(),
+  username text,
+  action text,        -- nombre del endpoint / evento
+  detail jsonb        -- payload enviado (con el password redactado)
+);
+create index if not exists audit_log_ts_idx on audit_log (ts desc);
+
 -- ================= RLS: bloquea la clave anon; la service_role (server-side) siempre bypassa =================
 -- Los endpoints en /api usan SUPABASE_SERVICE_KEY (service_role), que ignora RLS. Con RLS
 -- activado y sin policies, cualquier acceso con la clave anon (la que podría filtrarse al
@@ -119,7 +138,8 @@ begin
   foreach t in array array[
     'antimo_data','app_meta','costo_base','lista_precios','recetas','maestro_productos',
     'opex_base','ventas','cajas','precios_override','recetas_extra','precio_lista_override',
-    'pours_extra','maestro_extra','insumos_extra','combos_extra','sospechosos','dias_cerrados','stock'
+    'pours_extra','maestro_extra','insumos_extra','combos_extra','sospechosos','dias_cerrados','stock',
+    'users','audit_log'
   ] loop
     execute format('alter table %I enable row level security;', t);
   end loop;

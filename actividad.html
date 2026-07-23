@@ -1,0 +1,60 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>ANTIMO · Actividad</title>
+<style>
+:root{--bg:#0f1419;--card:#1a222c;--card2:#212b37;--ink:#e8edf2;--mut:#8a97a6;--line:#2b3644;--accent:#e8834a}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;margin:0;padding:22px}
+.top{display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+h1{font-size:20px;margin:0}
+a{color:var(--accent);text-decoration:none;font-size:13.5px}
+.sub{color:var(--mut);font-size:13px}
+.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--card2);color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.4px;position:sticky;top:0}
+tr:hover td{background:var(--card)}
+.u{font-weight:600}
+.act{color:var(--accent)}
+.det{color:var(--mut);font-family:ui-monospace,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;max-width:520px}
+input{background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13.5px}
+</style></head><body>
+<div class="top">
+ <h1>📋 Registro de actividad</h1>
+ <a href="/">← Volver al panel</a>
+ <input id="q" placeholder="filtrar por usuario o acción…" style="margin-left:auto">
+ <span class="sub" id="cnt"></span>
+</div>
+<div class="wrap"><table>
+ <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead>
+ <tbody id="tb"><tr><td colspan="4" class="sub" style="padding:18px">Cargando…</td></tr></tbody>
+</table></div>
+<script>
+const esc=s=>(''+s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let ROWS=[];
+const ACC={precio:'Editó precio de insumo',receta:'Editó receta',precio_lista:'Editó precio de lista',
+ pour:'Editó rendimiento (pour)',combo:'Editó combo',sospechoso:'Marcó/desmarcó sospechoso',
+ dia_cerrado:'Marcó noche cerrada',stock:'Cargó stock',stock_bulk:'Importó stock (lote)',
+ costos_bulk:'Importó precios/stock (lote)',opex_save:'Editó OPEX',opex_vigencia:'Cambió vigencia OPEX',
+ producto:'Creó producto',config:'Cambió config Bistrosoft',pull:'Trajo ventas (pull)',
+ login:'Inició sesión',login_fallido:'Login fallido',logout:'Cerró sesión'};
+function fdate(ts){try{const d=new Date(ts);return d.toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});}catch(e){return ts;}}
+function render(){
+ const q=document.getElementById('q').value.trim().toLowerCase();
+ const rows=ROWS.filter(r=>!q||(''+r.username).toLowerCase().includes(q)||(''+r.action).toLowerCase().includes(q));
+ document.getElementById('cnt').textContent=rows.length+' de '+ROWS.length+' eventos';
+ document.getElementById('tb').innerHTML=rows.length?rows.map(r=>{
+  const det=r.detail&&Object.keys(r.detail).length?JSON.stringify(r.detail):'';
+  return `<tr><td>${esc(fdate(r.ts))}</td><td class="u">${esc(r.username||'—')}</td>`+
+   `<td class="act">${esc(ACC[r.action]||r.action||'')}</td><td class="det">${esc(det)}</td></tr>`;
+ }).join(''):'<tr><td colspan="4" class="sub" style="padding:18px">Sin actividad.</td></tr>';
+}
+document.getElementById('q').oninput=render;
+(async()=>{
+ try{
+  const r=await fetch('/api/audit');
+  if(r.status===401){location.href='/login';return;}
+  const j=await r.json();
+  ROWS=j.rows||[];render();
+ }catch(e){document.getElementById('tb').innerHTML='<tr><td colspan="4" class="sub" style="padding:18px">Error al cargar.</td></tr>';}
+})();
+</script></body></html>

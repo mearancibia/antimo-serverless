@@ -1,10 +1,14 @@
 {
   "builds": [
-    { "src": "api/index.py", "use": "@vercel/python", "config": { "includeFiles": ["engine.py", "sources.py", "sl_common.py", "handlers.py", "bistro.py"], "maxDuration": 60 } },
-    { "src": "index.html", "use": "@vercel/static" }
+    { "src": "api/index.py", "use": "@vercel/python", "config": { "includeFiles": ["engine.py", "sources.py", "sl_common.py", "handlers.py", "bistro.py", "auth.py"], "maxDuration": 60 } },
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "login.html", "use": "@vercel/static" },
+    { "src": "actividad.html", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/api/([^/?]+).*", "dest": "/api/index.py?__name=$1" },
+    { "src": "/login/?", "dest": "/login.html" },
+    { "src": "/actividad/?", "dest": "/actividad.html" },
     { "src": "/", "dest": "/index.html" }
   ]
 }

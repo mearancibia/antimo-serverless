@@ -75,7 +75,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .wf .fill{height:100%;border-radius:4px}.wf .amt{width:90px;text-align:right;font-variant-numeric:tabular-nums}
 @media print{.tabs,.bar,.chips,.btn{display:none!important}.tab-pane{display:block!important}}
 </style></head><body>
-<div class="top"><h1 id="brand" style="display:flex;align-items:center">🍺 ANTIMO</h1><span class="badge" id="hasta"></span><span style="margin-left:auto"></span><span class="badge hidden" id="appbadge" style="border-color:var(--pos);color:var(--pos)">✏️ Modo edición</span><button class="btn hidden" id="pullbtn">🔄 Traer ventas</button><button class="btn hidden" id="excelbtn">⬇ Excel completo</button><button class="btn hidden" id="cfgbtn">⚙️ Bistrosoft</button><button class="btn" id="print">🖨️ Imprimir / PDF</button></div>
+<div class="top"><h1 id="brand" style="display:flex;align-items:center">🍺 ANTIMO</h1><span class="badge" id="hasta"></span><span style="margin-left:auto"></span><span class="badge hidden" id="appbadge" style="border-color:var(--pos);color:var(--pos)">✏️ Modo edición</span><button class="btn hidden" id="pullbtn">🔄 Traer ventas</button><button class="btn hidden" id="excelbtn">⬇ Excel completo</button><button class="btn hidden" id="cfgbtn">⚙️ Bistrosoft</button><button class="btn" id="print">🖨️ Imprimir / PDF</button><span class="badge" id="userbadge" style="border-color:var(--accent);color:var(--accent)"></span><button class="btn" id="actbtn">📋 Actividad</button><button class="btn" id="logoutbtn">🚪 Salir</button></div>
 <div class="tabs" id="tabs">
   <button data-t="resumen" class="on">Resumen</button><button data-t="rent">Rentabilidad</button><button data-t="recetas">Recetas</button>
   <button data-t="compras">Compras</button><button data-t="caja">Caja</button><button data-t="costos">Costos</button><button data-t="opex">OPEX</button>
@@ -1450,6 +1450,13 @@ document.getElementById('stkImportFile').onchange=async(e)=>{const f=e.target.fi
 // rerender() con DATA vacío rompe las funciones de render, así que solo se corre cuando ya
 // hay datos; applyData() lo dispara al resolver el fetch.
 const _hayDatos=()=>typeof DATA!=='undefined'&&DATA.dias&&DATA.dias.length;
-fetch('/api/ping').then(r=>r.json()).then(j=>{if(j&&j.app){APP=true;fetch('/api/data').then(r=>r.json()).then(d=>applyData(d)).catch(()=>{if(_hayDatos())rerender();});}}).catch(()=>{});
+// Auth: los /api/* exigen sesión. Si /api/data devuelve 401, no hay sesión -> a /login.
+// Con sesión válida, APP=true (modo edición) y se traen los datos.
+const _act=document.getElementById('actbtn');if(_act)_act.onclick=()=>location.href='/actividad';
+const _lo=document.getElementById('logoutbtn');
+if(_lo)_lo.onclick=async()=>{try{await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});}catch(e){}location.href='/login';};
+fetch('/api/me').then(r=>r.json()).then(j=>{const b=document.getElementById('userbadge');if(b&&j&&j.user)b.textContent='👤 '+j.user;}).catch(()=>{});
+fetch('/api/data').then(r=>{if(r.status===401){location.href='/login';return null;}return r.json();})
+ .then(d=>{if(d){APP=true;applyData(d);}}).catch(()=>{if(_hayDatos())rerender();});
 if(_hayDatos())rerender();
 </script></body></html>

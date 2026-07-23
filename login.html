@@ -1,0 +1,44 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>ANTIMO · Ingresar</title>
+<style>
+:root{--bg:#0f1419;--card:#1a222c;--card2:#212b37;--ink:#e8edf2;--mut:#8a97a6;--line:#2b3644;--accent:#e8834a}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;
+ margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:34px 30px;width:100%;max-width:360px}
+h1{font-size:22px;margin:0 0 4px;letter-spacing:.5px}
+.sub{color:var(--mut);font-size:13.5px;margin-bottom:22px}
+label{display:block;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 4px}
+input{background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:9px;
+ padding:11px 12px;font-size:15px;width:100%}
+input:focus{outline:none;border-color:var(--accent)}
+button{background:var(--accent);color:#151515;border:0;border-radius:9px;padding:12px 18px;font-size:15px;
+ font-weight:600;cursor:pointer;width:100%;margin-top:22px}
+button:disabled{opacity:.5;cursor:default}
+#msg{margin-top:14px;font-size:13.5px;min-height:20px;color:#c85a54}
+.brand{font-weight:800;font-size:26px;letter-spacing:1px;margin-bottom:2px}
+</style></head><body>
+<form class="card" id="f">
+ <div class="brand">ANTIMO</div>
+ <div class="sub">Ingresá con tu usuario para ver el panel.</div>
+ <label>Usuario</label><input id="u" autocomplete="username" autofocus>
+ <label>Contraseña</label><input id="p" type="password" autocomplete="current-password">
+ <button id="go" type="submit">Ingresar</button>
+ <div id="msg"></div>
+</form>
+<script>
+const $=i=>document.getElementById(i);
+$('f').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const u=$('u').value.trim(),p=$('p').value;
+ if(!u||!p){$('msg').textContent='Completá usuario y contraseña.';return;}
+ $('go').disabled=true;$('msg').textContent='';
+ try{
+  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:u,password:p})});
+  const j=await r.json();
+  if(j.ok){location.href='/';}
+  else{$('msg').textContent=j.error||'No se pudo ingresar.';$('go').disabled=false;}
+ }catch(err){$('msg').textContent='Error de conexión.';$('go').disabled=false;}
+});
+</script></body></html>

@@ -57,6 +57,20 @@ POST (escriben override + recalculan): `/api/precio`, `/api/receta`, `/api/preci
 ⚠️ Backfills muy largos pueden superar el tope de tiempo de la función: para esos, correr el
 conector local + `seed_supabase.py`. El pull incremental (rango por defecto) anda bien.
 
+## Autenticación + auditoría
+
+- **Usuarios individuales, un solo nivel de acceso** (sin roles). Tabla `users` en Supabase con el
+  password HASHEADO (PBKDF2-SHA256 + sal, `auth.py`). Nunca en texto plano.
+- **Login** (`/login`): `POST /api/login` verifica y devuelve una **cookie de sesión firmada**
+  (HMAC, HttpOnly). Todos los `/api/*` exigen sesión válida → 401 si no (salvo `/api/ping` y
+  `/api/login`). El tablero redirige a `/login` si no hay sesión. Botón "🚪 Salir" (`/api/logout`).
+- **Auditoría** (`/actividad`): tabla `audit_log`. Cada acción (editar/borrar/pull/config/login/
+  logout) registra usuario + timestamp + acción + payload (con el password **redactado**). El
+  usuario sale de la sesión verificada, no de lo que manda el cliente (infalsificable).
+- **Crear usuarios**: `python3 scripts/crear_usuario.py [usuario]` — pide la contraseña por
+  teclado (getpass, no se ve ni queda en el historial) y la guarda hasheada. Uno por usuario.
+- Secreto de firma: env var `SESSION_SECRET` (si no está, usa el service key como fallback).
+
 ## Setup / re-deploy
 
 1. **Schema**: pegar `supabase_schema.sql` en el SQL Editor de Supabase (es idempotente).

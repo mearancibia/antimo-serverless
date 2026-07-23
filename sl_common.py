@@ -92,6 +92,33 @@ def save_opex(sb, ps):
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
+# ---------------------------------------------------------------- auth + auditoría
+def find_user(sb, username):
+    r = sb.table("users").select("username,password_hash").eq("username", username).execute().data
+    return r[0] if r else None
+
+
+# claves sensibles que NUNCA deben quedar en el log de auditoría en texto plano
+_REDACT = {"password", "pass", "pw"}
+
+
+def audit(sb, username, action, detail):
+    """Registra una acción en audit_log. Redacta contraseñas. Nunca hace fallar la operación
+    principal: si el log falla, se ignora (mejor perder una línea de log que bloquear una edición)."""
+    try:
+        d = detail
+        if isinstance(detail, dict):
+            d = {k: ("***" if k.lower() in _REDACT else v) for k, v in detail.items()}
+        sb.table("audit_log").insert({"username": username, "action": action, "detail": d}).execute()
+    except Exception as e:
+        print("WARN: no pude registrar auditoría ->", repr(e))
+
+
+def recent_audit(sb, limit=300):
+    return (sb.table("audit_log").select("ts,username,action,detail")
+            .order("ts", desc=True).limit(limit).execute().data or [])
+
+
 # ---------------------------------------------------------------- Bistrosoft (config + pull)
 def get_bistro_config(sb):
     r = sb.table("app_meta").select("value").eq("key", "bistro_config").execute().data
