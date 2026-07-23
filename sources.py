@@ -215,7 +215,22 @@ class SupabaseSource:
         self.sb = client
 
     def _rows(self, table, cols="*"):
-        return self.sb.table(table).select(cols).execute().data or []
+        # PostgREST corta las SELECT en 1000 filas por defecto: sin paginar, la tabla `ventas`
+        # (>1000 filas) se leía truncada y se perdían los meses más nuevos EN SILENCIO. Se pagina
+        # con .range() hasta agotar. Sin ordenar explícito, PostgREST puede repetir/saltear filas
+        # entre páginas, así que ordenamos por la PK de cada tabla (o por una columna estable).
+        order_col = {"ventas": "id", "opex_base": "id"}.get(table)
+        out = []; start = 0; PAGE = 1000
+        while True:
+            q = self.sb.table(table).select(cols)
+            if order_col:
+                q = q.order(order_col)
+            batch = q.range(start, start + PAGE - 1).execute().data or []
+            out += batch
+            if len(batch) < PAGE:
+                break
+            start += PAGE
+        return out
 
     def _kv(self, table, key_col, val_col):
         return {r[key_col]: r[val_col] for r in self._rows(table)}
