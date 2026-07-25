@@ -37,6 +37,19 @@ input[type=search]{min-width:140px}
 .h3{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .alerts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}@media(max-width:760px){.alerts{grid-template-columns:1fr}}
 .alert{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--mut);border-radius:10px;padding:11px 13px}
+.top{flex-wrap:wrap;align-items:center;gap:8px}
+.grow{flex:1 1 auto}
+.um{position:relative;display:inline-block}
+#userbtn{display:inline-flex;align-items:center;gap:6px;border-color:var(--accent);color:var(--accent)}
+#userbtn .caret{font-size:10px;opacity:.8}
+.umpop{position:absolute;right:0;top:calc(100% + 6px);z-index:60;min-width:210px;background:var(--card);
+ border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:0 10px 28px rgba(0,0,0,.5)}
+.umitem{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);
+ font:inherit;font-size:13.5px;padding:9px 10px;border-radius:7px;cursor:pointer}
+.umitem:hover,.umitem:focus-visible{background:var(--card2);outline:none}
+.umsep{height:1px;background:var(--line);margin:5px 2px}
+/* en pantallas angostas la fecha de generación es lo primero que sobra */
+@media(max-width:560px){#hasta .genpart{display:none}}
 .brandbtn{background:none;border:0;padding:0;margin:0;cursor:pointer;display:flex;align-items:center;border-radius:6px;opacity:.95;transition:opacity .12s}
 .brandbtn:hover{opacity:1}
 .brandbtn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent)}
@@ -83,7 +96,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .wf .fill{height:100%;border-radius:4px}.wf .amt{width:90px;text-align:right;font-variant-numeric:tabular-nums}
 @media print{.tabs,.bar,.chips,.btn{display:none!important}.tab-pane{display:block!important}}
 </style></head><body>
-<div class="top"><h1 id="brand" style="display:flex;align-items:center">🍺 ANTIMO</h1><span class="badge" id="hasta"></span><span style="margin-left:auto"></span><span class="badge hidden" id="appbadge" style="border-color:var(--pos);color:var(--pos)">✏️ Modo edición</span><button class="btn hidden" id="pullbtn">🔄 Traer ventas</button><button class="btn hidden" id="excelbtn">⬇ Excel completo</button><button class="btn hidden" id="cfgbtn">⚙️ Bistrosoft</button><button class="btn" id="print">🖨️ Imprimir / PDF</button><span class="badge" id="userbadge" style="border-color:var(--accent);color:var(--accent)"></span><button class="btn" id="actbtn">📋 Actividad</button><button class="btn" id="logoutbtn">🚪 Salir</button></div>
+<div class="top"><h1 id="brand" style="display:flex;align-items:center">🍺 ANTIMO</h1><span class="badge" id="hasta"></span><span class="badge hidden" id="appbadge" style="border-color:var(--pos);color:var(--pos)">✏️ Modo edición</span><span class="grow"></span><button class="btn" id="pullbtn">🔄 Traer ventas</button><div class="um" id="um"><button class="btn" id="userbtn" aria-haspopup="true" aria-expanded="false"><span id="userbadge">👤</span><span class="caret">▾</span></button><div class="umpop hidden" id="umpop" role="menu"><button class="umitem hidden" id="cfgbtn" role="menuitem">⚙️ Bistrosoft</button><button class="umitem" id="print" role="menuitem">🖨️ Imprimir / PDF</button><button class="umitem" id="actbtn" role="menuitem">📋 Actividad</button><div class="umsep"></div><button class="umitem" id="logoutbtn" role="menuitem">🚪 Salir</button></div></div></div>
 <div class="tabs" id="tabs">
   <button data-t="resumen" class="on">Resumen</button><button data-t="rent">Rentabilidad</button><button data-t="recetas">Recetas</button>
   <button data-t="compras">Compras</button><button data-t="caja">Caja</button><button data-t="costos">Costos</button><button data-t="opex">OPEX</button>
@@ -462,7 +475,7 @@ function buildControls(){
  fc.innerHTML=o;fc.value=st.catgrp;
  // no pisar el buscador si el usuario está tipeando: reasignar .value le manda el cursor al final
  const _fs=document.getElementById('fSearch');if(_fs.value!==st.search)_fs.value=st.search;
- const maxd=DIAS[DIAS.length-1].fecha;document.getElementById('hasta').textContent='Datos hasta '+maxd+' · generado '+DATA.generado;
+ const maxd=DIAS[DIAS.length-1].fecha;document.getElementById('hasta').innerHTML='Datos hasta '+esc(maxd)+'<span class="genpart"> · generado '+esc(DATA.generado)+'</span>';
  document.getElementById('barB').classList.toggle('hidden',!st.cmp);
  document.getElementById('cmp').classList.toggle('on',st.cmp);
  document.getElementById('exs').classList.toggle('on',st.exclSusp);
@@ -1335,7 +1348,7 @@ function renderCostos(){
   el.querySelectorAll('button[data-stk]').forEach(b=>b.onclick=()=>stockModal(b.dataset.stk));
  }
 }
-function updateAppUI(){['appbadge','pullbtn','excelbtn','cfgbtn','newRec','opAdd','opVigAdd','stkExport','stkImport'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.toggle('hidden',!APP);});
+function updateAppUI(){['appbadge','pullbtn','cfgbtn','newRec','opAdd','opVigAdd','stkExport','stkImport'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.toggle('hidden',!APP);});
  const d=document.getElementById('opVigDel');if(d)d.classList.toggle('hidden',!APP||(DATA.opex_periodos||[]).length<2);}
 function newProductModal(){
  if(!APP){toast('Abrí la app (run_ANTIMO_app) para crear productos');return;}
@@ -1469,7 +1482,6 @@ document.getElementById('opVigDel').onclick=()=>{
 document.getElementById('opAdd').onclick=()=>{const t=document.getElementById('tOpex');const v=vigSel();const rows=t.querySelectorAll('tr');const totrow=rows[rows.length-1];totrow.insertAdjacentHTML('beforebegin',window._opexRow({cat:'',item:'',cantidad:1,unitario:0,monto:0}));wireOpex(t,v?v.desde:'');const its=t.querySelectorAll('.opr .opi');its[its.length-1].focus();};
 document.getElementById('pullbtn').onclick=pull;
 document.getElementById('cfgbtn').onclick=configModal;
-document.getElementById('excelbtn').onclick=async()=>{toast('Generando Excel…');const r=await fetch('/api/excel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const j=await r.json();toast(j.ok?('Listo: '+j.file+' en la carpeta ANTIMO'):'Error generando Excel');};
 const _fcb=document.getElementById('fCostBuscar');if(_fcb)_fcb.oninput=()=>renderCostos();
 document.getElementById('stkExport').onclick=exportStockCSV;
 document.getElementById('stkImport').onclick=()=>document.getElementById('stkImportFile').click();
@@ -1480,6 +1492,20 @@ document.getElementById('stkImportFile').onchange=async(e)=>{const f=e.target.fi
 const _hayDatos=()=>typeof DATA!=='undefined'&&DATA.dias&&DATA.dias.length;
 // Auth: los /api/* exigen sesión. Si /api/data devuelve 401, no hay sesión -> a /login.
 // Con sesión válida, APP=true (modo edición) y se traen los datos.
+// Menú de sesión: agrupa Bistrosoft/Imprimir/Actividad/Salir para que la barra entre en pantalla.
+// Cierra al elegir una opción, al hacer clic afuera y con Escape (devolviendo el foco al botón).
+(function(){
+ const btn=document.getElementById('userbtn'),pop=document.getElementById('umpop');
+ if(!btn||!pop)return;
+ const abierto=()=>!pop.classList.contains('hidden');
+ const cerrar=(volverFoco)=>{pop.classList.add('hidden');btn.setAttribute('aria-expanded','false');if(volverFoco)btn.focus();};
+ const abrir=()=>{pop.classList.remove('hidden');btn.setAttribute('aria-expanded','true');
+   const it=pop.querySelector('.umitem:not(.hidden)');if(it)it.focus();};
+ btn.onclick=e=>{e.stopPropagation();abierto()?cerrar():abrir();};
+ pop.addEventListener('click',e=>{if(e.target.closest('.umitem'))cerrar();});
+ document.addEventListener('click',e=>{if(abierto()&&!e.target.closest('#um'))cerrar();});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&abierto())cerrar(true);});
+})();
 const _act=document.getElementById('actbtn');if(_act)_act.onclick=()=>location.href='/actividad';
 const _lo=document.getElementById('logoutbtn');
 if(_lo)_lo.onclick=async()=>{try{await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});}catch(e){}location.href='/login';};
