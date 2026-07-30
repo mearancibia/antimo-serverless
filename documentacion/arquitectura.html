@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ANTIMO · Arquitectura</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      bg:'#0d1117', surface:'#161b22', surface2:'#1c2430', rule:'#2b3644',
+      ink:'#e8edf2', mut:'#8a97a6', accent:'#e8834a',
+      cliente:'#5a8fd6', borde:'#a78bfa', funcion:'#e8834a',
+      modulo:'#4a9d7f', datos:'#e0b341', externo:'#c85a54', local:'#7c8b9b'
+    },
+    fontFamily:{ sans:['-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','sans-serif'],
+                 mono:['ui-monospace','SFMono-Regular','Menlo','Consolas','monospace'] }
+  }}
+}
+</script>
+<style>
+  html{scroll-behavior:smooth}
+  body{background:#0d1117}
+  .node{transition:transform .15s, box-shadow .15s, opacity .2s, border-color .15s}
+  .node:hover{transform:translateY(-2px)}
+  .node.dim{opacity:.16}
+  .node.on{box-shadow:0 0 0 2px var(--hl), 0 8px 26px rgba(0,0,0,.5)}
+  .node.cur{box-shadow:0 0 0 3px #e8834a, 0 10px 30px rgba(232,131,74,.28)}
+  #edges path{transition:opacity .2s, stroke-width .2s}
+  .step{transition:background .15s, border-color .15s}
+  .step:hover{background:#1c2430}
+  .step.cur{background:#1c2430;border-color:#e8834a}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#2b3644;border-radius:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
+</style>
+</head>
+<body class="bg-bg text-ink font-sans antialiased">
+
+<div class="max-w-[1400px] mx-auto px-5 py-8">
+
+  <!-- ENCABEZADO -->
+  <header class="border-b border-rule pb-6 mb-7">
+    <div class="flex flex-wrap items-end gap-x-5 gap-y-2">
+      <h1 class="text-3xl font-bold tracking-tight">ANTIMO <span class="text-mut font-normal">· Arquitectura</span></h1>
+      <span class="font-mono text-[11px] uppercase tracking-widest text-mut">versión serverless · 25-07-2026</span>
+    </div>
+    <p class="text-mut mt-3 max-w-3xl text-[15px] leading-relaxed">
+      Panel de rentabilidad para un bar. Toma las ventas del POS Bistrosoft, las costea contra
+      recetas e insumos, y permite editar todo con recálculo al instante.
+      <span class="text-ink">HTML y JavaScript vanilla, Python de la librería estándar, una sola función serverless.</span>
+    </p>
+    <div id="stats" class="flex flex-wrap gap-2 mt-4"></div>
+  </header>
+
+  <!-- PESTAÑAS -->
+  <nav class="flex gap-1 mb-6 border-b border-rule" role="tablist">
+    <button data-tab="arq" role="tab" class="tabbtn px-4 py-2.5 text-sm font-semibold border-b-2 border-accent text-ink">Arquitectura</button>
+    <button data-tab="flu" role="tab" class="tabbtn px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-mut hover:text-ink">Flujos</button>
+  </nav>
+
+  <!-- ====================== ARQUITECTURA ====================== -->
+  <section id="tab-arq">
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+      <p class="text-sm text-mut">Clic en cualquier bloque para ver qué hace.</p>
+      <div id="legend" class="flex flex-wrap gap-3 ml-auto text-[11px] font-mono uppercase tracking-wider"></div>
+    </div>
+
+    <div class="relative rounded-xl border border-rule bg-surface/40 p-4 md:p-6 overflow-x-auto">
+      <svg id="edges" class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true"></svg>
+      <div id="diagram" class="relative grid gap-x-5 gap-y-4 min-w-[900px]"
+           style="grid-template-columns:repeat(6,minmax(0,1fr))"></div>
+    </div>
+
+    <div id="detail" class="mt-5 rounded-xl border border-rule bg-surface p-5 min-h-[120px]">
+      <p class="text-mut text-sm">Elegí un bloque del diagrama para ver el detalle.</p>
+    </div>
+
+    <!-- deuda técnica -->
+    <div class="mt-6">
+      <h2 class="font-mono text-[11px] uppercase tracking-widest text-mut mb-3 pb-2 border-b border-rule">Deuda técnica detectada</h2>
+      <div id="deuda" class="grid gap-3 md:grid-cols-3"></div>
+    </div>
+
+    <!-- invariantes -->
+    <div class="mt-6">
+      <h2 class="font-mono text-[11px] uppercase tracking-widest text-mut mb-3 pb-2 border-b border-rule">Invariantes que no se rompen</h2>
+      <ul id="invariantes" class="grid gap-2.5 md:grid-cols-2"></ul>
+    </div>
+  </section>
+
+  <!-- ====================== FLUJOS ====================== -->
+  <section id="tab-flu" class="hidden">
+    <div class="grid lg:grid-cols-[290px_1fr] gap-5">
+
+      <aside class="flex flex-col gap-2">
+        <p class="font-mono text-[11px] uppercase tracking-widest text-mut mb-1">Recorridos</p>
+        <div id="flowlist" class="flex flex-col gap-2"></div>
+      </aside>
+
+      <div class="min-w-0">
+        <div id="flowhead" class="mb-4"></div>
+
+        <!-- mini-diagrama del recorrido -->
+        <div class="relative rounded-xl border border-rule bg-surface/40 p-4 mb-5 overflow-x-auto">
+          <svg id="fedges" class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true"></svg>
+          <div id="fdiagram" class="relative flex flex-wrap items-stretch gap-3"></div>
+        </div>
+
+        <div class="flex items-center gap-2 mb-3">
+          <button id="prev" class="px-3 py-1.5 rounded-lg border border-rule text-sm hover:bg-surface2 disabled:opacity-30">‹ Anterior</button>
+          <button id="next" class="px-3 py-1.5 rounded-lg border border-rule text-sm hover:bg-surface2 disabled:opacity-30">Siguiente ›</button>
+          <button id="reset" class="px-3 py-1.5 rounded-lg border border-rule text-sm hover:bg-surface2 text-mut">Ver todo</button>
+          <span id="counter" class="ml-auto font-mono text-xs text-mut"></span>
+        </div>
+
+        <ol id="steps" class="flex flex-col gap-2"></ol>
+      </div>
+    </div>
+  </section>
+
+  <footer class="mt-10 pt-6 border-t border-rule text-mut text-[13px] flex flex-wrap gap-x-6 gap-y-1">
+    <span>Datos extraídos del codebase, no de memoria.</span>
+    <span class="font-mono">github.com/mearancibia/antimo-serverless</span>
+  </footer>
+</div>
+
+<script id="arqdata" type="application/json">{
+  "meta": {
+    "proyecto": "ANTIMO — panel de gestión de bar (versión serverless)",
+    "generado": "2026-07-25",
+    "repo": "github.com/mearancibia/antimo-serverless",
+    "entornos": {
+      "produccion": { "rama": "main", "url": "antimo-serverless-iota.vercel.app", "supabase": "guufxgjvvtyaiwyprkgl", "ANTIMO_ENV": null },
+      "desarrollo": { "rama": "desarrollo", "url": "antimo-develop.vercel.app", "supabase": "ldubhqrxawwcsbehctso", "ANTIMO_ENV": "dev" }
+    },
+    "stack": "HTML+JS vanilla (sin framework) · Python stdlib + supabase-py + requests · Vercel serverless · Supabase (Postgres)",
+    "invariantes": [
+      "Regla #0 — honestidad de datos: si falta receta o costo, el producto queda N/D; nunca se inventa un costo ni un margen.",
+      "Todo texto que no controla la app pasa por esc() antes de innerHTML (nombres del POS, comentarios de retiros).",
+      "El motor (engine.compute) es una función PURA: mismas fuentes => mismo DATA. Verificado idéntico al motor local original.",
+      "Los diccionarios de negocio (ALIAS, EQUI, UNIFICAR, COMBOS) son CÓDIGO, no datos: viven en engine.py.",
+      "Salvo /api/ping y /api/login, todos los endpoints exigen sesión válida (401 sin cookie firmada).",
+      "El usuario del audit_log sale de la sesión verificada, nunca del payload del cliente."
+    ],
+    "deuda_tecnica": [
+      {
+        "item": "sl_common.make_handler() y su _origen_confiable() son código muerto",
+        "detalle": "Sobraron de cuando cada endpoint era un archivo propio en /api. Desde la consolidación en api/index.py (que tiene su propio _origen_confiable) nadie los llama.",
+        "riesgo": "bajo"
+      },
+      {
+        "item": "/api/excel no aplica en la nube",
+        "detalle": "No hay filesystem persistente donde dejar el archivo. Responde un mensaje claro; el Excel se genera desde la app local.",
+        "riesgo": "ninguno, es por diseño"
+      },
+      {
+        "item": "El motor recalcula TODO en cada edición",
+        "detalle": "recompute() reconstruye el DATA completo (109 productos × 50 días) ante cualquier cambio. Hoy es rápido; si el histórico crece mucho habría que cachear por rango.",
+        "riesgo": "bajo hoy"
+      }
+    ]
+  },
+
+  "nodes": [
+    { "id": "index_html", "label": "index.html", "sub": "Tablero", "layer": "cliente", "file": "index.html", "lines": 1525,
+      "desc": "El tablero completo: 7 solapas (Resumen, Rentabilidad, Recetas, Compras, Caja, Costos, OPEX). JavaScript vanilla, sin framework ni build. Arranca con DATA vacío y lo pide por fetch. Calcula en el navegador la clasificación BCG, los filtros y la proyección de stock.",
+      "detalles": ["Logo embebido como data-URI (es marca, no dato)", "Alertas accionables: cada una navega al lugar donde se corrige", "Cartel de DESARROLLO si /api/ping devuelve env='dev'"] },
+    { "id": "login_html", "label": "login.html", "sub": "Ingreso", "layer": "cliente", "file": "login.html", "lines": 49,
+      "desc": "Pantalla de ingreso. Manda usuario y contraseña a /api/login y, si vuelve OK, redirige al tablero. La cookie de sesión la setea el servidor (HttpOnly): el JS nunca la toca.", "detalles": [] },
+    { "id": "actividad_html", "label": "actividad.html", "sub": "Auditoría", "layer": "cliente", "file": "actividad.html", "lines": 60,
+      "desc": "Lista el registro de actividad con filtro por usuario o acción. Traduce los nombres técnicos de los endpoints a frases legibles ('precio' → 'Editó precio de insumo').", "detalles": [] },
+
+    { "id": "vercel", "label": "Vercel", "sub": "routing + build", "layer": "borde", "file": "vercel.json", "lines": 14,
+      "desc": "Sirve los 3 HTML como estáticos y reescribe /api/(nombre) hacia /api/index.py?__name=nombre. El nombre viaja por query string para que el despacho no dependa de si el rewrite preserva la ruta.",
+      "detalles": ["Una sola función: el plan Hobby limita a 12 y un archivo por endpoint daban 18", "includeFiles empaqueta los 6 módulos compartidos junto a la función"] },
+
+    { "id": "api_index", "label": "api/index.py", "sub": "única función", "layer": "funcion", "file": "api/index.py", "lines": 201,
+      "desc": "El despachador. Resuelve el nombre del endpoint, aplica el candado de sesión y deriva: GET (ping/me/data/config/audit), POST especiales (login/logout/config/pull) o los 13 POST de edición vía handlers.ROUTES.",
+      "detalles": ["Salvo ping y login, todo exige cookie de sesión válida → 401", "Cada acción se registra en audit_log con el usuario de la sesión"] },
+
+    { "id": "auth_py", "label": "auth.py", "sub": "sesiones", "layer": "modulo", "file": "auth.py", "lines": 92,
+      "desc": "Hash de contraseñas con PBKDF2-SHA256 + sal (200k iteraciones) y sesiones firmadas con HMAC. Solo stdlib. La cookie es HttpOnly + Secure + SameSite=Strict: si hubiera un XSS, la sesión no se puede leer desde JS.",
+      "detalles": ["Comparación en tiempo constante (hmac.compare_digest)", "Secreto de firma: SESSION_SECRET (o el service key como respaldo)", "Sesión válida 7 días"] },
+    { "id": "handlers_py", "label": "handlers.py", "sub": "13 endpoints", "layer": "modulo", "file": "handlers.py", "lines": 263,
+      "desc": "Un dict ROUTES {nombre: apply(data, sb)} con la lógica de cada edición. Cada función valida su entrada y escribe SOLO su tabla de override; el recálculo lo dispara el despachador después.",
+      "detalles": ["precio, receta, precio_lista, pour, combo, sospechoso, dia_cerrado, stock, stock_bulk, costos_bulk, opex_save, opex_vigencia, producto"] },
+    { "id": "sl_common_py", "label": "sl_common.py", "sub": "cliente + recompute", "layer": "modulo", "file": "sl_common.py", "lines": 164,
+      "desc": "Pegamento con Supabase: crea el cliente, corre recompute() (motor → guarda DATA), registra auditoría redactando contraseñas, maneja las vigencias de OPEX y escribe el resultado del pull.",
+      "detalles": ["write_pull: reemplaza el MES completo en ventas, fusiona cajas por noche", "audit(): nunca hace fallar la operación principal si el log falla", "make_handler() quedó sin uso (código muerto)"] },
+    { "id": "engine_py", "label": "engine.py", "sub": "motor de costeo", "layer": "modulo", "file": "engine.py", "lines": 723,
+      "desc": "El corazón: compute(src) → (DATA, opex_seed). Función PURA, sin I/O. Costea cada producto según su tipo (receta, promo_2x1, pour, botella, directo, combo), explota el consumo por insumo, arma las cajas y calcula el OPEX por vigencia.",
+      "detalles": ["Los combos pueden componerse de OTROS productos, resueltos en cadena con guarda anti-circular", "ALIAS/EQUI/UNIFICAR/COMBOS son lógica de negocio, viven acá como código", "Si falta un dato → N/D con motivo, nunca un costo inventado"] },
+    { "id": "sources_py", "label": "sources.py", "sub": "capa de datos", "layer": "modulo", "file": "sources.py", "lines": 298,
+      "desc": "Dos implementaciones que arman el MISMO dict src que consume el motor: LocalSource (Excel + rankings + JSON de la Mac) y SupabaseSource (las tablas). Esa simetría es la que permitió verificar que el refactor no cambió ningún número.",
+      "detalles": ["_rows() PAGINA de a 1000: PostgREST corta ahí y la tabla ventas (1671 filas) se leía truncada en silencio"] },
+    { "id": "bistro_py", "label": "bistro.py", "sub": "conector", "layer": "modulo", "file": "bistro.py", "lines": 152,
+      "desc": "Lógica pura del conector Bistrosoft: token JWT, descarga paginada del reporte de transacciones y parseo a ranking + cajas. Agrupa por NOCHE de caja (corte 08:00) y excluye comandas anuladas por ticketNumber.",
+      "detalles": ["El rango por defecto arranca el 1 de un mes porque el pull reescribe meses completos", "Timeout de 25s para fallar claro en vez de colgar la función"] },
+
+    { "id": "tbl_data", "label": "antimo_data", "sub": "caché del DATA", "layer": "datos", "file": "supabase_schema.sql", "lines": null,
+      "desc": "Una sola fila (id=1) con el DATA calculado en jsonb. Es lo que sirve GET /api/data sin recalcular. Se reescribe en cada recompute().", "detalles": [] },
+    { "id": "tbl_masters", "label": "Maestros", "sub": "5 tablas", "layer": "datos", "file": "supabase_schema.sql", "lines": null,
+      "desc": "Lo que antes vivía en el Excel: costo_base (121 insumos), lista_precios, recetas, maestro_productos, opex_base. Se siembran desde la Mac y casi no cambian.",
+      "detalles": ["costo_base", "lista_precios", "recetas", "maestro_productos", "opex_base"] },
+    { "id": "tbl_business", "label": "Ventas y cajas", "sub": "2 tablas", "layer": "datos", "file": "supabase_schema.sql", "lines": null,
+      "desc": "Los datos del negocio que trae Bistrosoft: ventas (una fila por producto y noche) y cajas (el cierre de cada noche en jsonb).",
+      "detalles": ["ventas — 1671 filas hoy", "cajas — 51 noches"] },
+    { "id": "tbl_overrides", "label": "Overrides", "sub": "10 tablas", "layer": "datos", "file": "supabase_schema.sql", "lines": null,
+      "desc": "Todo lo que el dueño edita desde el tablero. El motor las fusiona POR ENCIMA de los maestros, así el original nunca se pisa y siempre se puede volver atrás.",
+      "detalles": ["precios_override", "recetas_extra", "precio_lista_override", "pours_extra", "maestro_extra", "insumos_extra", "combos_extra", "sospechosos", "dias_cerrados", "stock"] },
+    { "id": "tbl_auth", "label": "users · audit_log", "sub": "2 tablas", "layer": "datos", "file": "supabase_schema.sql", "lines": null,
+      "desc": "users guarda solo el hash de la contraseña (nunca el texto). audit_log registra quién hizo qué y cuándo, con el payload y las contraseñas redactadas.", "detalles": [] },
+    { "id": "tbl_meta", "label": "app_meta", "sub": "clave → JSON", "layer": "datos", "file": "supabase_schema.sql", "lines": null,
+      "desc": "Cajón de sastre en formato clave/valor: el logo, el OPEX editable (opex_json), los rubros confirmados en cero y las credenciales de Bistrosoft.",
+      "detalles": ["logo", "opex_json", "opex_cero_confirmado", "bistro_config"] },
+
+    { "id": "bistrosoft", "label": "Bistrosoft API", "sub": "POS externo", "layer": "externo", "file": null, "lines": null,
+      "desc": "El sistema de punto de venta del bar. Se le pide un token JWT y después el reporte de detalle de transacciones, paginado.",
+      "detalles": ["Puede tardar horas en reflejar la noche más reciente (lag conocido, no es un bug de ANTIMO)"] },
+
+    { "id": "seed_py", "label": "seed_supabase.py", "sub": "siembra", "layer": "local", "file": "scripts/seed_supabase.py", "lines": 121,
+      "desc": "Corre en la Mac: lee el Excel y los rankings con LocalSource, y sube maestros, ventas, cajas, overrides y el DATA calculado a Supabase. Es el puente entre el mundo local y la nube.", "detalles": [] },
+    { "id": "crear_usuario_py", "label": "crear_usuario.py", "sub": "altas", "layer": "local", "file": "scripts/crear_usuario.py", "lines": 47,
+      "desc": "Da de alta un usuario. La contraseña se tipea con getpass (no se ve, no queda en el historial) y se guarda hasheada. Nunca pasa por el código ni por el repositorio.", "detalles": [] },
+    { "id": "excel", "label": "datos_general.xlsx", "sub": "maestro original", "layer": "local", "file": "datos/datos_general.xlsx", "lines": null,
+      "desc": "El Excel del que salió todo: recetas, costos, lista de precios y OPEX. Sigue siendo la fuente de los maestros. NUNCA se escribe por código (romper sus fórmulas cacheadas fue un bug real).", "detalles": [] },
+    { "id": "app_local", "label": "App local", "sub": "sigue viva", "layer": "local", "file": "app_antimo.py", "lines": 485,
+      "desc": "La versión original de doble clic: app_antimo.py + actualizar_antimo.py + dashboard_tpl.html. Sigue funcionando sin cambios y es la única que genera el Excel completo.", "detalles": ["app_antimo.py — 485 líneas", "actualizar_antimo.py — 797 líneas", "conector_bistrosoft.py — 224 líneas"] }
+  ],
+
+  "edges": [
+    { "from": "index_html", "to": "vercel", "label": "fetch /api/*", "kind": "http" },
+    { "from": "login_html", "to": "vercel", "label": "POST /api/login", "kind": "http" },
+    { "from": "actividad_html", "to": "vercel", "label": "GET /api/audit", "kind": "http" },
+    { "from": "vercel", "to": "api_index", "label": "rewrite ?__name=", "kind": "http" },
+    { "from": "api_index", "to": "auth_py", "label": "verifica sesión", "kind": "call" },
+    { "from": "api_index", "to": "handlers_py", "label": "ROUTES[nombre]", "kind": "call" },
+    { "from": "api_index", "to": "sl_common_py", "label": "recompute · audit", "kind": "call" },
+    { "from": "api_index", "to": "bistro_py", "label": "pull", "kind": "call" },
+    { "from": "handlers_py", "to": "sl_common_py", "label": "OPEX", "kind": "call" },
+    { "from": "handlers_py", "to": "tbl_overrides", "label": "escribe override", "kind": "write" },
+    { "from": "sl_common_py", "to": "sources_py", "label": "SupabaseSource", "kind": "call" },
+    { "from": "sl_common_py", "to": "engine_py", "label": "compute(src)", "kind": "call" },
+    { "from": "sl_common_py", "to": "tbl_data", "label": "guarda DATA", "kind": "write" },
+    { "from": "sl_common_py", "to": "tbl_auth", "label": "audit_log", "kind": "write" },
+    { "from": "sl_common_py", "to": "tbl_business", "label": "write_pull", "kind": "write" },
+    { "from": "sl_common_py", "to": "tbl_meta", "label": "opex · config", "kind": "rw" },
+    { "from": "sources_py", "to": "tbl_masters", "label": "lee", "kind": "read" },
+    { "from": "sources_py", "to": "tbl_business", "label": "lee (paginado)", "kind": "read" },
+    { "from": "sources_py", "to": "tbl_overrides", "label": "lee", "kind": "read" },
+    { "from": "sources_py", "to": "tbl_meta", "label": "lee", "kind": "read" },
+    { "from": "auth_py", "to": "tbl_auth", "label": "users", "kind": "read" },
+    { "from": "bistro_py", "to": "bistrosoft", "label": "token + reporte", "kind": "http" },
+    { "from": "api_index", "to": "tbl_data", "label": "GET /api/data", "kind": "read" },
+    { "from": "seed_py", "to": "sources_py", "label": "LocalSource", "kind": "call" },
+    { "from": "excel", "to": "seed_py", "label": "openpyxl", "kind": "read" },
+    { "from": "seed_py", "to": "tbl_masters", "label": "siembra", "kind": "write" },
+    { "from": "seed_py", "to": "tbl_business", "label": "siembra", "kind": "write" },
+    { "from": "crear_usuario_py", "to": "tbl_auth", "label": "alta hasheada", "kind": "write" },
+    { "from": "excel", "to": "app_local", "label": "lee", "kind": "read" }
+  ],
+
+  "flows": [
+    {
+      "id": "load",
+      "name": "Abrir el tablero",
+      "desc": "Qué pasa desde que se escribe la dirección hasta que aparecen los números. El DATA no se recalcula: se sirve el que quedó cacheado en antimo_data.",
+      "steps": [
+        { "n": 1, "node": "index_html", "action": "El navegador carga el tablero", "detail": "index.html arranca con DATA vacío. Todo el render espera a que lleguen los datos." },
+        { "n": 2, "node": "index_html", "action": "GET /api/me y GET /api/data", "detail": "Pregunta quién soy (para el badge de usuario y el cartel de entorno) y pide los datos." },
+        { "n": 3, "node": "vercel", "action": "Reescribe la ruta", "detail": "/api/data → /api/index.py?__name=data" },
+        { "n": 4, "node": "api_index", "action": "Verifica la sesión", "detail": "Sin cookie firmada válida devuelve 401 y el tablero redirige a /login." },
+        { "n": 5, "node": "tbl_data", "action": "Lee el DATA cacheado", "detail": "Una sola fila jsonb con los 109 productos, 121 insumos, 51 cajas y 50 días ya calculados." },
+        { "n": 6, "node": "index_html", "action": "applyData() y render", "detail": "Recién acá se dibuja: KPIs, P&L, alertas, matriz BCG. La clasificación BCG y los filtros se calculan en el navegador sobre el rango elegido." }
+      ]
+    },
+    {
+      "id": "login",
+      "name": "Iniciar sesión",
+      "desc": "Verificación de contraseña y entrega de la cookie firmada. La contraseña nunca se guarda ni se registra en texto.",
+      "steps": [
+        { "n": 1, "node": "login_html", "action": "POST /api/login", "detail": "Manda usuario y contraseña por HTTPS." },
+        { "n": 2, "node": "api_index", "action": "Busca el usuario", "detail": "Endpoint público: es el único POST que no exige sesión previa." },
+        { "n": 3, "node": "tbl_auth", "action": "Trae el hash guardado", "detail": "En la base solo está el hash PBKDF2, nunca la contraseña." },
+        { "n": 4, "node": "auth_py", "action": "verify_password()", "detail": "Recalcula el hash con la misma sal y compara en tiempo constante." },
+        { "n": 5, "node": "auth_py", "action": "Firma la sesión", "detail": "HMAC sobre usuario+vencimiento. El cliente no puede fabricarla ni alterarla." },
+        { "n": 6, "node": "tbl_auth", "action": "Registra el intento", "detail": "Queda 'login' o 'login_fallido' en audit_log, con o sin éxito." },
+        { "n": 7, "node": "index_html", "action": "Redirige al tablero", "detail": "La cookie viaja HttpOnly: el JavaScript de la página no puede leerla." }
+      ]
+    },
+    {
+      "id": "edit",
+      "name": "Editar un precio (recálculo completo)",
+      "desc": "El flujo más importante: una edición dispara el motor entero y devuelve todos los números actualizados. Verificado en producción — cambiar el precio del hielo mueve el costo del fernet.",
+      "steps": [
+        { "n": 1, "node": "index_html", "action": "POST /api/precio", "detail": "{insumo: 'Hielo / Hielo Picado', precio: 6000} desde la solapa Costos." },
+        { "n": 2, "node": "api_index", "action": "Valida sesión y despacha", "detail": "Busca 'precio' en handlers.ROUTES." },
+        { "n": 3, "node": "handlers_py", "action": "_precio() valida y escribe", "detail": "Rechaza precios negativos. Un precio 0 no se acepta: un insumo gratis falsearía todos los márgenes en silencio." },
+        { "n": 4, "node": "tbl_overrides", "action": "upsert en precios_override", "detail": "Solo se escribe el override. El maestro costo_base queda intacto." },
+        { "n": 5, "node": "sl_common_py", "action": "recompute()", "detail": "Acá arranca el recálculo completo." },
+        { "n": 6, "node": "sources_py", "action": "SupabaseSource.build()", "detail": "Lee maestros + ventas + cajas + los 10 overrides y arma el dict src. Pagina de a 1000 filas." },
+        { "n": 7, "node": "engine_py", "action": "compute(src)", "detail": "Fusiona overrides sobre maestros, recalcula cxu del insumo, recostea los 109 productos, explota el consumo y arma el P&L." },
+        { "n": 8, "node": "tbl_data", "action": "Guarda el DATA nuevo", "detail": "Queda cacheado para la próxima carga del tablero." },
+        { "n": 9, "node": "tbl_auth", "action": "Registra la acción", "detail": "audit_log: usuario (de la sesión, no del payload), acción 'precio', y el detalle enviado." },
+        { "n": 10, "node": "index_html", "action": "applyData(respuesta)", "detail": "El endpoint devuelve el DATA completo, así que el tablero se redibuja con los márgenes ya actualizados." }
+      ]
+    },
+    {
+      "id": "pull",
+      "name": "Traer ventas de Bistrosoft",
+      "desc": "Descarga las noches nuevas del POS y recalcula. Es el único flujo que sale a internet.",
+      "steps": [
+        { "n": 1, "node": "index_html", "action": "POST /api/pull", "detail": "Botón 'Traer ventas'. Opcionalmente acepta un rango {start, end}." },
+        { "n": 2, "node": "tbl_meta", "action": "Lee las credenciales", "detail": "app_meta.bistro_config. Si falta alguna, corta con un mensaje claro y no llama a la API." },
+        { "n": 3, "node": "bistro_py", "action": "get_token()", "detail": "JWT contra /api/v1/Token." },
+        { "n": 4, "node": "bistrosoft", "action": "Descarga paginada", "detail": "TransactionDetailReport, ~5000 ítems por página, hasta que devuelve una vacía." },
+        { "n": 5, "node": "bistro_py", "action": "parse_items()", "detail": "Agrupa por NOCHE de caja (corte 08:00: lo de 00:00-07:59 cuenta para la noche que cerró esa madrugada) y descarta las comandas anuladas por ticketNumber." },
+        { "n": 6, "node": "sl_common_py", "action": "write_pull()", "detail": "ventas: borra y reinserta el MES completo. cajas: fusiona por noche, así un pull corto no borra meses viejos." },
+        { "n": 7, "node": "tbl_business", "action": "ventas y cajas actualizadas", "detail": "" },
+        { "n": 8, "node": "engine_py", "action": "Recálculo completo", "detail": "Mismo camino que una edición: SupabaseSource → compute → antimo_data." },
+        { "n": 9, "node": "index_html", "action": "Tablero al día", "detail": "Devuelve el DATA nuevo más un resumen: cuántas transacciones, filas de venta y noches entraron." }
+      ]
+    },
+    {
+      "id": "audit",
+      "name": "Ver el registro de actividad",
+      "desc": "Trazabilidad: quién tocó qué y cuándo.",
+      "steps": [
+        { "n": 1, "node": "actividad_html", "action": "GET /api/audit", "detail": "Se llega desde el menú de usuario → Actividad." },
+        { "n": 2, "node": "api_index", "action": "Exige sesión", "detail": "Sin cookie válida, 401 y vuelta al login." },
+        { "n": 3, "node": "tbl_auth", "action": "Últimos 300 eventos", "detail": "Ordenados por fecha descendente." },
+        { "n": 4, "node": "actividad_html", "action": "Traduce y muestra", "detail": "'precio' → 'Editó precio de insumo'. Las contraseñas ya vienen redactadas como *** desde que se escribieron." }
+      ]
+    },
+    {
+      "id": "seed",
+      "name": "Sembrar o actualizar desde la Mac",
+      "desc": "Cómo entran los datos maestros del Excel a la nube. Se corre a mano, no es automático.",
+      "steps": [
+        { "n": 1, "node": "excel", "action": "datos_general.xlsx", "detail": "Recetas, costos, lista de precios y OPEX. Es la fuente original de los maestros." },
+        { "n": 2, "node": "seed_py", "action": "python3 scripts/seed_supabase.py", "detail": "Necesita SUPABASE_URL y SUPABASE_SERVICE_KEY en el entorno." },
+        { "n": 3, "node": "sources_py", "action": "LocalSource.build()", "detail": "Parsea el Excel con openpyxl y los rankings de ventas, y arma el MISMO dict src que usa la nube." },
+        { "n": 4, "node": "engine_py", "action": "compute(src)", "detail": "Calcula el DATA localmente. Esta simetría es la que permitió verificar que la migración no cambió ningún número." },
+        { "n": 5, "node": "tbl_masters", "action": "Sube maestros y negocio", "detail": "costo_base, lista_precios, recetas, maestro_productos, opex_base, ventas, cajas, overrides y el DATA calculado." }
+      ]
+    },
+    {
+      "id": "deploy",
+      "name": "Publicar un cambio",
+      "desc": "El circuito de trabajo: nada llega a producción sin pasar antes por el entorno de pruebas.",
+      "steps": [
+        { "n": 1, "node": "app_local", "action": "Se edita en la Mac", "detail": "Carpeta BETA Vercel/INSTALABLE_ANTIMO." },
+        { "n": 2, "node": "vercel", "action": "git push origin desarrollo", "detail": "Vercel escucha el repositorio: detecta el push y reconstruye solo. Publica en antimo-develop.vercel.app con el cartel de DESARROLLO." },
+        { "n": 3, "node": "index_html", "action": "Se prueba ahí", "detail": "Ese entorno usa su propia base de Supabase: nada de lo que se toque afecta al bar." },
+        { "n": 4, "node": "vercel", "action": "merge a main + push", "detail": "Recién con el visto bueno. Vercel publica en antimo-serverless-iota.vercel.app; sin ANTIMO_ENV, el cartel no aparece." }
+      ]
+    }
+  ]
+}
+</script>
+<script>
+const D = JSON.parse(document.getElementById('arqdata').textContent);
+
+const LAYERS = [
+  {id:'cliente', label:'Cliente', col:1},
+  {id:'borde',   label:'Vercel',  col:2},
+  {id:'funcion', label:'Función', col:3},
+  {id:'modulo',  label:'Módulos', col:4},
+  {id:'datos',   label:'Supabase',col:5},
+  {id:'externo', label:'Externo / Local', col:6},
+];
+const COLOR = {cliente:'#5a8fd6',borde:'#a78bfa',funcion:'#e8834a',modulo:'#4a9d7f',
+               datos:'#e0b341',externo:'#c85a54',local:'#7c8b9b'};
+const byId = Object.fromEntries(D.nodes.map(n=>[n.id,n]));
+
+/* ---------- encabezado: estadísticas reales ---------- */
+const py = D.nodes.filter(n=>n.file&&n.file.endsWith('.py')&&n.layer!=='local');
+const stats = [
+  ['22 nodos', 'accent'], [D.edges.length+' conexiones','accent'],
+  [D.flows.length+' flujos','accent'],
+  ['21 tablas','datos'], ['13 endpoints de edición','modulo'],
+  [py.reduce((s,n)=>s+(n.lines||0),0)+' líneas de Python en la nube','mut']
+];
+document.getElementById('stats').innerHTML = stats.map(([t,c])=>
+  `<span class="px-2.5 py-1 rounded-md border border-rule bg-surface font-mono text-[11px]"
+     style="color:${c==='mut'?'#8a97a6':(COLOR[c]||'#e8834a')}">${t}</span>`).join('');
+
+/* ---------- leyenda ---------- */
+document.getElementById('legend').innerHTML = LAYERS.concat([{id:'local',label:'Local (Mac)'}])
+  .map(l=>`<span class="flex items-center gap-1.5 text-mut">
+     <span class="w-2.5 h-2.5 rounded-sm" style="background:${COLOR[l.id]}"></span>${l.label}</span>`).join('');
+
+/* ---------- diagrama ---------- */
+function nodeCard(n, small){
+  const c = COLOR[n.layer];
+  return `<button class="node text-left rounded-lg bg-surface border border-rule p-3 w-full"
+      data-id="${n.id}" style="--hl:${c};border-left:3px solid ${c}">
+      <div class="font-semibold ${small?'text-[12.5px]':'text-[13.5px]'} leading-tight">${n.label}</div>
+      <div class="text-mut text-[11px] mt-0.5 font-mono">${n.sub}</div>
+    </button>`;
+}
+function buildDiagram(){
+  const host = document.getElementById('diagram');
+  let html = '';
+  // encabezados de columna
+  LAYERS.forEach(l=>{
+    html += `<div style="grid-column:${l.col};grid-row:1" class="font-mono text-[10.5px] uppercase tracking-widest text-mut pb-1 border-b border-rule mb-1">${l.label}</div>`;
+  });
+  // nodos por capa
+  LAYERS.forEach(l=>{
+    const ns = D.nodes.filter(n=>n.layer===l.id);
+    ns.forEach((n,i)=>{
+      html += `<div style="grid-column:${l.col};grid-row:${i+2}" class="mb-1">${nodeCard(n)}</div>`;
+    });
+  });
+  // la capa local va en la columna 6, debajo de externo
+  const ext = D.nodes.filter(n=>n.layer==='externo').length;
+  D.nodes.filter(n=>n.layer==='local').forEach((n,i)=>{
+    html += `<div style="grid-column:6;grid-row:${ext+i+2}" class="mb-1">${nodeCard(n)}</div>`;
+  });
+  host.innerHTML = html;
+}
+
+/* ---------- aristas en SVG ---------- */
+function curve(a,b,host){
+  const H = host.getBoundingClientRect();
+  const A = a.getBoundingClientRect(), B = b.getBoundingClientRect();
+  let x1,y1,x2,y2;
+  const aMid = A.left+A.width/2, bMid = B.left+B.width/2;
+  if (bMid >= aMid){ x1=A.right-H.left; x2=B.left-H.left; }
+  else { x1=A.left-H.left; x2=B.right-H.left; }
+  y1=A.top+A.height/2-H.top; y2=B.top+B.height/2-H.top;
+  const dx = Math.max(26, Math.abs(x2-x1)*.45) * (x2>=x1?1:-1);
+  return `M ${x1} ${y1} C ${x1+dx} ${y1}, ${x2-dx} ${y2}, ${x2} ${y2}`;
+}
+function drawEdges(svgId, hostId, edges, cardSel){
+  const svg = document.getElementById(svgId), host = document.getElementById(hostId);
+  svg.innerHTML='';
+  edges.forEach((e,i)=>{
+    const a = host.querySelector(`${cardSel}[data-id="${e.from}"]`);
+    const b = host.querySelector(`${cardSel}[data-id="${e.to}"]`);
+    if(!a||!b) return;
+    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d', curve(a,b,host));
+    p.setAttribute('fill','none');
+    p.setAttribute('stroke', COLOR[byId[e.from].layer]);
+    p.setAttribute('stroke-width','1.4');
+    p.setAttribute('stroke-opacity','.30');
+    p.dataset.from=e.from; p.dataset.to=e.to; p.dataset.i=i;
+    if(e.kind==='write') p.setAttribute('stroke-dasharray','none');
+    if(e.kind==='read')  p.setAttribute('stroke-dasharray','5 4');
+    svg.appendChild(p);
+  });
+}
+const redraw = ()=>{
+  drawEdges('edges','diagram',D.edges,'.node');
+  if(cur) drawFlowDiagram(cur);
+};
+
+/* ---------- panel de detalle ---------- */
+function showDetail(id){
+  const n = byId[id]; if(!n) return;
+  const c = COLOR[n.layer];
+  const ins = D.edges.filter(e=>e.to===id), outs = D.edges.filter(e=>e.from===id);
+  const rel = (arr,dir)=> arr.length? arr.map(e=>{
+      const o = byId[dir==='in'?e.from:e.to];
+      return `<button class="jump text-left px-2 py-1 rounded-md bg-surface2 border border-rule text-[12px] hover:border-mut"
+                data-id="${o.id}"><span class="text-mut font-mono text-[10px]">${e.label}</span><br>${dir==='in'?'← ':'→ '}${o.label}</button>`;
+    }).join('') : '<span class="text-mut text-xs">—</span>';
+  document.getElementById('detail').innerHTML = `
+    <div class="flex flex-wrap items-center gap-3 mb-3">
+      <span class="w-3 h-3 rounded-sm" style="background:${c}"></span>
+      <h3 class="text-lg font-bold">${n.label}</h3>
+      <span class="font-mono text-[11px] text-mut">${n.sub}</span>
+      ${n.file?`<span class="font-mono text-[11px] px-2 py-0.5 rounded border border-rule text-mut">${n.file}${n.lines?` · ${n.lines} líneas`:''}</span>`:''}
+    </div>
+    <p class="text-[14.5px] leading-relaxed mb-3 max-w-3xl">${n.desc}</p>
+    ${n.detalles && n.detalles.length ? `<ul class="flex flex-col gap-1.5 mb-4">${n.detalles.map(d=>
+        `<li class="text-[13px] text-mut flex gap-2"><span style="color:${c}">•</span><span>${d}</span></li>`).join('')}</ul>`:''}
+    <div class="grid sm:grid-cols-2 gap-4 pt-3 border-t border-rule">
+      <div><p class="font-mono text-[10px] uppercase tracking-widest text-mut mb-2">Recibe de</p>
+        <div class="flex flex-wrap gap-1.5">${rel(ins,'in')}</div></div>
+      <div><p class="font-mono text-[10px] uppercase tracking-widest text-mut mb-2">Llama a</p>
+        <div class="flex flex-wrap gap-1.5">${rel(outs,'out')}</div></div>
+    </div>`;
+}
+function highlight(id){
+  const conn = new Set([id]);
+  D.edges.forEach(e=>{ if(e.from===id) conn.add(e.to); if(e.to===id) conn.add(e.from); });
+  document.querySelectorAll('#diagram .node').forEach(el=>{
+    el.classList.toggle('on', el.dataset.id===id);
+    el.classList.toggle('dim', !conn.has(el.dataset.id));
+  });
+  document.querySelectorAll('#edges path').forEach(p=>{
+    const act = p.dataset.from===id || p.dataset.to===id;
+    p.setAttribute('stroke-opacity', act?'.95':'.06');
+    p.setAttribute('stroke-width', act?'2.2':'1.4');
+  });
+}
+function clearHighlight(){
+  document.querySelectorAll('#diagram .node').forEach(el=>el.classList.remove('on','dim'));
+  document.querySelectorAll('#edges path').forEach(p=>{
+    p.setAttribute('stroke-opacity','.30'); p.setAttribute('stroke-width','1.4');
+  });
+}
+
+/* ---------- deuda técnica e invariantes ---------- */
+const RISK={bajo:'#e0b341','bajo hoy':'#e0b341','ninguno, es por diseño':'#4a9d7f'};
+document.getElementById('deuda').innerHTML = D.meta.deuda_tecnica.map(d=>`
+  <div class="rounded-lg border border-rule bg-surface p-4" style="border-left:3px solid ${RISK[d.riesgo]||'#8a97a6'}">
+    <div class="font-semibold text-[13.5px] mb-1.5">${d.item}</div>
+    <p class="text-mut text-[12.5px] leading-relaxed">${d.detalle}</p>
+    <span class="inline-block mt-2 font-mono text-[10px] uppercase tracking-wider text-mut">riesgo: ${d.riesgo}</span>
+  </div>`).join('');
+document.getElementById('invariantes').innerHTML = D.meta.invariantes.map(i=>`
+  <li class="flex gap-2.5 text-[13.5px] text-mut leading-relaxed">
+    <span class="text-accent mt-0.5">▪</span><span>${i}</span></li>`).join('');
+
+/* ====================== FLUJOS ====================== */
+let cur=null, stepIdx=-1;
+
+document.getElementById('flowlist').innerHTML = D.flows.map((f,i)=>`
+  <button class="flowbtn text-left rounded-lg border border-rule bg-surface p-3 hover:border-mut" data-f="${f.id}">
+    <div class="flex items-baseline gap-2">
+      <span class="font-mono text-[10px] text-mut">${String(i+1).padStart(2,'0')}</span>
+      <span class="font-semibold text-[13.5px]">${f.name}</span>
+    </div>
+    <div class="text-mut text-[11.5px] mt-1 font-mono">${f.steps.length} pasos</div>
+  </button>`).join('');
+
+function drawFlowDiagram(f){
+  const host = document.getElementById('fdiagram');
+  const seq = [];
+  f.steps.forEach(s=>{ if(!seq.length || seq[seq.length-1]!==s.node) seq.push(s.node); });
+  host.innerHTML = seq.map((id,i)=>{
+    const n = byId[id], c = COLOR[n.layer];
+    return `<div class="flex items-center gap-3">
+      ${i? `<span class="text-mut text-lg select-none">→</span>`:''}
+      <button class="node fnode text-left rounded-lg bg-surface border border-rule p-2.5 min-w-[140px]"
+        data-id="${id}" data-seq="${i}" style="--hl:${c};border-left:3px solid ${c}">
+        <div class="font-semibold text-[12.5px] leading-tight">${n.label}</div>
+        <div class="text-mut text-[10.5px] font-mono">${n.sub}</div>
+      </button></div>`;
+  }).join('');
+  document.getElementById('fedges').innerHTML='';
+}
+
+function renderFlow(f){
+  cur=f; stepIdx=-1;
+  document.querySelectorAll('.flowbtn').forEach(b=>{
+    const on = b.dataset.f===f.id;
+    b.style.borderColor = on ? '#e8834a' : '';
+    b.style.background  = on ? '#1c2430' : '';
+  });
+  document.getElementById('flowhead').innerHTML = `
+    <h2 class="text-xl font-bold mb-1.5">${f.name}</h2>
+    <p class="text-mut text-[14px] leading-relaxed max-w-3xl">${f.desc}</p>`;
+  drawFlowDiagram(f);
+  document.getElementById('steps').innerHTML = f.steps.map((s,i)=>{
+    const n = byId[s.node], c = COLOR[n.layer];
+    return `<li class="step rounded-lg border border-rule bg-surface p-3.5 cursor-pointer" data-s="${i}">
+      <div class="flex items-start gap-3">
+        <span class="font-mono text-[11px] text-mut mt-0.5 w-5 shrink-0">${String(s.n).padStart(2,'0')}</span>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <span class="font-semibold text-[14px]">${s.action}</span>
+            <span class="font-mono text-[10.5px] px-1.5 py-0.5 rounded" style="color:${c};background:${c}1a">${n.label}</span>
+          </div>
+          ${s.detail?`<p class="text-mut text-[13px] mt-1 leading-relaxed">${s.detail}</p>`:''}
+        </div>
+      </div></li>`;
+  }).join('');
+  setStep(-1);
+}
+function setStep(i){
+  stepIdx=i;
+  const f=cur; if(!f) return;
+  document.querySelectorAll('#steps .step').forEach((el,k)=>el.classList.toggle('cur', k===i));
+  const activeNode = i>=0 ? f.steps[i].node : null;
+  document.querySelectorAll('.fnode').forEach(el=>{
+    el.classList.toggle('cur', el.dataset.id===activeNode);
+    el.classList.remove('dim');
+  });
+  document.getElementById('counter').textContent = i>=0 ? `paso ${i+1} de ${f.steps.length}` : `${f.steps.length} pasos`;
+  document.getElementById('prev').disabled = i<=0;
+  document.getElementById('next').disabled = i>=f.steps.length-1;
+  if(i>=0){
+    const el=document.querySelector(`#steps .step[data-s="${i}"]`);
+    if(el) el.scrollIntoView({block:'nearest'});
+  }
+}
+
+/* ---------- eventos ---------- */
+document.addEventListener('click', e=>{
+  const tab = e.target.closest('.tabbtn');
+  if(tab){
+    document.querySelectorAll('.tabbtn').forEach(b=>{
+      const on=b===tab;
+      b.className = `tabbtn px-4 py-2.5 text-sm font-semibold border-b-2 ${on?'border-accent text-ink':'border-transparent text-mut hover:text-ink'}`;
+    });
+    document.getElementById('tab-arq').classList.toggle('hidden', tab.dataset.tab!=='arq');
+    document.getElementById('tab-flu').classList.toggle('hidden', tab.dataset.tab!=='flu');
+    if(tab.dataset.tab==='flu' && !cur) renderFlow(D.flows[0]);
+    requestAnimationFrame(redraw);
+    return;
+  }
+  const fb = e.target.closest('.flowbtn');
+  if(fb){ renderFlow(D.flows.find(f=>f.id===fb.dataset.f)); return; }
+
+  const fn = e.target.closest('.fnode');
+  if(fn){ const k=cur.steps.findIndex(s=>s.node===fn.dataset.id); if(k>=0) setStep(k); return; }
+
+  const st = e.target.closest('.step');
+  if(st){ setStep(+st.dataset.s); return; }
+
+  const jump = e.target.closest('.jump');
+  if(jump){ showDetail(jump.dataset.id); highlight(jump.dataset.id); return; }
+
+  const nd = e.target.closest('#diagram .node');
+  if(nd){ showDetail(nd.dataset.id); highlight(nd.dataset.id); return; }
+
+  if(!e.target.closest('#detail') && !e.target.closest('#diagram')) clearHighlight();
+});
+document.getElementById('prev').onclick = ()=> setStep(Math.max(0,stepIdx-1));
+document.getElementById('next').onclick = ()=> setStep(Math.min(cur.steps.length-1,stepIdx+1));
+document.getElementById('reset').onclick = ()=> setStep(-1);
+document.addEventListener('keydown', e=>{
+  if(document.getElementById('tab-flu').classList.contains('hidden')||!cur) return;
+  if(e.key==='ArrowRight'){e.preventDefault();setStep(Math.min(cur.steps.length-1,stepIdx+1));}
+  if(e.key==='ArrowLeft'){e.preventDefault();setStep(Math.max(0,stepIdx-1));}
+});
+window.addEventListener('resize', ()=>requestAnimationFrame(redraw));
+
+/* ---------- arranque ---------- */
+buildDiagram();
+requestAnimationFrame(()=>{ redraw(); });
+setTimeout(redraw, 250);
+</script>
+</body>
+</html>

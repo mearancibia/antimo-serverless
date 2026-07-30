@@ -184,7 +184,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
         <button class="btn hidden" id="opVigDel" title="Borrar esta vigencia">🗑</button>
         <span class="mut" id="opvighint" style="font-size:12px"></span>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="ml">Categoría</label><select id="opCatF"></select><input type="search" id="opSearchF" placeholder="buscar concepto"><span class="mut" id="opexfhint" style="font-size:12px"></span></div><div class="scroll"><table id="tOpex"></table></div></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="ml">Categoría</label><select id="opCatF"></select><input type="search" id="opSearchF" placeholder="buscar concepto"><span class="mut" id="opexfhint" style="font-size:12px"></span></div><div id="opexbar" class="hidden" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;padding:9px 12px;border-radius:9px;background:rgba(232,131,74,.10);border:1px solid var(--accent)"><span style="color:var(--accent);font-weight:600;font-size:13px">✏️ Tenés cambios sin guardar</span><span class="mut" id="opexbarhint" style="font-size:12px"></span><button class="btn on" id="opexSave" style="margin-left:auto">Guardar cambios</button><button class="btn" id="opexUndo">Descartar</button></div><div class="scroll"><table id="tOpex"></table></div></div>
     <div><div class="card"><div class="h3">Composición</div><div id="opexchart"></div></div>
       <div class="card"><div class="h3">Peso del OPEX</div><div id="opexpeso"></div></div></div>
   </div>
@@ -1265,13 +1265,55 @@ function filterOpex(){
 }
 function wireOpex(host,desde){
  // 'desde' ata cada guardado a SU vigencia: editar el OPEX de julio no debe tocar el de junio.
- const collect=()=>[...host.querySelectorAll('.opr')].map(tr=>({cat:tr.querySelector('.opc').value.trim()||'Otros',item:tr.querySelector('.opi').value.trim(),cantidad:+tr.querySelector('.opq').value||0,unitario:+tr.querySelector('.opu').value||0})).filter(r=>r.item);
- const guardar=()=>apiPost('/api/opex_save',{desde:desde,items:collect()});
- const recalc=()=>{let tot=0;host.querySelectorAll('.opr').forEach(tr=>{const m=Math.round((+tr.querySelector('.opq').value||0)*(+tr.querySelector('.opu').value||0));tr.querySelector('.opm').textContent=f0(m);tot+=m;});const ot=document.getElementById('optot2');if(ot)ot.textContent=f0(tot);};
- host.querySelectorAll('.opq,.opu').forEach(inp=>{inp.oninput=recalc;inp.onchange=guardar;});
- host.querySelectorAll('.opc,.opi').forEach(inp=>inp.onchange=guardar);
- host.querySelectorAll('.rmrow').forEach(el=>el.onclick=()=>{el.closest('tr').remove();recalc();guardar();});
+ // NO se guarda campo por campo. Antes cada blur disparaba apiPost -> el motor recalculaba ~1s
+ // -> volvía el DATA -> rerender() -> innerHTML rehacía la tabla ENTERA: el input donde ya
+ // estabas tipeando se destruía y se perdía lo escrito. Ahora se acumula y se guarda a pedido.
+ _opexDesde=desde;
+ const collect=()=>[...host.querySelectorAll('.opr')].map(tr=>({
+   cat:tr.querySelector('.opc').value.trim()||'Otros',
+   item:tr.querySelector('.opi').value.trim(),
+   cantidad:+tr.querySelector('.opq').value||0,
+   unitario:+tr.querySelector('.opu').value||0}));
+ _opexCollect=collect;
+ const recalc=()=>{let tot=0;host.querySelectorAll('.opr').forEach(tr=>{
+   const m=Math.round((+tr.querySelector('.opq').value||0)*(+tr.querySelector('.opu').value||0));
+   tr.querySelector('.opm').textContent=f0(m);tot+=m;});
+   const ot=document.getElementById('optot2');if(ot)ot.textContent=f0(tot);
+   const oh=document.getElementById('opextot');if(oh)oh.textContent=f0(tot);};
+ _opexRecalc=recalc;
+ host.querySelectorAll('.opq,.opu,.opc,.opi').forEach(inp=>{
+   inp.oninput=()=>{recalc();opexDirty(true);};
+ });
+ host.querySelectorAll('.rmrow').forEach(el=>el.onclick=()=>{
+   el.closest('tr').remove();recalc();opexDirty(true);});
 }
+// ----- estado de edición del OPEX -----
+let _opexDirty=false,_opexDesde='',_opexCollect=null,_opexRecalc=null;
+function opexDirty(v){
+ _opexDirty=v;
+ const bar=document.getElementById('opexbar');if(bar)bar.classList.toggle('hidden',!v);
+ if(!v)document.querySelectorAll('#tOpex .opr').forEach(tr=>tr.style.background='');
+}
+// Las filas sin concepto NO se guardan (el motor las descarta). Antes desaparecían en silencio:
+// se agregaba un concepto, se tipeaba la categoría, y al guardar la fila se esfumaba. Ahora se
+// avisa y se bloquea el guardado hasta completarla.
+function opexIncompletas(){
+ return [...document.querySelectorAll('#tOpex .opr')].filter(tr=>!tr.querySelector('.opi').value.trim());
+}
+async function opexGuardar(){
+ const malas=opexIncompletas();
+ if(malas.length){
+  malas.forEach(tr=>tr.style.background='rgba(200,90,84,.16)');
+  malas[0].querySelector('.opi').focus();
+  toast('Completá el concepto de '+(malas.length>1?('las '+malas.length+' filas marcadas'):'la fila marcada'));
+  return;
+ }
+ const items=_opexCollect?_opexCollect():[];
+ opexDirty(false);
+ const j=await apiPost('/api/opex_save',{desde:_opexDesde,items:items});
+ if(!j||!j.ok)opexDirty(true);   // si falló, los cambios siguen pendientes
+}
+
 function renderVigSelector(){
  const ps=DATA.opex_periodos||[],v=vigSel(),hoy=vigHoy(),sel=document.getElementById('opVigF');
  if(!sel||!v)return;
@@ -1286,6 +1328,9 @@ function renderVigSelector(){
 function renderOpex(){
  const v=vigSel();
  renderVigSelector();
+ // Si el usuario tiene cambios sin guardar, NO se reconstruye la tabla: rehacerla borraría lo
+ // que está escribiendo. El resto del tablero sí se actualiza.
+ if(_opexDirty && APP && document.querySelector('#tOpex .opr')){filterOpex();return;}
  document.getElementById('opextot').textContent=f0(v?v.opex:0);
  const det=(v?v.opex_detalle:[])||[],g={};det.forEach(r=>{(g[r.cat]||(g[r.cat]=[])).push(r);});
  const t=document.getElementById('tOpex');
@@ -1434,7 +1479,9 @@ function stockModal(insumo){
   await apiPost('/api/stock',{insumo,cantidad:cant,fecha:document.getElementById('stkFecha').value,umbral_dias:+document.getElementById('stkUmb').value||null});close();};
  const clr=document.getElementById('stkClear');if(clr)clr.onclick=async()=>{await apiPost('/api/stock',{insumo,cantidad:0});close();};
 }
-function showTab(){['resumen','rent','recetas','compras','caja','costos','opex'].forEach(t=>document.getElementById('tab-'+t).classList.toggle('hidden',t!==st.tab));
+function showTab(){
+ if(_opexDirty && st.tab!=='opex'){toast('Ojo: el OPEX tiene cambios sin guardar');}
+['resumen','rent','recetas','compras','caja','costos','opex'].forEach(t=>document.getElementById('tab-'+t).classList.toggle('hidden',t!==st.tab));
  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===st.tab));}
 function renderFoot(){const o=opexRango(st.desde,st.hasta);
  const vig=o.periodos.length>1?`${o.periodos.length} vigencias (${o.periodos.map(p=>fFecha(p.desde)).join(', ')})`:`${f0(opexMesEfectivo(st.desde,st.hasta))}/mes`;
@@ -1479,6 +1526,10 @@ document.getElementById('opVigDel').onclick=()=>{
  if(!confirm('¿Borrar la vigencia desde '+fFecha(v.desde)+'?\n\nLos días que usaba pasan a usar la vigencia anterior.'))return;
  apiPost('/api/opex_vigencia',{desde:v.desde,borrar:true}).then(j=>{if(j&&j.ok)st.opVig=null;});
 };
+document.getElementById('opexSave').onclick=opexGuardar;
+document.getElementById('opexUndo').onclick=()=>{opexDirty(false);renderOpex();toast('Cambios descartados');};
+// Red de seguridad: si hay OPEX sin guardar, el navegador pregunta antes de cerrar o recargar.
+window.addEventListener('beforeunload',e=>{if(_opexDirty){e.preventDefault();e.returnValue='';}});
 document.getElementById('opAdd').onclick=()=>{const t=document.getElementById('tOpex');const v=vigSel();const rows=t.querySelectorAll('tr');const totrow=rows[rows.length-1];totrow.insertAdjacentHTML('beforebegin',window._opexRow({cat:'',item:'',cantidad:1,unitario:0,monto:0}));wireOpex(t,v?v.desde:'');const its=t.querySelectorAll('.opr .opi');its[its.length-1].focus();};
 document.getElementById('pullbtn').onclick=pull;
 document.getElementById('cfgbtn').onclick=configModal;
