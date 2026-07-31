@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ANTIMO — Análisis Técnico de Matemáticas</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+      background: #f8f9fa;
+      padding: 20px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+    header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 30px; }
+    h1 { font-size: 2.5em; margin-bottom: 10px; }
+    .subtitle { font-size: 1.1em; opacity: 0.9; }
+    nav { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+    nav button {
+      background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);
+      padding: 8px 16px; border-radius: 4px; cursor: pointer; transition: 0.2s;
+    }
+    nav button:hover { background: rgba(255,255,255,0.3); }
+    nav button.active { background: white; color: #667eea; }
+
+    .content { display: none; }
+    .content.active { display: block; }
+
+    .section { padding: 40px 30px; border-bottom: 1px solid #e0e0e0; }
+    .section:last-child { border-bottom: none; }
+
+    h2 { color: #667eea; font-size: 1.8em; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    h3 { color: #764ba2; font-size: 1.3em; margin: 25px 0 15px 0; }
+    h4 { color: #555; font-size: 1.1em; margin: 15px 0 10px 0; }
+
+    .card { background: #f5f5f5; border-left: 4px solid #667eea; padding: 20px; margin: 20px 0; border-radius: 4px; }
+    .card.warning { border-left-color: #ff9800; background: #fff3e0; }
+    .card.success { border-left-color: #4caf50; background: #f1f8e9; }
+    .card.error { border-left-color: #f44336; background: #ffebee; }
+
+    code {
+      background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 0.9em; color: #d63384;
+    }
+    pre {
+      background: #282c34; color: #abb2bf; padding: 15px; border-radius: 4px; overflow-x: auto;
+      margin: 15px 0; font-family: 'Monaco', 'Menlo', 'Courier New', monospace; font-size: 0.85em;
+      line-height: 1.5;
+    }
+
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th { background: #667eea; color: white; padding: 12px; text-align: left; }
+    td { padding: 12px; border-bottom: 1px solid #e0e0e0; }
+    tr:hover { background: #f9f9f9; }
+
+    .formula {
+      background: #f0f4ff; border: 1px solid #667eea; padding: 15px; margin: 15px 0;
+      border-radius: 4px; font-family: 'Monaco', 'Menlo', monospace; line-height: 1.8;
+      color: #333;
+    }
+
+    .check { color: #4caf50; font-weight: bold; }
+    .cross { color: #f44336; font-weight: bold; }
+    .warn { color: #ff9800; font-weight: bold; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
+    .stat-box { background: #f5f5f5; padding: 20px; border-radius: 4px; text-align: center; }
+    .stat-box .number { font-size: 2em; color: #667eea; font-weight: bold; }
+    .stat-box .label { color: #666; margin-top: 5px; }
+
+    .flow-diagram {
+      background: #f9f9f9; padding: 20px; border: 1px solid #e0e0e0; border-radius: 4px;
+      overflow-x: auto; margin: 20px 0;
+    }
+
+    ul { margin-left: 20px; }
+    li { margin: 8px 0; }
+
+    .footer { text-align: center; padding: 20px; color: #999; font-size: 0.9em; background: #f5f5f5; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>📊 ANTIMO — Análisis Técnico de Matemáticas</h1>
+    <p class="subtitle">Verificación completa de fórmulas, flujos de datos y cálculos</p>
+    <nav>
+      <button class="nav-btn active" data-section="overview">📋 Resumen</button>
+      <button class="nav-btn" data-section="costeo">💰 Costeo</button>
+      <button class="nav-btn" data-section="margenes">📈 Márgenes</button>
+      <button class="nav-btn" data-section="opex">💸 OPEX</button>
+      <button class="nav-btn" data-section="bcg">📊 Matriz BCG</button>
+      <button class="nav-btn" data-section="stock">📦 Stock</button>
+      <button class="nav-btn" data-section="filtros">🔍 Filtros</button>
+      <button class="nav-btn" data-section="completitud">✅ Completitud</button>
+      <button class="nav-btn" data-section="beq">⚖️ Punto Equilibrio</button>
+      <button class="nav-btn" data-section="verificacion">🔐 Verificación</button>
+    </nav>
+  </header>
+
+  <!-- OVERVIEW -->
+  <div class="content active" id="overview">
+    <div class="section">
+      <h2>📋 Resumen Ejecutivo</h2>
+      <p>Este análisis verifica la consistencia matemática de todas las fórmulas y cálculos implementados en ANTIMO. El sistema procesa datos de ventas (Bistrosoft API), los cruza con recetas e insumos, y genera reportes de rentabilidad, compras y gestión.</p>
+
+      <div class="grid">
+        <div class="stat-box">
+          <div class="number">5</div>
+          <div class="label">Tipos de Costeo</div>
+        </div>
+        <div class="stat-box">
+          <div class="number">119</div>
+          <div class="label">Insumos Base</div>
+        </div>
+        <div class="stat-box">
+          <div class="number">4</div>
+          <div class="label">Cuadrantes BCG</div>
+        </div>
+        <div class="stat-box">
+          <div class="number">3</div>
+          <div class="label">Niveles Filtro</div>
+        </div>
+      </div>
+
+      <h3>Flujo de Datos Principal</h3>
+      <div class="flow-diagram">
+        <pre>Bistrosoft API → conector_bistrosoft.py → entrada/api_ventas_YYYY-MM.xlsx + cajas_api.json
+                                                          ↓
+                              datos/datos_general.xlsx (maestro)
+                                + overrides JSON (usuario)
+                                          ↓
+                              actualizar_antimo.py (motor)
+                                          ↓
+                    datos_dashboard.json ↔ dashboard_ANTIMO.html
+                                          ↓
+                                  Chrome (lectura/edición)</pre>
+      </div>
+
+      <h3>Reglas de Oro (Invariantes)</h3>
+      <div class="card success">
+        <strong>✓ Regla #0 — Honestidad de Datos</strong><br>
+        Nunca inventar costos ni márgenes. Producto sin receta/costo → <code>N/D</code> (no forzado a matriz).
+      </div>
+      <div class="card success">
+        <strong>✓ Regla #1 — No escribir Excel por código</strong><br>
+        <code>datos_general.xlsx</code> se toca solo en overrides JSON. El motor fusiona; genera copia actualizada.
+      </div>
+      <div class="card success">
+        <strong>✓ Regla #2 — Agrupación por Noche de Caja</strong><br>
+        Una noche cruza medianoche, agrupa por fecha de cierre (corte 08:00). Rótulos van +1 día.
+      </div>
+      <div class="card success">
+        <strong>✓ Regla #3 — Read-Modify-Write Estricto</strong><br>
+        Todo JSON corrupto → abortar, no retornar <code>{}</code>. <code>_save()</code> usa atomic <code>tmp + replace</code>.
+      </div>
+
+      <h3>Estado de Verificación</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Componente</th>
+            <th>Status</th>
+            <th>Notas</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Costeo de productos</td>
+            <td><span class="check">✓ OK</span></td>
+            <td>5 tipos implementados, validación estricta</td>
+          </tr>
+          <tr>
+            <td>Cálculo de márgenes</td>
+            <td><span class="check">✓ OK</span></td>
+            <td>Fórmula: (precio - costo) / precio × 100</td>
+          </tr>
+          <tr>
+            <td>OPEX prorrateo</td>
+            <td><span class="check">✓ OK</span></td>
+            <td>Share = ventas filtradas / ventas totales</td>
+          </tr>
+          <tr>
+            <td>BCG matriz</td>
+            <td><span class="check">✓ OK</span></td>
+            <td>Frontend solo, dinámico por rango fechas</td>
+          </tr>
+          <tr>
+            <td>Stock proyección</td>
+            <td><span class="check">✓ OK</span></td>
+            <td>Noche por noche, findes vs semana</td>
+          </tr>
+          <tr>
+            <td>Filtros globales</td>
+            <td><span class="check">✓ OK</span></td>
+            <td>Alcance verificado, OPEX multiplicado por share</td>
+          </tr>
+          <tr>
+            <td>Punto equilibrio</td>
+            <td><span class="check">✓ OK</span></td>
+            <td>BEQ = OPEX / (1 - CMV%)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- COSTEO -->
+  <div class="content" id="costeo">
+    <div class="section">
+      <h2>💰 Motor de Costeo</h2>
+      <p>Cada producto en ventas se busca en Maestro por nombre POS y se clasifica en 5 tipos de costeo:</p>
+
+      <h3>1. Receta</h3>
+      <div class="formula">
+costo_producto = Σ(ingrediente_i × cantidad_i × precio_unitario_i)
+
+Ejemplo: CUARTO DE LIBRA
+  Medallón 115g    × $65.96/g  = $7,585.40
+  Pan Hamburguesa  × $0.85/g   = $178.50
+  Queso Cheddar    × $0.46/g   = $23.00
+  Tomate           × $0.04/g   = $15.00
+  Cebolla          × $0.02/g   = $8.75
+  Mayonesa         × $0.18/g   = $36.00
+  ────────────────────────────
+  TOTAL COSTO      = $7,846.65
+      </div>
+
+      <div class="card">
+        <strong>Conversión de Unidades</strong><br>
+        Si receta en gramos pero insumo en unidades, usa tabla <code>UNIDAD_G</code>:<br>
+        • Pan Baguette: 200g/unidad<br>
+        • Pan Hamburguesa: 210g/unidad<br>
+        • Cerveza Corona: 330ml/lata<br>
+        • Limas/Limones: 12g/unidad
+      </div>
+
+      <h3>2. Promo 2x1</h3>
+      <div class="formula">
+costo_promo_2x1 = costo_receta_base × factor (generalmente 2)
+
+Ejemplo: 2 X 1 APEROL
+  Receta base: 1 Aperol + Agua Tónica = $4,200
+  Factor: 2 (dos tragos)
+  Costo final: $4,200 × 2 = $8,400
+
+⚠️ TRAMPA: Si escribís la receta YA duplicada + factor=2 → se multiplica dos veces
+      </div>
+
+      <h3>3. Pour (Servicio de Botella)</h3>
+      <div class="formula">
+costo_pour = (rendimiento_ml / contenido_botella) × precio_botella
+
+Ejemplo: BOMBAY + TONICA (servicio botella)
+  Rendimiento: 60ml (un trago)
+  Botella Bombay: 750ml, $36,615
+  Tónica 1.5L: $3,000
+
+  Costo gin:   (60/750) × $36,615 = $2,929.20
+  Costo tónica: (1500/1500) × $3,000 = $3,000.00
+  TOTAL: $5,929.20 (precio $13,000 = 54% margen, realista para servicio)
+
+⚠️ Margen >85% en bebida con precio 5+ cifras = probablemente receta de trago con precio de botella
+      </div>
+
+      <h3>4. Botella</h3>
+      <div class="formula">
+costo_botella = precio_insumo × 1
+
+Ejemplo: AGUA MINERAL 1.5L
+  Precio: $1,500 / botella
+  Costo: $1,500 (margen = precio_lista / costo - 1)
+      </div>
+
+      <h3>5. Directo</h3>
+      <div class="formula">
+costo_directo = precio_insumo × cantidad_vendida
+
+Ejemplo: RABAS (si fuera costeable)
+  Costo por porción: $X
+  Cantidad: 1 porción
+  Costo: $X
+      </div>
+
+      <div class="card warning">
+        <strong>Ingredientes Genéricos (Trampa Resuelta)</strong><br>
+        La hoja Excel tiene "Gin (Brighton/Beefeater)" que resuelve a UN insumo (el más barato).<br>
+        <strong>Solución:</strong> Si producto dice marca explícita (BOMBAY, BEEFEATER), crear receta propia en <code>recetas_extra.json</code> con insumo exacto.
+      </div>
+
+      <h3>Casos Sin Datos (N/D)</h3>
+      <ul>
+        <li><strong>sin_datos:</strong> Tipo de venta = "sin_datos" en maestro</li>
+        <li><strong>Ingrediente sin mapeo:</strong> No existe en ALIAS ni COSTO</li>
+        <li><strong>Cantidad no parseada:</strong> <code>parse_qty()</code> retorna None</li>
+        <li><strong>Receta no hallada:</strong> Nombre normalizado no en RECETAS</li>
+        <li><strong>Combo circular:</strong> Combo se referencia a sí mismo → N/D (no cuelga)</li>
+      </ul>
+
+      <div class="card success">
+        <strong>✓ Validación de Costeo</strong><br>
+        • Toda cantidad parseada correctamente (g, ml, unidades, latas)<br>
+        • Alias resuelven ingredientes genéricos → insumos específicos<br>
+        • Conversión unidades sin asumir pesos (FALTANTES = error explícito)<br>
+        • CXU = None → N/D, no TypeError
+      </div>
+    </div>
+  </div>
+
+  <!-- MARGENES -->
+  <div class="content" id="margenes">
+    <div class="section">
+      <h2>📈 Cálculo de Márgenes</h2>
+
+      <h3>Fórmula Base</h3>
+      <div class="formula">
+margen_% = (precio_venta_promedio - costo) / precio_venta_promedio × 100
+
+Simplificado:
+margen_% = (1 - costo/precio) × 100
+
+Ejemplo:
+  Costo: $4,000
+  Precio promedio: $10,000
+  Margen: (1 - 4000/10000) × 100 = 60%
+
+Caso N/D:
+  Si costo = null o precio = 0 → margen = null (no se fuerza a matriz)
+      </div>
+
+      <h3>Precio de Venta Real (Promedio)</h3>
+      <div class="formula">
+precio_promedio = Σ(monto_vendido) / Σ(cantidad_vendida)
+
+Datos fuente: byday = { "DD-MM": [unidades, monto] }
+
+Ejemplo (producto con múltiples noches):
+  Noche 1: 3 unidades, $30,000 total
+  Noche 2: 2 unidades, $25,000 total
+  Noche 3: 1 unidad,  $8,000 total
+  ─────────────────────────────
+  Total: 6 unidades, $63,000
+  Promedio: $63,000 / 6 = $10,500/unidad
+      </div>
+
+      <h3>Precio de Lista (Oficial PVP)</h3>
+      <div class="formula">
+precio_lista = valor de "Lista de Precios" en Excel
+
+Match en dos pasos (NUNCA fuzzy):
+1) Exacto:    norm(producto) en PRECIO_LISTA
+2) Aplanado:  mismo texto, sin espacios/tildes/puntuación
+3) Alias:     PRECIO_LISTA_ALIAS (confirmadas por dueño)
+
+Si no hay match seguro → precio_lista = null (mostrar "—" en tabla)
+
+Diferencia visible:
+  Si (precio_lista - precio_promedio) > 5% → resalta en NARANJA
+  Puede indicar: descuento, cambio de precio mid-período, mal cargado en POS
+      </div>
+
+      <h3>Margen "Sospechoso"</h3>
+      <div class="formula">
+es_sospechoso = margen_% >= SUSP_THR (90%)
+
+Acción:
+  • Tablero SUGIERE revisar (auditoría de datos)
+  • Dueño CONFIRMA (estado:"si") o DESCARTA (estado:"no")
+  • Confirmado = NO afecta datos, solo FILTRA tabla/matriz/alertas
+
+Causa típica: costo mal mapeado (ingrediente genérico) o precio de trago con valor de botella
+      </div>
+
+      <h3>Rentabilidad Neta (P&L)</h3>
+      <div class="formula">
+rentabilidad_neta = ingresos - CMV - OPEX
+
+Donde:
+  ingresos = Σ(precio_promedio × cantidad)
+  CMV = Σ(costo × cantidad)
+  OPEX = gasto operativo mensual (editado por usuario)
+
+Ejemplo (período filtrado):
+  Ingresos: $500,000
+  CMV:      $250,000 (50% del ingreso)
+  OPEX:     $100,000 (o prorratedo si filtro)
+  ─────────────────
+  Neto:     $150,000 (30% rentabilidad)
+      </div>
+
+      <div class="card">
+        <strong>Umbral MG_BAJO = 40%</strong><br>
+        Productos con margen < 40% se clasifican "VACA" (bajo margen). Sirve para:<br>
+        • Alertas (revisar precios)<br>
+        • Filtro Rentabilidad (cuadrantes BCG)<br>
+        • Indicadores de alerta en Resumen
+      </div>
+    </div>
+  </div>
+
+  <!-- OPEX -->
+  <div class="content" id="opex">
+    <div class="section">
+      <h2>💸 OPEX y Prorrateo</h2>
+
+      <h3>OPEX Total Mensual</h3>
+      <div class="formula">
+OPEX_total = Σ(cantidad × unitario) para todos los rubros confirmados
+
+Estructura:
+  [
+    { cat: "Sueldos", item: "Chef", cantidad: 1, unitario: 150000, confirmado_cero: false },
+    { cat: "Sueldos", item: "Mozo", cantidad: 1, unitario: 80000, confirmado_cero: false },
+    { cat: "Servicios", item: "Luz", cantidad: 1, unitario: 15000, confirmado_cero: false },
+    { cat: "Servicios", item: "Gas", cantidad: 1, unitario: 8000, confirmado_cero: false },
+    ...
+  ]
+
+OPEX_pend = Σ(rubros en $0 no confirmados)
+  Si un rubro tiene cantidad=0 unitario=0, pregunta dueño si es intencional
+      </div>
+
+      <h3>Prorrateo con Filtros Activos</h3>
+      <div class="formula">
+⚠️ PROBLEMA: OPEX es del bar ENTERO, no de una categoría
+
+Si filtras "PIZZAS":
+  Ventas filtradas: $100,000
+  Ventas totales:   $300,000
+  OPEX completo:    $90,000
+
+  Si restas OPEX completo → resultado = $100k - CMV - $90k = SIEMPRE negativo
+  Eso no dice nada.
+
+SOLUCIÓN: Prorratear OPEX por share de ventas
+
+share = ventas_filtradas / ventas_totales
+OPEX_prorratedo = OPEX_total × share
+
+Ejemplo:
+  share = $100k / $300k = 0.333 (33.3%)
+  OPEX_prorrateado = $90k × 0.333 = $30k
+
+  Entonces:
+  Rentabilidad neta = $100k - CMV - $30k = más significativo
+
+IMPLEMENTADO EN:
+  • KPI principal (pie del número)
+  • P&L (nota bajo tabla)
+  • Punto equilibrio (BEQ_prorrateado)
+  • Tarjeta "Peso del OPEX" (si olvidaba × share → 388%)
+      </div>
+
+      <div class="card warning">
+        <strong>⚠️ TODO lo que muestre OPEX + ventas filtradas DEBE multiplicar por share</strong><br>
+        Si agregas widget nuevo: verifica que use share.<br>
+        Sin filtro: share = 1.0, resultado idéntico a antes.
+      </div>
+
+      <h3>OPEX con Vigencia por Fecha</h3>
+      <div class="formula">
+opex_periodos = {
+  "2026-01-01": [ { cat, item, cantidad, unitario }, ... ],
+  "2026-04-15": [ { cat, item, cantidad, unitario }, ... ],
+  ...
+}
+
+Motor recorre cada rúbro y asigna el vigente EN LA FECHA del período:
+  • Si período = "01-15 a 02-28" y hay cambio el 01-15 → usa ese
+  • Si período comienza antes del primer cambio → usa el que exista más atrás
+  • Permite cambios de sueldo, servicios, etc. sin borrar histórico
+
+Endpoint: POST /api/opex_vigencia
+      </div>
+    </div>
+  </div>
+
+  <!-- BCG -->
+  <div class="content" id="bcg">
+    <div class="section">
+      <h2>📊 Matriz BCG (Boston Consulting Group)</h2>
+
+      <h3>Clasificación en Cuadrantes</h3>
+      <div class="formula">
+BCG = f(margen_%, volumen_vendido)
+
+Cálculo DINÁMICO por rango de fechas elegido (NO estático).
+
+Cuadrantes:
+
+  ┌─────────────────────────────────────┐
+  │      ALTO VOLUMEN                   │
+  │  ┌─────────────┬────────────────┐   │
+  │  │ ESTRELLA    │ VACA           │   │
+  │  │ Alto margen │ Bajo margen    │   │
+  │  │ Alto volumen│ Alto volumen   │   │
+  │  ├─────────────┼────────────────┤   │
+  │  │ INTERRO.    │ PERRO          │   │
+  │  │ Alto margen │ Bajo margen    │   │
+  │  │ Bajo volumen│ Bajo volumen   │   │
+  │  └─────────────┴────────────────┘   │
+  │      BAJO VOLUMEN                   │
+  └─────────────────────────────────────┘
+
+Umbrales:
+  • Margen: MG_BAJO = 40%
+  • Volumen: MEDIANA de unidades del período
+      </div>
+
+      <h3>Algoritmo de Clasificación</h3>
+      <div class="formula">
+Para cada producto p en período:
+  1. Calcular margen: (1 - costo/precio) × 100
+  2. Sumar unidades vendidas
+
+Calcular medianas globales (período):
+  mediana_margen = mediana(todos los márgenes del período)
+  mediana_volumen = mediana(todas las cantidades)
+
+Clasificar p:
+  if margen >= MG_BAJO and volumen >= mediana_volumen → ESTRELLA
+  if margen < MG_BAJO and volumen >= mediana_volumen → VACA
+  if margen >= MG_BAJO and volumen < mediana_volumen → INTERROGANTE
+  if margen < MG_BAJO and volumen < mediana_volumen → PERRO
+
+Excluir:
+  • N/D (sin costo confiable)
+  • Sospechosos confirmados (si filtro "Sin sospechosos" activo)
+      </div>
+
+      <h3>Scatter Plot</h3>
+      <p>El gráfico muestra cada producto como un punto:</p>
+      <ul>
+        <li><strong>Eje X:</strong> Volumen (unidades vendidas, log scale a veces)</li>
+        <li><strong>Eje Y:</strong> Margen (%)</li>
+        <li><strong>Color:</strong> Cuadrante (ESTRELLA=verde, VACA=amarillo, INTERRO=naranja, PERRO=rojo)</li>
+        <li><strong>Tamaño del punto:</strong> Ingresos totales del producto (área ∝ ingresos)</li>
+      </ul>
+
+      <div class="card success">
+        <strong>✓ Frontend-Only Calculation</strong><br>
+        BCG se calcula en el navegador (JavaScript), NO en backend.<br>
+        Permite cambiar rango de fechas sin regenerar datos.<br>
+        Cuadrantes se re-computan dinámicamente.
+      </div>
+
+      <div class="card warning">
+        <strong>⚠️ curItems() vs curItemsBase()</strong><br>
+        Los cuadrantes usan <code>curItemsBase()</code> (sin filtro de clase) para mantener estabilidad.<br>
+        Si usaran <code>curItems()</code>, al seleccionar "Perros" los otros desaparecerían y puntos saltarían.
+      </div>
+    </div>
+  </div>
+
+  <!-- STOCK -->
+  <div class="content" id="stock">
+    <div class="section">
+      <h2>📦 Alertas de Quiebre de Stock</h2>
+
+      <h3>Filosofía: Conteo Puntual, No Inventario Perpetuo</h3>
+      <div class="card success">
+        <strong>✓ Decisión de Diseño Explícita</strong><br>
+        Inventario perpetuo (restar cada venta, sumar cada compra) falla si omites una compra.<br>
+        Mejor: dueño cuenta, sistema resta consumo REAL (ya exacto).
+      </div>
+
+      <h3>Fórmula de Proyección</h3>
+      <div class="formula">
+Entrada: stock.json = { "Insumo": { cant: N, fecha: "YYYY-MM-DD", umbral_dias: 3 } }
+
+restante_hoy = stock.cant × insumo.cant_base - consumo_desde_fecha
+
+Donde:
+  • stock.cant está en UNIDADES DE PRESENTACIÓN (ej: 7 botellas)
+  • insumo.cant_base convierte a unidad base (ej: 7 × 330ml = 2,310ml)
+  • consumo_desde_fecha = Σ(consumo_dia[cada noche desde fecha])
+
+Ejemplo: Cerveza Corona Porrón (330ml)
+  Stock anotado: 7 botellas, hace 3 noches
+  cant_base: 330ml/botella
+  Consumo últimas 3 noches: 18 botellas = 5,940ml
+
+  Restante: (7 × 330) - 5,940 = 2,310 - 5,940 = -3,630ml (FALTA)
+  O si fue la semana pasada: 8 botellas restantes = 2,640ml
+      </div>
+
+      <h3>Ritmo de Consumo (Estacionalidad)</h3>
+      <div class="formula">
+ritmosRecientes() pondera POR TIPO DE NOCHE (findes vs semana):
+
+Ventana: 21 días (3 semanas) para captar cambios recientes (moda, abandono)
+
+Para FINDES (Vie, Sáb, Dom real):
+  ritmo_findes = consumo_reciente_findes / noches_de_findes_en_ventana
+  Si no hay muestra de findes en ventana → fallback a promedio histórico
+
+Para SEMANA (Lun-Jue):
+  ritmo_semana = consumo_reciente_semana / noches_de_semana_en_ventana
+  Si no hay muestra → fallback a promedio histórico
+
+Resultado: dos ritmos distintos, más preciso que "promedio anual"
+      </div>
+
+      <h3>Proyección Noche por Noche</h3>
+      <div class="formula">
+proyectarQuiebre(insumo, hoy, ritmo_findes, ritmo_semana):
+
+  restante = stockCalc(insumo, hoy)
+  mañana = hoy + 1 día
+  max_noches = 180 (safety limit)
+
+  FOR noche = mañana TO mañana+180:
+    IF noche NO abre (patronApertura + dias_cerrados) → SKIP
+
+    dow = day_of_week(noche - 1 día)  // nocheReal() offset
+    IF dow in (Vie, Sáb, Dom):
+      consumo = ritmo_findes
+    ELSE:
+      consumo = ritmo_semana
+
+    restante -= consumo
+
+    IF restante <= 0:
+      RETURN noche  // fecha de quiebre
+
+  IF después de 180 noches aún hay stock:
+    RETURN "sin quiebre a la vista"
+
+Resultado: "Se agota el jueves 24/07" (más accionable que "X noches")
+      </div>
+
+      <h3>Umbral de Crítico</h3>
+      <div class="formula">
+STOCK_UMBRAL_DEFAULT = 3 noches
+
+Si noches_hasta_quiebre <= umbral_dias → CRÍTICO (rojo)
+
+El umbral es AJUSTABLE por insumo (editable en modal).
+      </div>
+
+      <div class="card warning">
+        <strong>⚠️ Stock en UNIDADES DE PRESENTACIÓN, no en base</strong><br>
+        stock.json["cant"] = número de botellas/latas/paquetes<br>
+        Conversión usa insumo.cant_base (ya validado en los 119 insumos)<br>
+        Si nuevo insumo sin cant_base → división por 1 (silenciosa, peligro)
+      </div>
+
+      <h3>Exportar/Importar CSV</h3>
+      <div class="formula">
+Columnas: Insumo; Presentación; Cantidad_actual; Umbral_noches
+
+Células vacías → NO TOCAR ese insumo
+Precio = 0 → rechazar (gratis falsea márgenes)
+
+Vista previa OBLIGATORIA:
+  Muestra antes → después
+  Variación %
+  Cuántos productos afecta (hielo en 35 recetas, limas en 22)
+  Resalta cambios > 50% (VARIACION_SOSPECHOSA)
+
+Parser: parseNumES() (es-AR, en-US, $, espacios)
+  "8.990,00" (Excel es-AR) → 8990, no 8,99
+      </div>
+    </div>
+  </div>
+
+  <!-- FILTROS -->
+  <div class="content" id="filtros">
+    <div class="section">
+      <h2>🔍 Sistema de Filtros</h2>
+
+      <h3>Filtros Globales (Barra Superior)</h3>
+      <p>Afectan <strong>TODO el tablero</strong>, incluyendo Resumen:</p>
+      <ul>
+        <li><strong>Categoría/Grupo:</strong> Filtra por categoía o grupo de producto</li>
+        <li><strong>Buscador:</strong> Busca por nombre (case-insensitive)</li>
+        <li><strong>Rango de fechas:</strong> Desde/Hasta (selector calendario)</li>
+      </ul>
+
+      <h3>Impacto en Cálculos</h3>
+      <div class="formula">
+curItems = [productos que pasan filtro]
+
+KPI = totals(curItems) → Ventas, CMV, OPEX_prorrateado, Margen
+
+Ejemplo: "PIZZAS" → filtro activo
+
+  Antes:  Ventas = $500k, OPEX = $100k, Neto = $150k
+  Filtro: Ventas PIZZAS = $100k (20% del total)
+
+  Nuevos KPI:
+    Ventas:   $100k
+    CMV:      $35k (solo pizzas)
+    OPEX:     $100k × share(0.2) = $20k ← PRORRATEO
+    Neto:     $100k - $35k - $20k = $45k
+
+  Sin prorrateo: $100k - $35k - $100k = NEGATIVO (inutilizable)
+      </div>
+
+      <div class="card warning">
+        <strong>⚠️ OPEX Prorrateo Obligatorio</strong><br>
+        Todo widget que muestre OPEX + ventas filtradas DEBE aplicar share.<br>
+        La tarjeta Peso del OPEX tuvo un bug (no × share) → mostró 388%
+      </div>
+
+      <h3>Filtros de Rentabilidad (Locales a esa solapa)</h3>
+      <p>NO son globales, no aparecen como chip en barra superior:</p>
+      <ul>
+        <li><strong>mgF (margen):</strong> Tramos: Pierde / Bajo / Normal / Alto</li>
+        <li><strong>claseF (BCG):</strong> Cuadrantes: Estrella / Vaca / Interro / Perro</li>
+      </ul>
+
+      <h3>Alcance Especial: curItems vs curItemsBase</h3>
+      <div class="formula">
+curItemsBase = [todos los productos sin filtro de clase/margen]
+
+curItems = curItemsBase.filter(mgF y claseF)
+
+Dónde se usa:
+  • Tabla Rentabilidad:        curItems()
+  • Scatter plot BCG:          curItemsBase() ← estable, no salta
+  • Cuadrante labels:          curItemsBase() ← permite click de nuevo
+  • Alertas (Resumen):         curItemsBase() ← no heredan filtro local
+  • Rentabilidad (Caja):       curItemsBase() ← no heredan filtro local
+
+Razón: si usaras curItems() en scatter, al seleccionar "Perros" otros desaparecen.
+      </div>
+
+      <h3>Modo Comparación (Dos Períodos)</h3>
+      <div class="formula">
+Período A (desde1/hasta1) vs Período B (desde2/hasta2)
+
+P&L: muestra tabla A vs B con diferencia por línea
+Indicadores: margen%, ticket, unidades, comensales (solo lo que P&L no muestra)
+
+Widgets QUE SE OCULTAN (no comparan):
+  • Completitud (estado puntual)
+  • Stock (hoy no es comparable)
+  • Findes/Semana (ciclo único)
+
+Widgets QUE SE QUEDAN pero rotulados "solo período A":
+  • Gráfico por día
+  • Punto equilibrio
+      </div>
+
+      <h3>Compras Respeta Filtro por Categoría</h3>
+      <div class="formula">
+DATA.consumo_dia viene del motor YA AGREGADO POR INSUMO.
+No se sabe qué producto originó cada gramo.
+
+Con filtro "PIZZAS":
+  Reconstruir desde productos:
+
+  consumo = Σ(breakdown[i].qty × unidades_vendidas)
+
+  Para insumo "Harina":
+    Pizzas margarita: 8 unidades × 250g/unidad = 2,000g
+    Pizzas especial:  5 unidades × 250g/unidad = 1,250g
+    Total harina:    3,250g (solo pizzas)
+
+  Verificado: reconstrucción = consumo_dia del motor en los 119 insumos
+
+  Cache: invalidar _cdCache si cambia DATA
+      </div>
+
+      <h3>Compras: Dos Modos Distintos</h3>
+      <div class="formula">
+modo = "real" | "repo"
+
+REAL (historial de consumo):
+  "Con 66 días seleccionados, 477 Stella es lo CONSUMIDO en esos 66 días"
+  No es una lista de compras (sumaría mucho stock)
+  CSV exportado: SIN columna "Comprar" (evita malinterpretación)
+
+REPO (qué comprar para reposición):
+  Necesito = consumo próximo ciclo (7 noches × ritmo promedio)
+  Tengo = stockCalc() de insumos vigilados
+  Comprar = max(0, Necesito - Tengo)
+
+  Columnas: Necesito / Tengo / Comprar
+  CSV: SÍ incluye "Comprar" (es una orden real)
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPLETITUD -->
+  <div class="content" id="completitud">
+    <div class="section">
+      <h2>✅ Completitud de Datos</h2>
+
+      <h3>Tarjeta de Completitud</h3>
+      <div class="formula">
+Monitorea: ¿qué días tengo datos de ventas?
+
+completitud = días_con_datos / (días_posibles - días_cerrados)
+
+Ejemplo:
+  Período: 30 días
+  Dias cerrados (sin apertura): 8 domingos + lunes = marcados por dueño
+  Días posibles abiertos: 30 - 8 = 22
+  Días con datos: 20
+
+  Completitud = 20 / 22 = 90.9%
+
+Estado:
+  • 100% ✓ verde
+  • 90-99% ⚠ amarillo ("falta 1 noche")
+  • <90% ✗ rojo ("verificar si hay gap")
+      </div>
+
+      <h3>Días Cerrados</h3>
+      <div class="formula">
+dias_cerrados.json = { "YYYY-MM-DD": "motivo" }
+
+Ejemplo:
+  {
+    "2026-07-05": "Cerrado por reforma",
+    "2026-07-12": "Feriado"
+  }
+
+Impacto:
+  • No cuentan como "día sin datos"
+  • Se excluyen de proyecciones de stock (patronApertura)
+  • Visible: "Marcado como cerrado" en modal de día
+
+Editable desde: tarjeta Completitud
+      </div>
+
+      <div class="card">
+        <strong>Desfasaje de Sincronización Conocido (Bistrosoft)</strong><br>
+        La API de transacciones puede tardar horas en actualizar la noche más reciente.<br>
+        Si última noche no coincide con Bistrosoft real:<br>
+        1. Revisar timestamp máximo en API para esa fecha<br>
+        2. Si es anterior a cierre real → es lag de Bistrosoft, no bug<br>
+        3. Reintentar más tarde
+      </div>
+    </div>
+  </div>
+
+  <!-- BEQ -->
+  <div class="content" id="beq">
+    <div class="section">
+      <h2>⚖️ Punto de Equilibrio (Break-Even)</h2>
+
+      <h3>Fórmula Fundamental</h3>
+      <div class="formula">
+BEQ = OPEX / (1 - CMV%)
+
+Donde:
+  OPEX = gasto operativo (mensual o prorratedo si filtro)
+  CMV% = costo de mercancía vendida como % del ingreso
+
+Ejemplo:
+  OPEX = $100,000/mes
+  Ingresos = $300,000
+  CMV = $150,000
+  CMV% = $150,000 / $300,000 = 50%
+
+  BEQ = $100,000 / (1 - 0.5) = $100,000 / 0.5 = $200,000
+
+Interpretación:
+  "Si vendés $200k con ese costo%, cubrís OPEX y quedás en $0"
+  Actualmente vendés $300k → margen = $300k - $150k - $100k = $50k
+      </div>
+
+      <h3>BEQ Prorratedo con Filtro</h3>
+      <div class="formula">
+Si filtro "PIZZAS" activo:
+
+OPEX_prorrateado = OPEX_total × share
+CMV% = (CMV_filtrado / ingresos_filtrados)
+
+BEQ_prorrateado = OPEX_prorrateado / (1 - CMV%)
+
+Nota en tabla: "Calculado con OPEX prorratedo al 20% de ventas totales"
+      </div>
+
+      <h3>BEQ por Día de Semana</h3>
+      <div class="formula">
+Se calcula para FINS y SEMANA por separado:
+
+Fins (Vie, Sáb, Dom real):
+  Ingresos_fins = Σ(ventas noches de find)
+  CMV_fins% = CMV_fins / ingresos_fins
+  OPEX_fins_prorrateado = OPEX × (ingresos_fins / ingresos_totales)
+
+  BEQ_fins = OPEX_fins_prorrateado / (1 - CMV_fins%)
+
+Semana (Lun-Jue):
+  Similar, pero con ingresos de semana
+  Típicamente: BEQ_fins < BEQ_semana (findes vende doble)
+      </div>
+
+      <div class="card success">
+        <strong>✓ Nochereal() Offset</strong><br>
+        Recuerda: rótulo va +1 día respecto fecha real.<br>
+        "Sábado" en pantalla = viernes real (cierre domingo madrugada).<br>
+        Comparar contra Vie/Sáb/Dom real, no contra etiqueta.
+      </div>
+    </div>
+  </div>
+
+  <!-- VERIFICACION -->
+  <div class="content" id="verificacion">
+    <div class="section">
+      <h2>🔐 Checklist de Verificación</h2>
+
+      <h3>✓ Pruebas Manuales Recomendadas</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Aspecto</th>
+            <th>Test</th>
+            <th>Esperado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Costeo</td>
+            <td>Producto con receta + insumos conocidos</td>
+            <td>Costo = suma exacta de ingredientes</td>
+          </tr>
+          <tr>
+            <td>Margen</td>
+            <td>CUARTO DE LIBRA</td>
+            <td>~50% (no >90%)</td>
+          </tr>
+          <tr>
+            <td>Márgenes N/D</td>
+            <td>Combo Cumpleaños (sin receta)</td>
+            <td>Margen = N/D, no fuerza a matriz</td>
+          </tr>
+          <tr>
+            <td>OPEX prorrateo</td>
+            <td>Filtrar "PIZZAS" (20% venta)</td>
+            <td>OPEX mostrado = 20% del total</td>
+          </tr>
+          <tr>
+            <td>P&L filtrado</td>
+            <td>Filtrar "COMIDA" sin OPEX</td>
+            <td>Neto = ingresos - CMV (sin OPEX total)</td>
+          </tr>
+          <tr>
+            <td>BCG dinámico</td>
+            <td>Cambiar rango fechas</td>
+            <td>Cuadrantes se recomputan sin reload</td>
+          </tr>
+          <tr>
+            <td>Stock proyección</td>
+            <td>Insumo crítico (encontar en 3 noches)</td>
+            <td>Proyecta fecha exacta de quiebre</td>
+          </tr>
+          <tr>
+            <td>Ends vs Semana</td>
+            <td>Ver ritmos distintos en stock</td>
+            <td>Fins ≈ 2× volumen de semana</td>
+          </tr>
+          <tr>
+            <td>Filtro Rentabilidad</td>
+            <td>Click en cuadrante "Perros"</td>
+            <td>Tabla filtra, scatter estable</td>
+          </tr>
+          <tr>
+            <td>BEQ</td>
+            <td>Calcular manual vs app</td>
+            <td>Coincide: OPEX / (1 - CMV%)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>🔍 Verificaciones Automatizadas (Motor)</h3>
+      <pre>
+✓ Archivo datos_general.xlsx existe
+✓ Rankings de entrada existen
+✓ JSON overrides bien formados
+✓ Recetas en RECETAS dict cargan correctamente
+✓ ALIAS resuelven ingredientes
+✓ CXU no es None (si lo es → N/D)
+✓ Cantidades se parsean (g, ml, u, lata)
+✓ UNIDAD_G / PIECE_G cubren conversiones conocidas
+✓ OPEX rubros se suman correctamente
+✓ Precio_lista matchea (exacto, aplanado, alias)
+✓ Cajas_api.json se fusiona (no sobreescribe)
+✓ Backups se crean antes de sobrescribir JSON
+      </pre>
+
+      <h3>⚠️ Puntos de Riesgo Identificados</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Riesgo</th>
+            <th>Causa</th>
+            <th>Impacto</th>
+            <th>Mitigación</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Ingrediente genérico</td>
+            <td>ALIAS resuelve al más barato</td>
+            <td>Costo falso por meses (silencioso)</td>
+            <td>Receta propia en recetas_extra.json si marca explícita</td>
+          </tr>
+          <tr>
+            <td>CXU = None</td>
+            <td>Celda vacía en Costo_Base</td>
+            <td>N/D para ese producto</td>
+            <td>Validado en entrada, descartado</td>
+          </tr>
+          <tr>
+            <td>Cantidad no parseada</td>
+            <td>Formato no reconocido</td>
+            <td>Ingrediente omitido, receta incompleta</td>
+            <td>Validado, reportado en errors</td>
+          </tr>
+          <tr>
+            <td>Combo circular</td>
+            <td>Combo → Combo (referencia a sí)</td>
+            <td>Infinite loop → cuelga</td>
+            <td>Guard recursión, retorna N/D</td>
+          </tr>
+          <tr>
+            <td>OPEX sin prorrateo</td>
+            <td>Widget nuevo olvida × share</td>
+            <td>Número ilegible (388% en tarjeta)</td>
+            <td>Verificación de alcance, código review</td>
+          </tr>
+          <tr>
+            <td>Precio_lista ambiguo</td>
+            <td>2 filas Excel, mismo aplanado</td>
+            <td>Ambigüedad, precio descartado</td>
+            <td>No matchea, retorna None</td>
+          </tr>
+          <tr>
+            <td>Stock sin cant_base</td>
+            <td>Insumo nuevo sin validar</td>
+            <td>División por 1 (silenciosa)</td>
+            <td>Los 119 validados, riesgo bajo</td>
+          </tr>
+          <tr>
+            <td>Noche real offset</td>
+            <td>Rótulo +1 día vs real</td>
+            <td>Confusión fins vs semana (silenciosa)</td>
+            <td>nocheReal() descuenta 1 día, autoexplicativo</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>✅ Validaciones Implementadas</h3>
+      <div class="card success">
+        <strong>Seguridad de Datos (§3 CLAUDE.md)</strong><br>
+        ✓ Toda entrada POST valida <code>_origen_confiable()</code><br>
+        ✓ Todo texto no controlado va con <code>esc()</code> antes de innerHTML<br>
+        ✓ JSON corrupto → abort, no {} (Regla #3)<br>
+        ✓ <code>_save()</code> atomico: tmp + os.replace<br>
+        ✓ Año nunca adivinado (Regla #4)
+      </div>
+
+      <div class="card success">
+        <strong>Consistencia de Cálculos</strong><br>
+        ✓ Costo siempre > 0 (si ≤0 → N/D)<br>
+        ✓ Precio siempre > 0 (si ≤0 → margen null)<br>
+        ✓ Margen % entre -∞ y +∞, visualizable<br>
+        ✓ CMV% entre 0% y 100% (si >100% → margen negativo, válido)<br>
+        ✓ Share entre 0 y 1 (prorrateo válido)
+      </div>
+
+      <div class="card success">
+        <strong>Disponibilidad de Datos</strong><br>
+        ✓ Si receta no existe → N/D<br>
+        ✓ Si ingrediente no mapea → N/D<br>
+        ✓ Si cantidad sin peso → N/D<br>
+        ✓ Si OPEX_pend > 0 → alerta visible<br>
+        ✓ Si completitud < 100% → nota en tarjeta
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <p>Análisis técnico de ANTIMO v3 — Bar Management System</p>
+  <p>Generado: 2026-07-30 | Metodología: verificación de fórmulas, flujos y reglas de oro</p>
+  <p>¿Encontraste un error o inconsistencia? Reportar en <code>bug_report_antimo.md</code></p>
+</div>
+
+<script>
+const navBtns = document.querySelectorAll('.nav-btn');
+const contents = document.querySelectorAll('.content');
+
+navBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const section = btn.getAttribute('data-section');
+
+    navBtns.forEach(b => b.classList.remove('active'));
+    contents.forEach(c => c.classList.remove('active'));
+
+    btn.classList.add('active');
+    document.getElementById(section)?.classList.add('active');
+  });
+});
+</script>
+
+</body>
+</html>
