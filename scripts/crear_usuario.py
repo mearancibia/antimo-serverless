@@ -20,6 +20,8 @@ import os, sys, getpass
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _env
 
 
 def main():
@@ -29,9 +31,8 @@ def main():
         sys.exit("Falta 'supabase'. Corré: pip install -r requirements.txt")
     from auth import hash_password, VALID_USERNAME, ROLES, ROL_ADMIN, ROL_CAJERO
 
-    url = os.environ.get("SUPABASE_URL"); key = os.environ.get("SUPABASE_SERVICE_KEY")
-    if not url or not key:
-        sys.exit("Faltan SUPABASE_URL / SUPABASE_SERVICE_KEY en el entorno (ver .env.example).")
+    _env.exigir()          # toma el .env si las variables no están exportadas
+    url = os.environ["SUPABASE_URL"]; key = os.environ["SUPABASE_SERVICE_KEY"]
     sb = create_client(url, key)
 
     # --rol <valor> en cualquier posición; el resto de los argumentos es el usuario.

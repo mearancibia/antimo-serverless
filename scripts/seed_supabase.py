@@ -20,6 +20,8 @@ import os, sys, json
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _env
 
 
 def _chunks(lst, n=500):
@@ -35,9 +37,8 @@ def main():
     from engine import compute, norm
     from sources import LocalSource
 
-    url = os.environ.get("SUPABASE_URL"); key = os.environ.get("SUPABASE_SERVICE_KEY")
-    if not url or not key:
-        sys.exit("Faltan SUPABASE_URL / SUPABASE_SERVICE_KEY (ver .env.example).")
+    _env.exigir()          # toma el .env si las variables no están exportadas
+    url = os.environ["SUPABASE_URL"]; key = os.environ["SUPABASE_SERVICE_KEY"]
     sb = create_client(url, key)
 
     print("Leyendo Excel + rankings + overrides locales…")
