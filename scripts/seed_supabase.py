@@ -37,7 +37,8 @@ def main():
     from engine import compute, norm
     from sources import LocalSource
 
-    _env.exigir()          # toma el .env si las variables no están exportadas
+    _env.exigir()
+    _env.revisar_placeholders()          # toma el .env si las variables no están exportadas
     url = os.environ["SUPABASE_URL"]; key = os.environ["SUPABASE_SERVICE_KEY"]
     sb = create_client(url, key)
 
@@ -119,4 +120,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as _e:
+        _env.explicar_error(_e)

@@ -31,7 +31,8 @@ def main():
         sys.exit("Falta 'supabase'. Corré: pip install -r requirements.txt")
     from auth import hash_password, VALID_USERNAME, ROLES, ROL_ADMIN, ROL_CAJERO
 
-    _env.exigir()          # toma el .env si las variables no están exportadas
+    _env.exigir()
+    _env.revisar_placeholders()          # toma el .env si las variables no están exportadas
     url = os.environ["SUPABASE_URL"]; key = os.environ["SUPABASE_SERVICE_KEY"]
     sb = create_client(url, key)
 
@@ -68,4 +69,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as _e:
+        _env.explicar_error(_e)

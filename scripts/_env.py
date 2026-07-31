@@ -52,3 +52,43 @@ def exigir(*claves):
             "    SUPABASE_URL=https://tu-proyecto.supabase.co\n"
             "    SUPABASE_SERVICE_KEY=eyJ...\n"
             "(ver .env.example · el .env no se sube a git)")
+
+
+# Marcadores de los ejemplos de la documentación. Si alguno llega tal cual, es que se copió el
+# comando sin reemplazarlo — pasó dos veces y el síntoma era un traceback de 20 líneas.
+_PLACEHOLDERS = ("LA-KEY", "TU-PROYECTO", "PEGA_ACA", "eyJ...", "tu-service-role-key",
+                 "LA-SERVICE-KEY", "DE-PRODUCCION", "DE-DESARROLLO")
+
+
+def revisar_placeholders():
+    import os
+    for var in ("SUPABASE_URL", "SUPABASE_SERVICE_KEY"):
+        v = os.environ.get(var, "")
+        if any(ph.lower() in v.lower() for ph in _PLACEHOLDERS):
+            raise SystemExit(
+                f"\n{var} tiene un texto de EJEMPLO, no un valor real:\n"
+                f"    {v[:45]}{'...' if len(v) > 45 else ''}\n\n"
+                "Reemplazalo por el valor de verdad. La service_role key está en:\n"
+                "  Supabase -> Settings -> API -> service_role (empieza con eyJ)\n")
+
+
+def explicar_error(e):
+    """Traduce los errores más comunes de Supabase a algo accionable."""
+    import os
+    t = str(e)
+    if "Invalid API key" in t or "'code': 401" in t:
+        url = os.environ.get("SUPABASE_URL", "(sin definir)")
+        raise SystemExit(
+            "\nSupabase rechazó la clave (Invalid API key).\n"
+            f"  Base a la que apuntaste: {url}\n"
+            "  Revisá que SUPABASE_SERVICE_KEY sea la 'service_role' DE ESA MISMA BASE\n"
+            "  (Settings -> API). Ojo: las claves de desarrollo y produccion no son intercambiables.\n")
+    if "does not exist" in t and "role" in t:
+        raise SystemExit(
+            "\nLa tabla users todavia no tiene la columna 'role'.\n"
+            "  Corré la migración en el SQL Editor de ESA base (ver supabase_schema.sql).\n")
+    if "Could not find the table" in t:
+        raise SystemExit(
+            "\nFalta crear las tablas en esa base.\n"
+            "  Pegá supabase_schema.sql en el SQL Editor de Supabase y ejecutalo.\n")
+    raise
