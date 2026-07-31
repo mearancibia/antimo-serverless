@@ -37,8 +37,7 @@ def main():
     from engine import compute, norm
     from sources import LocalSource
 
-    _env.exigir()
-    _env.revisar_placeholders()          # toma el .env si las variables no están exportadas
+    _env.exigir()   # .env (desarrollo) o .env.prod con --prod; avisa a qué base apunta          # toma el .env si las variables no están exportadas
     url = os.environ["SUPABASE_URL"]; key = os.environ["SUPABASE_SERVICE_KEY"]
     sb = create_client(url, key)
 

@@ -17,10 +17,10 @@ import os
 CLAVES = ("SUPABASE_URL", "SUPABASE_SERVICE_KEY", "SESSION_SECRET")
 
 
-def cargar(base=None):
+def cargar(archivo=".env", base=None):
     """Lee .env de la raíz del proyecto y completa lo que falte. Devuelve las claves cargadas."""
     base = base or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ruta = os.path.join(base, ".env")
+    ruta = os.path.join(base, archivo)
     if not os.path.exists(ruta):
         return []
     puestas = []
@@ -42,16 +42,37 @@ def cargar(base=None):
 
 
 def exigir(*claves):
-    """Carga el .env y corta con un mensaje claro si sigue faltando algo."""
-    cargar()
+    """Carga el archivo de entorno y corta con un mensaje claro si sigue faltando algo.
+
+    Por defecto usa `.env` (DESARROLLO). Con la opción `--prod` en la línea de comandos usa
+    `.env.prod` (PRODUCCIÓN) y lo anuncia en pantalla: crear un usuario o sembrar datos en la
+    base equivocada es un error caro y silencioso, así que conviene verlo antes de seguir.
+    """
+    import sys
+    prod = "--prod" in sys.argv
+    if prod:
+        sys.argv = [a for a in sys.argv if a != "--prod"]   # que no lo lea como argumento
+    archivo = ".env.prod" if prod else ".env"
+    cargar(archivo)
     faltan = [c for c in (claves or ("SUPABASE_URL", "SUPABASE_SERVICE_KEY")) if not os.environ.get(c)]
     if faltan:
         raise SystemExit(
             "Faltan " + ", ".join(faltan) + ".\n"
-            "Escribilas UNA vez en el archivo .env de la carpeta del proyecto:\n"
+            f"Escribilas UNA vez en el archivo {archivo} de la carpeta del proyecto:\n"
             "    SUPABASE_URL=https://tu-proyecto.supabase.co\n"
             "    SUPABASE_SERVICE_KEY=eyJ...\n"
-            "(ver .env.example · el .env no se sube a git)")
+            f"(ver .env.example · {archivo} no se sube a git)")
+    revisar_placeholders()
+    destino = os.environ.get("SUPABASE_URL", "")
+    if prod:
+        print("\n" + "=" * 60)
+        print("  ⚠️  APUNTANDO A PRODUCCIÓN — la base que usa el bar")
+        print("  " + destino)
+        print("=" * 60 + "\n")
+    else:
+        print(f"(base de desarrollo: {destino})")
+    return prod
+
 
 
 # Marcadores de los ejemplos de la documentación. Si alguno llega tal cual, es que se copió el
