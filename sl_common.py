@@ -12,6 +12,7 @@ from http.server import BaseHTTPRequestHandler
 from supabase import create_client
 from engine import compute, OPEX_DESDE_0
 from sources import SupabaseSource
+import auth
 
 
 def client():
@@ -94,8 +95,26 @@ ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # ---------------------------------------------------------------- auth + auditoría
 def find_user(sb, username):
-    r = sb.table("users").select("username,password_hash").eq("username", username).execute().data
+    """{username, password_hash, role} o None si no existe."""
+    try:
+        r = (sb.table("users").select("username,password_hash,role")
+             .eq("username", username).execute().data)
+    except Exception as e:
+        # La columna `role` recién existe después de correr la migración de supabase_schema.sql.
+        # Si todavía no está, se lee como antes y todos quedan con el rol por defecto (admin),
+        # que es EXACTAMENTE el comportamiento previo al RBAC: nadie queda afuera y nadie gana
+        # permisos que no tuviera. Al correr el ALTER, los roles empiezan a valer solos.
+        print("WARN: users.role no disponible (¿falta correr la migración?) ->", repr(e))
+        r = (sb.table("users").select("username,password_hash")
+             .eq("username", username).execute().data)
     return r[0] if r else None
+
+
+def user_role(sb, username):
+    """Rol vigente del usuario, leído de la BASE (no del token). None si el usuario ya no existe
+    — así, borrar un usuario le corta el acceso en el acto aunque tenga una cookie válida."""
+    u = find_user(sb, username)
+    return None if not u else auth.normalizar_rol(u.get("role"))
 
 
 # claves sensibles que NUNCA deben quedar en el log de auditoría en texto plano

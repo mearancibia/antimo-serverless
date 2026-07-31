@@ -59,17 +59,60 @@ conector local + `seed_supabase.py`. El pull incremental (rango por defecto) and
 
 ## Autenticación + auditoría
 
-- **Usuarios individuales, un solo nivel de acceso** (sin roles). Tabla `users` en Supabase con el
-  password HASHEADO (PBKDF2-SHA256 + sal, `auth.py`). Nunca en texto plano.
+- **Usuarios individuales.** Tabla `users` en Supabase con el password HASHEADO (PBKDF2-SHA256 +
+  sal, `auth.py`). Nunca en texto plano.
 - **Login** (`/login`): `POST /api/login` verifica y devuelve una **cookie de sesión firmada**
   (HMAC, HttpOnly). Todos los `/api/*` exigen sesión válida → 401 si no (salvo `/api/ping` y
   `/api/login`). El tablero redirige a `/login` si no hay sesión. Botón "🚪 Salir" (`/api/logout`).
 - **Auditoría** (`/actividad`): tabla `audit_log`. Cada acción (editar/borrar/pull/config/login/
   logout) registra usuario + timestamp + acción + payload (con el password **redactado**). El
-  usuario sale de la sesión verificada, no de lo que manda el cliente (infalsificable).
-- **Crear usuarios**: `python3 scripts/crear_usuario.py [usuario]` — pide la contraseña por
-  teclado (getpass, no se ve ni queda en el historial) y la guarda hasheada. Uno por usuario.
+  usuario sale de la sesión verificada, no de lo que manda el cliente (infalsificable). Los
+  intentos bloqueados por rol quedan como `denegado:<endpoint>`.
+- **Crear usuarios**: `python3 scripts/crear_usuario.py [usuario] [--rol admin|cajero]` — pide la
+  contraseña por teclado (getpass, no se ve ni queda en el historial) y la guarda hasheada. Uno
+  por usuario. Para cambiar contraseña o rol, se vuelve a correr con el mismo usuario.
 - Secreto de firma: env var `SESSION_SECRET` (si no está, usa el service key como fallback).
+
+## Roles (RBAC)
+
+Dos roles, en la columna `users.role`. **`auth.py` es la única fuente de verdad** del reparto:
+el backend bloquea con eso y el frontend recibe de ahí la lista de solapas por `GET /api/me`.
+
+| | `admin` | `cajero` |
+|---|---|---|
+| Solapas | las 7 | Compras, Caja, Costos |
+| Escribe | todo | precios de insumos, stock (individual y en bloque), noches cerradas, traer ventas |
+| No puede | — | OPEX, recetas/combos/productos, precio de lista, sospechosos, credenciales de Bistrosoft, registro de actividad |
+
+**El bloqueo es del servidor, no de la pantalla** — que es lo único que cuenta:
+
+1. `auth.puede_post()` / `auth.puede_get()` → **403** a quien fuerce una ruta ajena a su rol
+   (por ejemplo `POST /api/opex_vigencia` desde la consola del navegador), y queda auditado.
+2. `auth.filtrar_data()` recorta `GET /api/data` (y el DATA que devuelve cada POST): al cajero
+   **no le viajan** el OPEX (`opex`, `opex_detalle`, `opex_periodos`) ni el costo por producto
+   (`costo`, `receta_ings`, `susp`, y `cxu`/`sub` del breakdown). Abrir DevTools no sirve de nada.
+3. Sí conserva lo que sus solapas necesitan: `insumos`, `consumo_dia`, `cajas`, `byday` y las
+   **cantidades** del breakdown (Compras las usa para reconstruir el consumo cuando hay filtro
+   por categoría).
+
+⚠️ **Alcance honesto:** con los precios de insumos (que edita en Costos) más las cantidades del
+breakdown, un cajero puede **derivar** a mano el costo de un producto. Es inherente a darle
+permiso de tocar costos — no hay forma de que edite precios sin verlos. Lo que sí queda realmente
+fuera de su alcance es el **OPEX** (incluye sueldos) y la **rentabilidad neta**.
+
+⚠️ **El rol se lee de la base en cada request, no del token.** Si a alguien lo bajan de admin a
+cajero o lo borran, pierde el acceso en el acto y no cuando se le venza la cookie (7 días).
+
+**Migración:** correr el `alter table` de `supabase_schema.sql` (es idempotente). El default de
+`role` es `'admin'` a propósito: los usuarios que ya existían siguen entrando igual que antes, así
+la migración no le saca el acceso a nadie. Los cajeros se crean explícitamente. Si el `ALTER`
+todavía no corrió, `find_user` lo detecta y trata a todos como admin — exactamente el
+comportamiento previo al RBAC (no se puede escalar privilegio ni quedar afuera).
+
+**Prueba:** `python3 scripts/test_rbac.py` — 38 aserciones contra el handler real de
+`api/index.py` con un Supabase falso (sin red): 401 sin sesión, recorte de `/api/data`, 403 en
+cada endpoint de admin, permisos del cajero, auditoría del intento denegado, revocación inmediata
+al cambiar el rol y rol inválido → default.
 
 ## Dos entornos: desarrollo y producción
 

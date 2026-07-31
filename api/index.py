@@ -4,6 +4,10 @@ deploy. La lógica de cada endpoint de edición vive en handlers.py.
 
 AUTENTICACIÓN: salvo /api/login (y /api/ping para detección de modo), TODO exige una sesión válida
 (cookie firmada). Sin sesión → 401. Así el login protege los DATOS, no solo la pantalla.
+AUTORIZACIÓN (RBAC): además de estar logueado, cada request se chequea contra el ROL del usuario
+(auth.puede_get / auth.puede_post). Un cajero que fuerce a mano una ruta de admin —por ejemplo
+POST /api/opex_vigencia desde la consola del navegador— se come un 403 y queda registrado en la
+auditoría. Y GET /api/data le vuelve RECORTADO (auth.filtrar_data): lo que no puede ver no viaja.
 AUDITORÍA: cada acción (editar/borrar/pull/config/login/logout) se registra en audit_log con el
 usuario (sacado de la sesión verificada, infalsificable), la acción y el payload (password redactado).
 """
@@ -12,7 +16,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 from sl_common import (client, recompute, get_bistro_config, save_bistro_config, write_pull,
-                       find_user, audit, recent_audit)
+                       find_user, user_role, audit, recent_audit)
 from handlers import ROUTES, NORECOMPUTE
 import bistro
 import auth
@@ -50,27 +54,55 @@ class handler(BaseHTTPRequestHandler):
         p = u.path
         return p[len("/api/"):] if p.startswith("/api/") else p.strip("/")
 
-    def _user(self):
-        return auth.session_from_headers(self.headers)
+    def _sb(self):
+        """Un solo cliente Supabase por request (el chequeo de rol y el endpoint comparten)."""
+        if getattr(self, "_sb_cache", None) is None:
+            self._sb_cache = client()
+        return self._sb_cache
+
+    def _auth(self):
+        """(usuario, rol) de la sesión, o (None, None) si no hay sesión válida.
+
+        El rol sale de la BASE en cada request, no del token: si a alguien lo bajan de admin a
+        cajero o lo borran, pierde el acceso en el acto y no cuando se le venza la cookie."""
+        user = auth.session_from_headers(self.headers)
+        if not user:
+            return None, None
+        try:
+            rol = user_role(self._sb(), user)
+        except Exception as e:
+            # No se pudo verificar el rol -> se trata como sin sesión. Fallar cerrado: mejor
+            # pedir login de nuevo que servir datos con un rol adivinado.
+            print("ERROR leyendo el rol ->", repr(e))
+            return None, None
+        if rol is None:
+            return None, None          # el usuario ya no existe
+        return user, rol
 
     # -------------------------------------------------- GET
     def do_GET(self):
         name = self._name()
         if name == "ping":
             return self._send(200, {"app": True, "env": ENV})
-        user = self._user()
+        user, rol = self._auth()
         if name == "me":
             if not user:
                 return self._send(401, {"ok": False, "error": "no autenticado", "env": ENV})
-            return self._send(200, {"ok": True, "user": user, "env": ENV})
+            # `tabs` es lo que el frontend usa para dibujar el menú. Es una comodidad de UI, no
+            # la defensa: aunque alguien lo falsee, el backend bloquea igual por rol.
+            return self._send(200, {"ok": True, "user": user, "rol": rol,
+                                    "tabs": auth.tabs_de(rol), "env": ENV})
         if not user:
             return self._send(401, {"ok": False, "error": "no autenticado"})
-        # --- a partir de acá, autenticado ---
+        if not auth.puede_get(rol, name):
+            return self._send(403, {"ok": False, "error": "Tu usuario no tiene acceso a esto."})
+        # --- a partir de acá, autenticado Y autorizado ---
         if name == "data":
             try:
-                sb = client()
+                sb = self._sb()
                 r = sb.table("antimo_data").select("data").eq("id", 1).execute()
-                return self._send(200, r.data[0]["data"] if r.data else {})
+                DATA = r.data[0]["data"] if r.data else {}
+                return self._send(200, auth.filtrar_data(DATA, rol))
             except Exception as e:
                 return self._send(500, {"ok": False, "error": str(e)})
         if name == "config":
@@ -105,19 +137,30 @@ class handler(BaseHTTPRequestHandler):
             return self._login(data)
 
         # ---- todo lo demás exige sesión ----
-        user = self._user()
+        user, rol = self._auth()
         if not user:
             return self._send(401, {"ok": False, "error": "no autenticado"})
 
+        # ---- ...y que el ROL lo habilite. Acá se corta un cajero que fuerce una ruta de admin.
+        if not auth.puede_post(rol, name):
+            # Se registra: un intento de escribir donde no corresponde es justo lo que el dueño
+            # quiere ver en el log. Nunca hace fallar la respuesta (audit ya traga sus errores).
+            try:
+                audit(self._sb(), user, "denegado:" + name, data)
+            except Exception:
+                pass
+            return self._send(403, {"ok": False,
+                                    "error": "Tu usuario no tiene permiso para esta acción."})
+
         if name == "logout":
             try:
-                audit(client(), user, "logout", {})
+                audit(self._sb(), user, "logout", {})
             except Exception:
                 pass
             return self._send(200, {"ok": True}, extra_headers=[("Set-Cookie", auth.cookie_clear())])
 
         try:
-            sb = client()
+            sb = self._sb()
         except Exception as e:
             return self._send(500, {"ok": False, "error": str(e)})
 
@@ -155,7 +198,7 @@ class handler(BaseHTTPRequestHandler):
                 nv, nc = write_pull(sb, rank, cajas)
                 DATA = recompute(sb)
                 audit(sb, user, "pull", {"start": start, "end": end, "ventas": nv, "cajas": nc})
-                return self._send(200, {"ok": True, "data": DATA,
+                return self._send(200, {"ok": True, "data": auth.filtrar_data(DATA, rol),
                     "log": f"{len(items)} transacciones · {nv} filas de ventas · {nc} noches de caja"})
             except Exception as e:
                 print("ERROR en pull ->", repr(e))
@@ -175,7 +218,9 @@ class handler(BaseHTTPRequestHandler):
                 return self._send(200, {"ok": False, "error": err})
             audit(sb, user, name, data)
             DATA = recompute(sb)
-            return self._send(200, {"ok": True, "data": DATA})
+            # El recálculo devuelve el DATA completo; al cajero le vuelve recortado igual que
+            # por GET /api/data (si no, guardar un precio le filtraba todo de rebote).
+            return self._send(200, {"ok": True, "data": auth.filtrar_data(DATA, rol)})
         except Exception as e:
             print("ERROR en", name, "->", repr(e))
             return self._send(500, {"ok": False, "error": str(e)})

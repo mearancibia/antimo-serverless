@@ -110,13 +110,25 @@ create table if not exists stock (
 );
 
 -- ================= AUTENTICACIÓN + AUDITORÍA =================
--- Usuarios de la app (un solo nivel de acceso, sin roles). El password se guarda HASHEADO
--- (PBKDF2-SHA256 con sal), nunca en texto plano. Se cargan con scripts/crear_usuario.py.
+-- Usuarios de la app. El password se guarda HASHEADO (PBKDF2-SHA256 con sal), nunca en texto
+-- plano. Se cargan con scripts/crear_usuario.py.
 create table if not exists users (
   username text primary key,
   password_hash text not null,
   created_at timestamptz not null default now()
 );
+
+-- Rol de cada usuario (RBAC). 'admin' = acceso total; 'cajero' = solo Compras, Caja y Costos
+-- (con permiso de escritura ahí adentro). El reparto exacto de solapas y endpoints vive en
+-- auth.py, que es la única fuente de verdad: esto sólo guarda a qué rol pertenece cada uno.
+--
+-- ⚠️ El default es 'admin' A PROPÓSITO: los usuarios que ya existían antes del RBAC siguen
+-- entrando igual que antes, así esta migración no le saca el acceso a nadie de golpe. Los
+-- cajeros se crean explícitamente (crear_usuario.py --rol cajero).
+alter table users add column if not exists role text not null default 'admin';
+do $$ begin
+  alter table users add constraint users_role_chk check (role in ('admin','cajero'));
+exception when duplicate_object then null; end $$;
 
 -- Registro de auditoría: TODO lo que hace cada usuario (editar/borrar/pull/login/logout).
 create table if not exists audit_log (

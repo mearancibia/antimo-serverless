@@ -90,3 +90,101 @@ def session_from_headers(headers):
 
 
 VALID_USERNAME = __import__("re").compile(r"^[A-Za-z0-9_.@-]{3,40}$")
+
+
+# ---------------------------------------------------------------- roles (RBAC)
+# FUENTE ÚNICA DE VERDAD del reparto de permisos. El backend la usa para bloquear de verdad
+# (403) y el frontend recibe de acá la lista de solapas por /api/me. Si se agrega un endpoint
+# o una solapa, se toca ACÁ y los dos lados quedan alineados solos.
+#
+# ⚠️ El rol NO viaja dentro del token de sesión: se lee de la base en cada request. Así, si a
+# alguien lo pasan de admin a cajero (o lo borran), pierde el acceso en el acto y no cuando se
+# le venza la cookie 7 días después.
+ROL_ADMIN = "admin"
+ROL_CAJERO = "cajero"
+ROLES = (ROL_ADMIN, ROL_CAJERO)
+ROL_DEFAULT = ROL_ADMIN
+
+# Solapas del tablero (los data-t de #tabs en index.html).
+TABS_ADMIN = ("resumen", "rent", "recetas", "compras", "caja", "costos", "opex")
+TABS_CAJERO = ("compras", "caja", "costos")
+TABS_POR_ROL = {ROL_ADMIN: TABS_ADMIN, ROL_CAJERO: TABS_CAJERO}
+
+# GET que puede hacer un cajero. Quedan afuera `config` (credenciales de Bistrosoft) y `audit`
+# (registro de actividad de todos los usuarios).
+GET_CAJERO = frozenset({"ping", "me", "data"})
+
+# POST que puede hacer un cajero. El cajero SÍ escribe: son las acciones de sus tres solapas.
+#   precio / costos_bulk / stock / stock_bulk -> Costos y Compras (precios de insumos y conteos)
+#   dia_cerrado                               -> Caja (marcar una noche sin apertura)
+#   pull                                      -> traer ventas de Bistrosoft (cerrar la noche)
+# Quedan afuera, y son 403 aunque se fuercen a mano desde la consola del navegador:
+#   opex_save / opex_vigencia  -> OPEX (incluye sueldos)
+#   receta / combo / producto / pour / precio_lista -> Recetas y Rentabilidad
+#   sospechoso                 -> marca del dueño sobre precios/costos
+#   config                     -> credenciales de Bistrosoft
+POST_CAJERO = frozenset({"logout", "precio", "costos_bulk", "stock", "stock_bulk",
+                         "dia_cerrado", "pull"})
+
+
+def normalizar_rol(rol):
+    """Cualquier cosa que no sea un rol conocido cae en el default. Nunca devuelve None."""
+    return rol if rol in ROLES else ROL_DEFAULT
+
+
+def es_admin(rol):
+    return normalizar_rol(rol) == ROL_ADMIN
+
+
+def tabs_de(rol):
+    return list(TABS_POR_ROL[normalizar_rol(rol)])
+
+
+def puede_get(rol, name):
+    return True if es_admin(rol) else (name in GET_CAJERO)
+
+
+def puede_post(rol, name):
+    return True if es_admin(rol) else (name in POST_CAJERO)
+
+
+# Campos que NO viajan al navegador de un cajero.
+_PROD_OCULTO = ("costo", "receta_ings", "combo_comp", "susp", "susp_motivo")
+_BREAKDOWN_OCULTO = ("cxu", "sub")
+
+
+def filtrar_data(DATA, rol):
+    """Recorta el DATA que se le manda a un rol sin acceso total.
+
+    El bloqueo es REAL: lo que el cajero no puede ver NO SALE del servidor, así que no alcanza
+    con abrir DevTools y hacer fetch('/api/data'). Se van el OPEX entero (incluye sueldos) y el
+    costo/margen por producto.
+
+    Se QUEDAN, porque sus solapas los necesitan: `insumos` (los edita en Costos), `consumo_dia`
+    y el `breakdown` sin la parte de plata (Compras los usa para reconstruir el consumo cuando
+    hay filtro por categoría) y `cajas` (Caja).
+
+    ⚠️ Honestidad sobre el alcance: con los precios de insumos (que edita) más las cantidades
+    del breakdown, un cajero puede DERIVAR el costo de un producto a mano. Eso es inherente a
+    darle permiso de tocar costos — no hay forma de que edite precios sin verlos. Lo que sí
+    queda realmente fuera de su alcance es el OPEX y la rentabilidad neta del negocio.
+    """
+    if es_admin(rol) or not isinstance(DATA, dict):
+        return DATA
+    d = dict(DATA)
+    d["opex"] = 0
+    d["opex_pend"] = 0
+    d["opex_detalle"] = []
+    d["opex_periodos"] = []
+    prods = []
+    for p in (d.get("productos") or []):
+        if not isinstance(p, dict):
+            continue
+        q = {k: v for k, v in p.items() if k not in _PROD_OCULTO}
+        bd = q.get("breakdown")
+        if isinstance(bd, list):
+            q["breakdown"] = [{k: v for k, v in b.items() if k not in _BREAKDOWN_OCULTO}
+                              for b in bd if isinstance(b, dict)]
+        prods.append(q)
+    d["productos"] = prods
+    return d

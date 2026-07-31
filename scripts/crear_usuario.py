@@ -5,10 +5,16 @@ pantalla, no queda en el historial) y se guarda HASHEADA — nunca en texto plan
 
 Uso (con SUPABASE_URL y SUPABASE_SERVICE_KEY exportadas):
     python3 scripts/crear_usuario.py
-    python3 scripts/crear_usuario.py jazzarelli      # pre-carga el usuario, pide solo la contraseña
+    python3 scripts/crear_usuario.py jazzarelli                  # pregunta el rol
+    python3 scripts/crear_usuario.py juan --rol cajero           # sin preguntar
 
-Corré este script una vez por cada usuario que quieras dar de alta. Para cambiar una contraseña,
-volvé a correrlo con el mismo usuario.
+Roles:
+    admin   acceso total al tablero.
+    cajero  sólo Compras, Caja y Costos (puede editar ahí adentro). No ve OPEX, márgenes,
+            matriz BCG, punto de equilibrio ni el resumen.
+
+Corré este script una vez por cada usuario que quieras dar de alta. Para cambiar una contraseña
+o el rol, volvé a correrlo con el mismo usuario.
 """
 import os, sys, getpass
 
@@ -21,16 +27,32 @@ def main():
         from supabase import create_client
     except ImportError:
         sys.exit("Falta 'supabase'. Corré: pip install -r requirements.txt")
-    from auth import hash_password, VALID_USERNAME
+    from auth import hash_password, VALID_USERNAME, ROLES, ROL_ADMIN, ROL_CAJERO
 
     url = os.environ.get("SUPABASE_URL"); key = os.environ.get("SUPABASE_SERVICE_KEY")
     if not url or not key:
         sys.exit("Faltan SUPABASE_URL / SUPABASE_SERVICE_KEY en el entorno (ver .env.example).")
     sb = create_client(url, key)
 
-    username = (sys.argv[1] if len(sys.argv) > 1 else input("Usuario: ")).strip()
+    # --rol <valor> en cualquier posición; el resto de los argumentos es el usuario.
+    argv = sys.argv[1:]
+    rol = None
+    if "--rol" in argv:
+        i = argv.index("--rol")
+        if i + 1 >= len(argv):
+            sys.exit("Falta el valor de --rol (admin | cajero).")
+        rol = argv[i + 1].strip().lower()
+        del argv[i:i + 2]
+
+    username = (argv[0] if argv else input("Usuario: ")).strip()
     if not VALID_USERNAME.match(username):
         sys.exit("Usuario inválido (3-40 caracteres: letras, números, . _ - @).")
+
+    if rol is None:
+        r = input(f"Rol [{ROL_ADMIN}/{ROL_CAJERO}] (Enter = {ROL_ADMIN}): ").strip().lower()
+        rol = r or ROL_ADMIN
+    if rol not in ROLES:
+        sys.exit(f"Rol inválido: '{rol}'. Tiene que ser uno de: {', '.join(ROLES)}.")
 
     pw1 = getpass.getpass("Contraseña (no se muestra): ")
     if len(pw1) < 4:
@@ -39,8 +61,9 @@ def main():
     if pw1 != pw2:
         sys.exit("Las contraseñas no coinciden.")
 
-    sb.table("users").upsert({"username": username, "password_hash": hash_password(pw1)}).execute()
-    print(f"Usuario '{username}' guardado (contraseña hasheada). Listo.")
+    sb.table("users").upsert({"username": username, "password_hash": hash_password(pw1),
+                              "role": rol}).execute()
+    print(f"Usuario '{username}' guardado con rol '{rol}' (contraseña hasheada). Listo.")
 
 
 if __name__ == "__main__":

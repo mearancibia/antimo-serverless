@@ -53,6 +53,10 @@ document.getElementById('q').oninput=render;
  try{
   const r=await fetch('/api/audit');
   if(r.status===401){location.href='/login';return;}
+  // 403 = logueado pero sin permiso (un cajero que llegó por URL directa: el botón 📋 no le
+  // aparece, pero la dirección se puede tipear). Sin este caso mostraba "Sin actividad.", que
+  // se lee como "no pasó nada" en vez de "esto no es para vos".
+  if(r.status===403){document.getElementById('tb').innerHTML='<tr><td colspan="4" class="sub" style="padding:18px">Tu usuario no tiene acceso al registro de actividad. <a href="/">Volver al tablero</a>.</td></tr>';document.getElementById('cnt').textContent='';return;}
   const j=await r.json();
   ROWS=j.rows||[];render();
  }catch(e){document.getElementById('tb').innerHTML='<tr><td colspan="4" class="sub" style="padding:18px">Error al cargar.</td></tr>';}

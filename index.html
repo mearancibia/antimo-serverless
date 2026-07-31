@@ -195,6 +195,14 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 let DATA={};
+// ---- Permisos del usuario (RBAC) ----
+// Llegan de GET /api/me. Esto es SOLO presentación: lo que de verdad bloquea está en el
+// servidor (403 por rol + /api/data recortado). Falsear PERM desde la consola no habilita
+// nada — como el costo y el OPEX ni siquiera viajan, sólo se rompe la propia pantalla.
+const TABS_TODAS=['resumen','rent','recetas','compras','caja','costos','opex'];
+let PERM={rol:'admin',tabs:TABS_TODAS.slice()};
+const puedeVer=t=>PERM.tabs.includes(t);
+const esAdmin=()=>PERM.rol==='admin';
 const CLCOL={ESTRELLA:'#f5c542',VACA:'#4a9d7f',INTERROGANTE:'#5a8fd6',PERRO:'#c85a54'};
 const CLAB={ESTRELLA:'★',VACA:'🐄',INTERROGANTE:'❓',PERRO:'🐕'};
 const FOODCATS=['HAMBURGUESAS Y SANDWICH','PARA PICAR Y PAPAS','PIZZAS','ENSALADAS','SIN TACC Y VEGGIE','POSTRES'];
@@ -401,7 +409,12 @@ function prodAgg(p,ds){let u=0,m=0;ds.forEach(d=>{const bd=p.byday[DK(d)];if(bd)
 // productos con métricas para el rango actual + filtros
 function prodView(ds){
  return DATA.productos.map(p=>{const a=prodAgg(p,ds);const v={pos:p.pos,key:p.key,susp:p.susp,susp_motivo:p.susp_motivo,cat:p.cat,grupo:p.grupo,nd:p.nd,motivo:p.motivo,falta:p.falta,donde:p.donde,tipo:p.tipo,costo:p.costo,nota:p.nota,breakdown:p.breakdown,receta_nombre:p.receta_nombre,receta_ings:p.receta_ings,combo_comp:p.combo_comp,editable:p.editable,precioLista:p.precio_lista,u:a.u,monto:a.m};
-  if(!p.nd){v.pv=a.u?Math.round(a.m/a.u):0;v.mgu=Math.round((v.pv||0)-p.costo);v.mgtot=Math.round((v.pv-p.costo)*a.u);v.mgpct=v.pv?+(((v.pv-p.costo)/v.pv)*100).toFixed(1):0;v.fc=v.pv?+((p.costo/v.pv)*100).toFixed(1):null;}
+  // p.costo puede no venir: al cajero el servidor le recorta el costo (RBAC). Eso NO lo vuelve
+  // N/D — simplemente no hay margen para calcular, y se deja sin calcular antes que inventar un
+  // 0 que se leería como "margen 100%" (Regla #0). Las solapas que muestran margen no se
+  // renderizan para ese rol, así que nadie ve un hueco.
+  if(!p.nd&&p.costo==null){v.pv=a.u?Math.round(a.m/a.u):0;}
+  else if(!p.nd){v.pv=a.u?Math.round(a.m/a.u):0;v.mgu=Math.round((v.pv||0)-p.costo);v.mgtot=Math.round((v.pv-p.costo)*a.u);v.mgpct=v.pv?+(((v.pv-p.costo)/v.pv)*100).toFixed(1):0;v.fc=v.pv?+((p.costo/v.pv)*100).toFixed(1):null;}
   return v;}).filter(v=>v.u>0);}
 function passF(v){if(st.catgrp.startsWith('g:')&&v.grupo!==st.catgrp.slice(2))return false;if(st.catgrp.startsWith('c:')&&v.cat!==st.catgrp.slice(2))return false;if(st.search&&!v.pos.toLowerCase().includes(st.search.toLowerCase()))return false;return true;}
 function classify(list){const c=list.filter(x=>!x.nd);if(!c.length)return;const U=c.reduce((s,x)=>s+x.u,0);const pop=U/c.length*0.7;const cm=c.reduce((s,x)=>s+x.mgtot,0)/U;c.forEach(x=>{const hp=x.u>=pop,hm=x.mgu>=cm;x.clase=hp&&hm?'ESTRELLA':hp&&!hm?'VACA':!hp&&hm?'INTERROGANTE':'PERRO';});}
@@ -1394,7 +1407,12 @@ function renderCostos(){
  }
 }
 function updateAppUI(){['appbadge','pullbtn','cfgbtn','newRec','opAdd','opVigAdd','stkExport','stkImport'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.toggle('hidden',!APP);});
- const d=document.getElementById('opVigDel');if(d)d.classList.toggle('hidden',!APP||(DATA.opex_periodos||[]).length<2);}
+ const d=document.getElementById('opVigDel');if(d)d.classList.toggle('hidden',!APP||(DATA.opex_periodos||[]).length<2);
+ // Sólo para admin, aunque APP esté en true: las credenciales de Bistrosoft (⚙️) y el registro
+ // de actividad de TODOS los usuarios (📋) no son del cajero. Los endpoints ya le dan 403.
+ // Ojo: stkExport/stkImport quedan visibles a propósito — el cajero SÍ puede importar precios
+ // y stock en bloque (/api/costos_bulk y /api/stock_bulk están en su lista).
+ if(!esAdmin())['cfgbtn','actbtn'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('hidden');});}
 function newProductModal(){
  if(!APP){toast('Abrí la app (run_ANTIMO_app) para crear productos');return;}
  const cats=[...new Set(DATA.productos.map(p=>p.cat))].sort();
@@ -1480,15 +1498,28 @@ function stockModal(insumo){
  const clr=document.getElementById('stkClear');if(clr)clr.onclick=async()=>{await apiPost('/api/stock',{insumo,cantidad:0});close();};
 }
 function showTab(){
+ // El rango/solapa se recuerda en localStorage: si el navegador quedó con una solapa que este
+ // rol no puede ver (o cambió el rol del usuario), se cae a la primera permitida.
+ if(!puedeVer(st.tab))st.tab=PERM.tabs[0]||'compras';
  if(_opexDirty && st.tab!=='opex'){toast('Ojo: el OPEX tiene cambios sin guardar');}
-['resumen','rent','recetas','compras','caja','costos','opex'].forEach(t=>document.getElementById('tab-'+t).classList.toggle('hidden',t!==st.tab));
- document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===st.tab));}
+TABS_TODAS.forEach(t=>{const e=document.getElementById('tab-'+t);if(e)e.classList.toggle('hidden',t!==st.tab);});
+ document.querySelectorAll('#tabs button').forEach(b=>{b.classList.toggle('hidden',!puedeVer(b.dataset.t));b.classList.toggle('on',b.dataset.t===st.tab);});}
 function renderFoot(){const o=opexRango(st.desde,st.hasta);
  const vig=o.periodos.length>1?`${o.periodos.length} vigencias (${o.periodos.map(p=>fFecha(p.desde)).join(', ')})`:`${f0(opexMesEfectivo(st.desde,st.hasta))}/mes`;
  document.getElementById('foot').innerHTML=`Resultado = margen − OPEX [${vig}${o.pend?' · '+o.pend+' rubros $0':' · completo'}] prorrateado día por día según la vigencia de cada uno. Datos vía API Bistrosoft. Costeo con supuestos documentados en el proyecto.`;}
 function rerender(){setBrand();buildControls();renderChips();showTab();
- renderKPIs();renderPnl();renderBeq();renderBeqSemana();renderAlerts();renderCompletitud();renderStock();renderTrend();
- renderRent();renderBCG();renderCat();renderRecetas();renderCompras();renderCaja();renderND();renderCostos();renderOpex();renderFoot();save();updateAppUI();}
+ // Se dibuja SOLO lo que el rol puede ver. No es cosmético: al cajero el servidor le saca el
+ // costo por producto y el OPEX del DATA, así que estos render no tendrían con qué calcular.
+ if(puedeVer('resumen')){renderKPIs();renderPnl();renderBeq();renderBeqSemana();renderAlerts();renderCompletitud();renderStock();renderTrend();}
+ if(puedeVer('rent')){renderRent();renderBCG();renderCat();}
+ if(puedeVer('recetas'))renderRecetas();
+ if(puedeVer('compras'))renderCompras();
+ if(puedeVer('caja')){renderCaja();renderND();}
+ if(puedeVer('costos'))renderCostos();
+ if(puedeVer('opex'))renderOpex();
+ // El pie habla de OPEX y del resultado: sin OPEX no tiene nada que decir.
+ if(puedeVer('opex'))renderFoot();else{const f=document.getElementById('foot');if(f)f.classList.add('hidden');}
+ save();updateAppUI();}
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{st.tab=b.dataset.t;rerender();});
 document.getElementById('fDesde').onchange=e=>{st.desde=snapD(e.target.value);if(ISO[st.desde]>ISO[st.hasta])st.hasta=st.desde;rerender();};
 document.getElementById('fHasta').onchange=e=>{st.hasta=snapH(e.target.value);if(ISO[st.hasta]<ISO[st.desde])st.desde=st.hasta;rerender();};
@@ -1569,8 +1600,19 @@ function bannerDev(){
  d.style.cssText='position:sticky;top:0;z-index:9999;background:#8a4b12;color:#ffe6cc;text-align:center;padding:7px 10px;font-weight:600;font-size:13px;letter-spacing:.3px';
  document.body.insertBefore(d,document.body.firstChild);
 }
-fetch('/api/me').then(r=>r.json()).then(j=>{const b=document.getElementById('userbadge');if(b&&j&&j.user)b.textContent='👤 '+j.user;if(j&&j.env==='dev')bannerDev();}).catch(()=>{});
-fetch('/api/data').then(r=>{if(r.status===401){location.href='/login';return null;}return r.json();})
- .then(d=>{if(d){APP=true;applyData(d);}}).catch(()=>{if(_hayDatos())rerender();});
+// Los permisos tienen que estar cargados ANTES del primer render: si /api/data llegara primero,
+// un cajero dibujaría por un instante las solapas de admin contra un DATA al que el servidor ya
+// le sacó los costos. Por eso /api/me y recién después /api/data (encadenados, no en paralelo).
+function cargarDatos(){
+ fetch('/api/data').then(r=>{if(r.status===401){location.href='/login';return null;}return r.json();})
+  .then(d=>{if(d){APP=true;applyData(d);}}).catch(()=>{if(_hayDatos())rerender();});
+}
+fetch('/api/me').then(r=>r.json()).then(j=>{
+ if(!j)return;
+ if(Array.isArray(j.tabs)&&j.tabs.length)PERM={rol:j.rol||'admin',tabs:j.tabs};
+ const b=document.getElementById('userbadge');
+ if(b&&j.user)b.textContent='👤 '+j.user+(j.rol&&j.rol!=='admin'?' · '+j.rol:'');
+ if(j.env==='dev')bannerDev();
+}).catch(()=>{}).then(cargarDatos);
 if(_hayDatos())rerender();
 </script></body></html>
