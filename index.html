@@ -19,6 +19,8 @@ select,input[type=search],input[type=date]{background:var(--card2);color:var(--i
 /* Botones chicos dentro de tablas y tarjetas. Antes se escribia el padding a mano en cada
    lugar (2px) y quedaban en 20px de alto: por debajo del minimo de 24x24 de WCAG 2.2. */
 .btn.sm{padding:5px 10px;font-size:11.5px;min-height:28px}
+.prs{display:flex;gap:5px;flex-wrap:wrap}
+.btn.off{opacity:.38;cursor:not-allowed}.btn.off:hover{border-color:var(--line)}
 input[type=search]{min-width:140px}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .chip{background:#2a2016;border:1px solid var(--accent);color:#f0d9c4;border-radius:20px;padding:3px 10px;font-size:11.5px;cursor:pointer}.chip b{color:#fff}
@@ -104,6 +106,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 <div class="bar">
   <div class="ctl"><label>Desde</label><input type="date" id="fDesde"></div>
   <div class="ctl"><label>Hasta</label><input type="date" id="fHasta"></div>
+  <div class="ctl"><label>Rango rápido</label><div class="prs" id="prs"></div></div>
   <div class="ctl"><label>Categoría / grupo</label><select id="fCat"></select></div>
   <div class="ctl" style="flex:1;min-width:150px"><label>Buscar producto</label><input type="search" id="fSearch" placeholder="ej: fernet"></div>
   <div class="ctl"><label>&nbsp;</label><button class="btn" id="cmp">⇄ Comparar</button></div>
@@ -331,7 +334,7 @@ const DK=d=>d?(d.iso||d.fecha):'';
 let DIAS=DATA.dias||[], ISO=Object.fromEntries((DATA.dias||[]).map(d=>[DK(d),d.iso||DK(d)]));
 let st={tab:'resumen',desde:DK(DIAS[0]),hasta:DK(DIAS[DIAS.length-1]),catgrp:'all',search:'',sort:'mgtot',dir:-1,ci:((DATA.cajas||[]).length-1),compras:'real',cmp:false,desdeB:DK(DIAS[0]),hastaB:DK(DIAS[0]),rGrupo:'todos',rCat:'all',rTipo:'all',rSearch:'',opCat:'all',opSearch:'',exclSusp:false,opVig:null,
 rSort:null,rDir:1,cpSort:null,cpDir:1,csSort:null,csDir:1,oxSort:null,oxDir:1,
-mgF:null,claseF:null};
+mgF:null,claseF:null,preset:'semana'};
 try{Object.assign(st,JSON.parse(localStorage.getItem('antimo2')||'{}'));}catch(e){}
 if(!ISO[st.desde])st.desde=DK(DIAS[0]);if(!ISO[st.hasta])st.hasta=DK(DIAS[DIAS.length-1]);
 if(ISO[st.desde]>ISO[st.hasta]){st.desde=DK(DIAS[0]);st.hasta=DK(DIAS[DIAS.length-1]);}
@@ -347,11 +350,19 @@ if(!ISO[st.desdeB])st.desdeB=DK(DIAS[0]);if(!ISO[st.hastaB])st.hastaB=DK(DIAS[0]
 // `hastaAlFinal` no existe en los localStorage viejos: ahí se avisa en vez de mover nada
 // (cambiar la vista sin permiso es peor que avisar de más).
 function nochesNuevas(){return DIAS.filter(d=>d.iso>ISO[st.hasta]);}
-if(st.hastaAlFinal&&nochesNuevas().length) st.hasta=DK(DIAS[DIAS.length-1]);
-function save(){try{localStorage.setItem('antimo2',JSON.stringify({tab:st.tab,desde:st.desde,hasta:st.hasta,catgrp:st.catgrp,compras:st.compras,exclSusp:st.exclSusp,
+// Con un preset activo esto no hace falta: el preset recalcula el rango solo (y estirar hasta la
+// ultima noche pisaria un preset cerrado como "Mes pasado"). Queda para el rango a medida.
+if(!st.preset&&st.hastaAlFinal&&nochesNuevas().length) st.hasta=DK(DIAS[DIAS.length-1]);
+function save(){try{localStorage.setItem('antimo2',JSON.stringify({tab:st.tab,desde:st.desde,hasta:st.hasta,catgrp:st.catgrp,compras:st.compras,exclSusp:st.exclSusp,preset:st.preset,
  hastaAlFinal:ISO[st.hasta]===DIAS[DIAS.length-1].iso}));}catch(e){}}
 let APP=false;
 function applyData(d){if(!d||!d.dias)return;DATA=d;DIAS=DATA.dias;ISO=Object.fromEntries(DIAS.map(x=>[DK(x),x.iso||DK(x)]));_patC=null;_cdCache=null;if(!ISO[st.desde])st.desde=DK(DIAS[0]);if(!ISO[st.hasta])st.hasta=DK(DIAS[DIAS.length-1]);
+ // Con preset activo el rango se recalcula contra los datos recien llegados: despues de "Traer
+ // ventas", la noche nueva entra sola en la vista sin tocar nada.
+ // Si el preset guardado se quedo sin noches (datos viejos, o un backfill que corrio el historico),
+ // se cae a rango a medida: dejarlo "activo" pero sin aplicar mostraba el boton prendido y
+ // deshabilitado al mismo tiempo, diciendo dos cosas distintas.
+ if(st.preset&&!aplicarPreset(st.preset))st.preset=null;
  // st.ci (caja seleccionada) arranca en -1 cuando DATA venía vacío (serverless); al llegar los
  // datos hay que dejarlo en un índice válido, si no cajas[st.ci] es undefined y cajaIso() crashea.
  const _nc=(DATA.cajas||[]).length;if(st.ci==null||st.ci<0||st.ci>=_nc)st.ci=_nc-1;
@@ -393,6 +404,36 @@ function snapH(iso){const c=DIAS.filter(d=>d.iso<=iso);return DK(c[c.length-1]||
 // '2026' hardcodeado que sobrevivió a la migración a ISO y rompía solo a partir de 2027.
 function cajaIso(c){if(!c)return '';if(c.iso)return c.iso;if(ISO[c.fecha])return ISO[c.fecha];if(c.fecha_key){const m=(''+c.fecha_key).match(/(\d{2})\/(\d{2})\/(\d{4})/);if(m)return m[3]+'-'+m[2]+'-'+m[1];}return '';}
 function calDaysRange(a,b){const ia=ISO[a],ib=ISO[b];return Math.max(1,Math.round((new Date(ib)-new Date(ia))/864e5)+1);}
+// ----- rangos rápidos (presets) -----
+// Un preset NO guarda fechas: guarda la INTENCION ("esta semana"). Se recalcula al cargar y cada
+// vez que llegan datos nuevos, asi el rango se mantiene al dia solo. Guardar 27/07→02/08 obligaba
+// a corregir las dos fechas a mano todos los dias, que era el problema real. Es la generalizacion
+// de `hastaAlFinal` (abajo), que ya hacia esto mismo para un unico caso.
+// Si el usuario toca un calendario, el preset pasa a null (rango a medida) y la fecha elegida se
+// respeta tal cual: ahi congelar el periodo es justamente lo que se quiere.
+// ⚠️ Las cuentas van sobre la fecha ROTULADA de la noche (la que se ve en el input), NO sobre
+// nocheReal(): "desde el lunes" tiene que coincidir con lo que muestra el selector. Por el
+// corrimiento +1 de la Regla #3, la noche rotulada "Lun" es la del domingo a la noche.
+const lunesDe=d=>{const t=new Date(d);t.setDate(t.getDate()-((t.getDay()+6)%7));return t;};  // getDay(): 0=Dom
+const PRESETS={
+ semana:{lab:'Esta semana',calc:()=>{const h=new Date();return [isoOf(lunesDe(h)),isoOf(h)];}},
+ semanaAnt:{lab:'Semana pasada',calc:()=>{const l=lunesDe(new Date()),a=new Date(l),b=new Date(l);
+   a.setDate(a.getDate()-7);b.setDate(b.getDate()-1);return [isoOf(a),isoOf(b)];}},
+ d7:{lab:'Últimos 7 días',calc:()=>{const a=new Date();a.setDate(a.getDate()-6);return [isoOf(a),isoOf(new Date())];}},
+ mes:{lab:'Este mes',calc:()=>{const h=new Date();return [isoOf(new Date(h.getFullYear(),h.getMonth(),1)),isoOf(h)];}},
+ mesAnt:{lab:'Mes pasado',calc:()=>{const h=new Date();
+   return [isoOf(new Date(h.getFullYear(),h.getMonth()-1,1)),isoOf(new Date(h.getFullYear(),h.getMonth(),0))];}},  // día 0 = último del mes anterior
+ todo:{lab:'Todo',calc:()=>DIAS.length?[DIAS[0].iso,DIAS[DIAS.length-1].iso]:['','']}
+};
+// Noches con datos que caen dentro del preset. Vacio = el preset no se puede aplicar y se deja el
+// rango como estaba: snapD/snapH por separado, ante un tramo sin datos, devuelven extremos
+// opuestos (el ultimo dia y el primero) y armarian un rango invertido en silencio.
+function nochesDePreset(p){const c=PRESETS[p];if(!c||!DIAS.length)return [];
+ const [a,b]=c.calc();return a?DIAS.filter(d=>d.iso>=a&&d.iso<=b):[];}
+// Snapea a noches REALES: si hoy el bar no abrio, o Bistrosoft todavia no sincronizo la ultima
+// noche (el lag conocido de §8), "hasta hoy" cae en la ultima noche con datos, no en un dia vacio.
+function aplicarPreset(p){const ns=nochesDePreset(p);if(!ns.length)return false;
+ st.preset=p;st.desde=DK(ns[0]);st.hasta=DK(ns[ns.length-1]);return true;}
 // ----- OPEX con vigencias -----
 // Cada dia usa el OPEX que regia ESE dia: un periodo que cruza un cambio de vigencia
 // suma los dias de cada una. Antes era una foto unica aplicada a toda la historia.
@@ -481,6 +522,12 @@ function buildControls(){
  ['fDesde','fHasta','fDesdeB','fHastaB'].forEach(id=>{const e=document.getElementById(id);e.min=mn;e.max=mx;});
  document.getElementById('fDesde').value=ISO[st.desde]||mn;document.getElementById('fHasta').value=ISO[st.hasta]||mx;
  document.getElementById('fDesdeB').value=ISO[st.desdeB]||mn;document.getElementById('fHastaB').value=ISO[st.hastaB]||mn;
+ // Un preset sin noches con datos se muestra deshabilitado en vez de ocultarse: que "Mes pasado"
+ // desaparezca parece un bug, que este apagado dice "no hay datos de ese mes", que es el dato.
+ const pw=document.getElementById('prs');
+ pw.innerHTML=Object.keys(PRESETS).map(k=>{const hay=nochesDePreset(k).length;
+  return `<button class="btn sm${st.preset===k?' on':''}${hay?'':' off'}" data-p="${k}"${hay?'':' disabled title="No hay noches con datos en ese rango"'}>${PRESETS[k].lab}</button>`;}).join('');
+ pw.querySelectorAll('button[data-p]').forEach(b=>b.onclick=()=>{if(aplicarPreset(b.dataset.p))rerender();});
  const fc=document.getElementById('fCat');const cats=[...new Set(DATA.productos.map(p=>p.cat))];
  let o='<option value="all">Todo</option><option value="g:BEBIDA">🍹 Todas las bebidas</option><option value="g:COMIDA">🍔 Toda la comida</option>';
  o+='<optgroup label="Bebidas">'+cats.filter(c=>!isFood(c)).sort().map(c=>`<option value="c:${c}">${c}</option>`).join('')+'</optgroup>';
@@ -504,7 +551,10 @@ function buildControls(){
 function renderChips(){const ch=[];
  // aviso de noches nuevas fuera del rango: primero de todo, porque significa plata que no se
  // está viendo. Clickeable = estira el rango hasta la última noche.
- const nn=nochesNuevas();
+ // Solo con rango a medida: con un preset activo el rango se recalcula solo (no puede quedar
+ // viejo), y en los presets cerrados como "Mes pasado" las noches posteriores no son un olvido
+ // sino justamente lo que se pidio dejar afuera.
+ const nn=st.preset?[]:nochesNuevas();
  if(nn.length){
   // mismo criterio que totals(): sin productos N/D. Si no, el chip promete una cifra y el KPI
   // de Ventas sube otra distinta (la diferencia son los N/D, que tienen su propia alerta).
@@ -1521,8 +1571,9 @@ function rerender(){setBrand();buildControls();renderChips();showTab();
  if(puedeVer('opex'))renderFoot();else{const f=document.getElementById('foot');if(f)f.classList.add('hidden');}
  save();updateAppUI();}
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{st.tab=b.dataset.t;rerender();});
-document.getElementById('fDesde').onchange=e=>{st.desde=snapD(e.target.value);if(ISO[st.desde]>ISO[st.hasta])st.hasta=st.desde;rerender();};
-document.getElementById('fHasta').onchange=e=>{st.hasta=snapH(e.target.value);if(ISO[st.hasta]<ISO[st.desde])st.desde=st.hasta;rerender();};
+// Tocar un calendario = rango a medida: se apaga el preset y la fecha elegida deja de recalcularse.
+document.getElementById('fDesde').onchange=e=>{st.preset=null;st.desde=snapD(e.target.value);if(ISO[st.desde]>ISO[st.hasta])st.hasta=st.desde;rerender();};
+document.getElementById('fHasta').onchange=e=>{st.preset=null;st.hasta=snapH(e.target.value);if(ISO[st.hasta]<ISO[st.desde])st.desde=st.hasta;rerender();};
 document.getElementById('fDesdeB').onchange=e=>{st.desdeB=snapD(e.target.value);rerender();};
 document.getElementById('fHastaB').onchange=e=>{st.hastaB=snapH(e.target.value);rerender();};
 document.getElementById('fCat').onchange=e=>{st.catgrp=e.target.value;rerender();};
@@ -1530,7 +1581,7 @@ document.getElementById('fCat').onchange=e=>{st.catgrp=e.target.value;rerender()
 document.getElementById('fSearch').oninput=e=>{st.search=e.target.value;rerender();};
 document.getElementById('cmp').onclick=()=>{st.cmp=!st.cmp;rerender();};
 document.getElementById('exs').onclick=()=>{st.exclSusp=!st.exclSusp;rerender();};
-document.getElementById('reset').onclick=()=>{st.catgrp='all';st.search='';st.desde=DK(DIAS[0]);st.hasta=DK(DIAS[DIAS.length-1]);st.cmp=false;st.exclSusp=false;st.mgF=null;st.claseF=null;rerender();};
+document.getElementById('reset').onclick=()=>{st.catgrp='all';st.search='';aplicarPreset('todo');st.cmp=false;st.exclSusp=false;st.mgF=null;st.claseF=null;rerender();};
 document.getElementById('mReal').onclick=()=>{st.compras='real';renderCompras();};
 document.getElementById('mRepo').onclick=()=>{st.compras='repo';renderCompras();};
 document.getElementById('fCaja').onchange=e=>{const iso=e.target.value;let bi=0,bd=1e15;(DATA.cajas||[]).forEach((c,i)=>{const d=Math.abs(new Date(cajaIso(c))-new Date(iso));if(d<bd){bd=d;bi=i;}});st.ci=bi;renderCaja();};
@@ -1614,5 +1665,5 @@ fetch('/api/me').then(r=>r.json()).then(j=>{
  if(b&&j.user)b.textContent='👤 '+j.user+(j.rol&&j.rol!=='admin'?' · '+j.rol:'');
  if(j.env==='dev')bannerDev();
 }).catch(()=>{}).then(cargarDatos);
-if(_hayDatos())rerender();
+if(_hayDatos()){if(st.preset&&!aplicarPreset(st.preset))st.preset=null;rerender();}
 </script></body></html>
