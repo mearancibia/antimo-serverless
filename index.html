@@ -1,120 +1,288 @@
 <!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>ANTIMO · Panel</title>
 <style>
-:root{--bg:#0f1419;--card:#1a222c;--card2:#212b37;--ink:#e8edf2;--mut:#8a97a6;--line:#2b3644;--accent:#e8834a;--pos:#4a9d7f;--neg:#c85a54;--int:#5a8fd6;--star:#f5c542}
+:root{
+ --bg:#0f1419;--card:#1a222c;--card2:#212b37;--ink:#e8edf2;--mut:#9caabb;--line:#2b3644;
+ --accent:#e8834a;--pos:#4a9d7f;--neg:#c85a54;--int:#5a8fd6;--star:#f5c542;
+ /* superficies nuevas del layout de escritorio */
+ --side:#131a23;--side2:#0d1218;--line2:#354254;--ring:rgba(232,131,74,.35);
+ --sh1:0 1px 2px rgba(0,0,0,.35);
+ --sh2:0 2px 4px rgba(0,0,0,.28),0 8px 24px rgba(0,0,0,.30);
+ --sh3:0 12px 40px rgba(0,0,0,.45);
+ --sw:252px;--hh:60px;
+ --pad:26px;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:18px 20px 50px;max-width:1180px;margin:0 auto}
-.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-h1{font-size:20px}.badge{font-size:11px;background:var(--card2);border:1px solid var(--line);border-radius:20px;padding:3px 10px;color:var(--mut)}
-.btn{background:var(--card2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:6px 11px;font-size:12.5px;cursor:pointer}
-.btn:hover{border-color:var(--accent)}.btn.on{background:var(--accent);color:#151515;font-weight:600;border-color:var(--accent)}
-.tabs{display:flex;gap:4px;margin:16px 0 6px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.tabs button{background:none;border:none;color:var(--mut);padding:9px 15px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
-.tabs button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
-.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px}
-.ctl{display:flex;flex-direction:column;gap:2px}.ctl label{font-size:9.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px}
-/* input[type=date] estaba fuera de esta regla: quedaba con el alto por defecto del navegador
-   (22px), por debajo del minimo de 24px, justo en los dos controles que mas se tocan. */
-select,input[type=search],input[type=date]{background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px}
-/* Botones chicos dentro de tablas y tarjetas. Antes se escribia el padding a mano en cada
-   lugar (2px) y quedaban en 20px de alto: por debajo del minimo de 24x24 de WCAG 2.2. */
-.btn.sm{padding:5px 10px;font-size:11.5px;min-height:28px}
-.prs{display:flex;gap:5px;flex-wrap:wrap}
-.btn.off{opacity:.38;cursor:not-allowed}.btn.off:hover{border-color:var(--line)}
-input[type=search]{min-width:140px}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.chip{background:#2a2016;border:1px solid var(--accent);color:#f0d9c4;border-radius:20px;padding:3px 10px;font-size:11.5px;cursor:pointer}.chip b{color:#fff}
-/* aviso de datos ocultos: NO es un filtro para quitar como los otros chips, es plata que no se
-   esta viendo. Se distingue en verde (accion recomendada) y con mas presencia. */
-.chip.nuevas{background:#16281f;border-color:var(--pos);color:#bfe3d2;font-weight:600;padding:5px 12px;font-size:12px}
-.chip.nuevas:hover{background:#1c3428}
-.kpis{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:12px;margin-top:14px}
-@media(max-width:760px){.kpis{grid-template-columns:1fr 1fr}}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
-.kpi.hero{background:linear-gradient(135deg,#1c2731,#161d26);border-color:#31404f}
-.kpi .l{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
-.kpi .v{font-weight:800;margin-top:4px;line-height:1.1;font-size:21px}.kpi.hero .v{font-size:33px}
-.kpi .d{font-size:12px;margin-top:4px}.up{color:var(--pos)}.down{color:var(--neg)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}
-.h3{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.alerts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}@media(max-width:760px){.alerts{grid-template-columns:1fr}}
-.alert{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--mut);border-radius:10px;padding:11px 13px}
-.top{flex-wrap:wrap;align-items:center;gap:8px}
-.grow{flex:1 1 auto}
-.um{position:relative;display:inline-block}
-#userbtn{display:inline-flex;align-items:center;gap:6px;border-color:var(--accent);color:var(--accent)}
-#userbtn .caret{font-size:10px;opacity:.8}
-.umpop{position:absolute;right:0;top:calc(100% + 6px);z-index:60;min-width:210px;background:var(--card);
- border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:0 10px 28px rgba(0,0,0,.5)}
-.umitem{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);
- font:inherit;font-size:13.5px;padding:9px 10px;border-radius:7px;cursor:pointer}
-.umitem:hover,.umitem:focus-visible{background:var(--card2);outline:none}
-.umsep{height:1px;background:var(--line);margin:5px 2px}
-/* en pantallas angostas la fecha de generación es lo primero que sobra */
-@media(max-width:560px){#hasta .genpart{display:none}}
-.brandbtn{background:none;border:0;padding:0;margin:0;cursor:pointer;display:flex;align-items:center;border-radius:6px;opacity:.95;transition:opacity .12s}
-.brandbtn:hover{opacity:1}
+html{-webkit-text-size-adjust:100%}
+body{
+ background:var(--bg);color:var(--ink);
+ font:14.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;
+ font-feature-settings:"cv02","cv03","ss01";
+ -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+ min-height:100vh;
+}
+/* .hidden lo togglea el JS sobre elementos que ahora tienen display propio (flex/grid),
+   asi que necesita ganar por !important. */
+.hidden{display:none!important}
+
+/* ============ ESTRUCTURA DE ESCRITORIO ============ */
+.shell{display:grid;grid-template-columns:var(--sw) minmax(0,1fr);min-height:100vh}
+
+/* --- Sidebar --- */
+.side{
+ grid-column:1;position:sticky;top:0;align-self:start;height:100vh;
+ background:linear-gradient(180deg,var(--side),var(--side2));
+ border-right:1px solid var(--line);display:flex;flex-direction:column;
+ padding:18px 14px;gap:18px;overflow-y:auto;z-index:30;
+}
+.sidebrand{display:flex;align-items:center;padding:2px 6px 0}
+h1#brand{font-size:20px;display:flex;align-items:center}
+.brandbtn{background:none;border:0;padding:0;margin:0;cursor:pointer;display:flex;align-items:center;border-radius:8px;opacity:.95;transition:opacity .12s,transform .12s}
+.brandbtn:hover{opacity:1;transform:translateY(-1px)}
 .brandbtn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent)}
-.alert.clickable{cursor:pointer;transition:background .12s,border-color .12s}
-.alert.clickable:hover,.alert.clickable:focus-visible{background:var(--card2);outline:none}
+.brandbtn img{height:38px!important}
+.navlabel{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#6d7d8f;padding:0 10px;font-weight:700}
+
+.tabs{display:flex;flex-direction:column;gap:3px;margin:0}
+.tabs button{
+ display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+ background:none;border:0;color:#a6b3c2;font:inherit;font-size:14px;font-weight:500;
+ padding:10px 12px;border-radius:9px;cursor:pointer;position:relative;
+ transition:background .13s,color .13s;
+}
+.tabs button::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);
+ width:3px;height:0;background:var(--accent);border-radius:0 3px 3px 0;transition:height .15s}
+.tabs button:hover{background:rgba(255,255,255,.045);color:var(--ink)}
+.tabs button:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ring)}
+.tabs button.on{background:rgba(232,131,74,.12);color:#f6e0d1;font-weight:650}
+.tabs button.on::before{height:22px}
+.tabs button .ic{width:19px;text-align:center;font-size:15px;opacity:.95;flex:none}
+
+.sidefoot{margin-top:auto;padding:12px 10px 2px;border-top:1px solid var(--line);color:#66768a;font-size:11px;line-height:1.5}
+
+/* --- Columna principal --- */
+.main{grid-column:2;min-width:0;display:flex;flex-direction:column}
+.topbar{
+ position:sticky;top:0;z-index:25;min-height:var(--hh);
+ display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+ padding:11px var(--pad);background:rgba(15,20,25,.86);
+ backdrop-filter:saturate(160%) blur(10px);-webkit-backdrop-filter:saturate(160%) blur(10px);
+ border-bottom:1px solid var(--line);
+}
+.topbar .ttl{font-size:15.5px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+.content{padding:18px var(--pad) 60px;flex:1;min-width:0}
+.grow{flex:1 1 auto}
+
+/* ============ COMPONENTES ============ */
+.badge{font-size:11.5px;background:var(--card2);border:1px solid var(--line);border-radius:20px;padding:4px 11px;color:var(--mut)}
+.btn{background:var(--card2);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:7px 13px;font-size:12.5px;font-weight:500;cursor:pointer;transition:border-color .12s,background .12s,transform .08s}
+.btn:hover{border-color:var(--accent);background:#263140}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ring)}
+.btn.on{background:var(--accent);color:#151515;font-weight:650;border-color:var(--accent)}
+.btn.sm{padding:5px 10px;font-size:11.5px;min-height:28px}
+.btn.off{opacity:.38;cursor:not-allowed}.btn.off:hover{border-color:var(--line);background:var(--card2)}
+.prs{display:flex;gap:5px;flex-wrap:wrap}
+.seg{display:inline-flex}
+.seg .btn+.btn{margin-left:-1px}
+.seg .btn.on{position:relative;z-index:1}
+
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;margin-top:4px;box-shadow:var(--sh1)}
+.ctl{display:flex;flex-direction:column;gap:3px}
+.ctl label,.ml{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+select,input[type=search],input[type=date],input[type=number],input[type=text],input[type=password]{
+ background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:9px;
+ padding:8px 10px;font-size:13px;font-family:inherit;min-height:34px;transition:border-color .12s,box-shadow .12s}
+select:focus,input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--ring)}
+input[type=search]{min-width:170px}
+input[type=date]{color-scheme:dark}
+
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.chip{background:#2a2016;border:1px solid var(--accent);color:#f0d9c4;border-radius:20px;padding:4px 11px;font-size:11.5px;cursor:pointer;transition:background .12s}
+.chip:hover{background:#332618}.chip b{color:#fff}
+.chip.nuevas{background:#16281f;border-color:var(--pos);color:#bfe3d2;font-weight:600;padding:5px 13px;font-size:12px}
+.chip.nuevas:hover{background:#1c3428}
+
+/* --- KPIs: fila fluida a lo ancho del monitor --- */
+.kpis{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr;gap:16px;margin-top:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;box-shadow:var(--sh2);transition:border-color .15s,transform .15s}
+.kpi:hover{border-color:var(--line2);transform:translateY(-2px)}
+.kpi.hero{background:linear-gradient(135deg,#1e2a35 0%,#161d26 100%);border-color:#31404f}
+.kpi .l{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.7px;font-weight:600}
+.kpi .v{font-weight:800;margin-top:6px;line-height:1.08;font-size:26px;letter-spacing:-.6px;font-variant-numeric:tabular-nums}
+.kpi.hero .v{font-size:42px;letter-spacing:-1.4px}
+.kpi .d{font-size:12.5px;margin-top:6px}
+.up{color:var(--pos)}.down{color:var(--neg)}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-top:16px;box-shadow:var(--sh1)}
+.h3{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;letter-spacing:-.1px}
+
+.alerts{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;margin-top:16px}
+.alert{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--mut);border-radius:14px;padding:14px 16px;box-shadow:var(--sh1)}
+.alert.clickable{cursor:pointer;transition:background .12s,border-color .12s,transform .12s}
+.alert.clickable:hover,.alert.clickable:focus-visible{background:var(--card2);outline:none;transform:translateY(-1px)}
 .alert.clickable:focus-visible{box-shadow:0 0 0 2px var(--accent)}
 .alert .ago{align-self:center;color:var(--mut);font-size:20px;padding-left:6px}
 .alert.clickable:hover .ago{color:var(--accent)}
-.alert .ai{font-size:19px}.alert .at{font-weight:600;font-size:13.5px}.alert .as{color:var(--mut);font-size:12.5px}
-.cols{display:grid;grid-template-columns:1.3fr 1fr;gap:14px}@media(max-width:820px){.cols{grid-template-columns:1fr}}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-th{color:var(--mut);font-weight:600;font-size:10.5px;text-transform:uppercase;cursor:pointer;position:sticky;top:0;background:var(--card);user-select:none}
+.alert .ai{font-size:20px}.alert .at{font-weight:650;font-size:13.5px}.alert .as{color:var(--mut);font-size:12.5px}
+
+.cols{display:grid;grid-template-columns:1.35fr minmax(0,1fr);gap:16px;align-items:start}
+.cols>*{min-width:0}
+
+/* --- Tablas panorámicas --- */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mut);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;position:sticky;top:0;background:var(--card);user-select:none;z-index:2;box-shadow:inset 0 -1px 0 var(--line)}
+th:hover{color:var(--ink)}
+tbody tr:last-child td{border-bottom:0}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .neg{color:var(--neg);font-weight:600}.pos{color:var(--pos)}.mut{color:var(--mut)}
-.scroll{max-height:440px;overflow:auto}
-.tag{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.scroll{max-height:min(62vh,620px);overflow:auto;border-radius:10px}
+.scroll::-webkit-scrollbar{width:10px;height:10px}
+.scroll::-webkit-scrollbar-thumb{background:#33404f;border-radius:8px;border:2px solid var(--card)}
+.scroll::-webkit-scrollbar-track{background:transparent}
+.tag{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
 .ubar{display:inline-block;height:7px;background:var(--int);border-radius:3px;vertical-align:middle;margin-left:6px;opacity:.7}
 .clik{cursor:pointer}.clik:hover td{background:#20303f}
-.quad2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-.q{border-radius:8px;padding:8px 10px;background:var(--card2);border:1px solid var(--line)}.q h4{font-size:11.5px;margin-bottom:3px}.q .n{font-size:16px;font-weight:700}.q .s{font-size:10.5px;color:var(--mut)}
 .grpsub{background:var(--card2);font-weight:700;font-size:11.5px}
-.warn{background:#2a1e14;border:1px solid var(--accent);border-radius:8px;padding:9px 12px;font-size:12px;color:#f0d9c4;margin-top:12px}
-.mini{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-radius:8px;overflow:hidden;margin-top:8px}
-.mini>div{background:var(--card);padding:8px 10px}.mini .ml{font-size:10px;color:var(--mut);text-transform:uppercase}.mini .mv{font-size:14px;font-weight:700}
-.legend{font-size:11px;color:var(--mut);margin-top:8px}
-.foot{color:var(--mut);font-size:11.5px;margin-top:20px;border-top:1px solid var(--line);padding-top:12px}
-.hidden{display:none}
+
+.quad2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.q{border-radius:12px;padding:11px 13px;background:var(--card2);border:1px solid var(--line)}
+.q h4{font-size:11.5px;margin-bottom:4px}.q .n{font-size:19px;font-weight:750;font-variant-numeric:tabular-nums}.q .s{font-size:10.5px;color:var(--mut)}
+.q.sel{border-width:2px}.q.clik{cursor:pointer;user-select:none;transition:background .12s}.q.clik:hover{background:#26313d}
+
+.warn{background:#2a1e14;border:1px solid var(--accent);border-radius:12px;padding:11px 14px;font-size:12.5px;color:#f0d9c4;margin-top:14px}
+.mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border-radius:12px;overflow:hidden;margin-top:12px}
+.mini>div{background:var(--card);padding:11px 14px}
+.mini .ml{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+.mini .mv{font-size:16px;font-weight:750;font-variant-numeric:tabular-nums}
+.legend{font-size:11.5px;color:var(--mut);margin-top:10px;line-height:1.5}
+.foot{color:var(--mut);font-size:11.5px;margin-top:28px;border-top:1px solid var(--line);padding-top:14px}
 .sflag{cursor:help;margin-left:4px;font-size:11px}.sflag.sug{opacity:.5}
-.mgchip{padding:1px 7px;border-radius:3px;cursor:pointer;user-select:none;border:1px solid transparent}
+.mgchip{padding:2px 8px;border-radius:5px;cursor:pointer;user-select:none;border:1px solid transparent}
 .mgchip:hover{border-color:var(--ink)}.mgchip.on{border-color:var(--ink);font-weight:700}
-.q.sel{border-width:2px}.q.clik{cursor:pointer;user-select:none}.q.clik:hover{background:#26313d}
-#bcgTip{position:absolute;pointer-events:none;background:#0e141a;border:1px solid var(--line);
- border-radius:6px;padding:5px 8px;font-size:11.5px;line-height:1.35;white-space:nowrap;z-index:20;
- display:none;box-shadow:0 3px 10px rgba(0,0,0,.5)}
-#bcg circle{cursor:pointer}
 [data-tip]{cursor:help;border-bottom:1px dotted var(--mut)}
-.ovl{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
-.modal{background:var(--card);border:1px solid var(--line);border-radius:12px;max-width:560px;width:100%;max-height:85vh;overflow:auto;padding:18px}
-.modal h2{font-size:17px}.mclose{float:right;cursor:pointer;color:var(--mut);font-size:20px;line-height:1}
-.wf{display:flex;flex-direction:column;gap:5px;margin-top:8px}
-.wf .row{display:flex;align-items:center;gap:8px;font-size:12px}
-.wf .lab{width:120px;color:var(--mut)}.wf .barwrap{flex:1;background:#0e141a;border-radius:4px;height:20px;position:relative;overflow:hidden}
-.wf .fill{height:100%;border-radius:4px}.wf .amt{width:90px;text-align:right;font-variant-numeric:tabular-nums}
-@media print{.tabs,.bar,.chips,.btn{display:none!important}.tab-pane{display:block!important}}
+
+/* --- Menú de usuario --- */
+.um{position:relative;display:inline-block}
+#userbtn{display:inline-flex;align-items:center;gap:6px;border-color:var(--accent);color:var(--accent)}
+#userbtn .caret{font-size:10px;opacity:.8}
+.umpop{position:absolute;right:0;top:calc(100% + 8px);z-index:60;min-width:220px;background:var(--card);
+ border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:var(--sh3)}
+.umitem{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);
+ font:inherit;font-size:13.5px;padding:9px 11px;border-radius:8px;cursor:pointer}
+.umitem:hover,.umitem:focus-visible{background:var(--card2);outline:none}
+.umsep{height:1px;background:var(--line);margin:5px 2px}
+
+/* --- Modales --- */
+.ovl{position:fixed;inset:0;background:rgba(0,0,0,.66);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:80;padding:24px}
+.modal{background:var(--card);border:1px solid var(--line2);border-radius:16px;max-width:620px;width:100%;max-height:86vh;overflow:auto;padding:22px;box-shadow:var(--sh3)}
+.modal h2{font-size:18px}.mclose{float:right;cursor:pointer;color:var(--mut);font-size:22px;line-height:1}
+.mclose:hover{color:var(--ink)}
+
+/* --- Cascada P&L / barras --- */
+.wf{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.wf .row{display:flex;align-items:center;gap:10px;font-size:12.5px}
+.wf .lab{width:150px;color:var(--mut);flex:none}
+.wf .barwrap{flex:1;background:#0e141a;border-radius:6px;height:24px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.03)}
+.wf .fill{height:100%;border-radius:6px}
+.wf .amt{width:110px;text-align:right;font-variant-numeric:tabular-nums;flex:none}
+
+/* --- Gráficos SVG a todo el ancho disponible --- */
+#pnl,#beq,#trend,#bcg,#opexchart,#opexpeso,#caja{width:100%}
+#trend>div{width:100%}
+#trend svg{width:100%!important;height:auto;max-width:none!important;display:block}
+#bcg svg{width:100%!important;max-width:none!important;height:auto;display:block}
+#bcgTip{position:absolute;pointer-events:none;background:#0e141a;border:1px solid var(--line2);
+ border-radius:8px;padding:6px 9px;font-size:11.5px;line-height:1.35;white-space:nowrap;z-index:20;
+ display:none;box-shadow:var(--sh2)}
+#bcg circle{cursor:pointer}
+
+/* ============ RESPONSIVE ============ */
+@media(max-width:1180px){.cols{grid-template-columns:1fr}}
+@media(max-width:1024px){
+ :root{--pad:18px}
+ .shell{grid-template-columns:1fr}
+ .side{position:sticky;top:0;height:auto;flex-direction:row;align-items:center;gap:12px;
+  padding:10px 16px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto}
+ .navlabel,.sidefoot{display:none}
+ .tabs{flex-direction:row;gap:4px}
+ .tabs button{padding:8px 12px;white-space:nowrap}
+ .tabs button::before{left:12px;right:12px;top:auto;bottom:0;transform:none;width:auto;height:0;border-radius:3px 3px 0 0}
+ .tabs button.on::before{height:2px}
+ .main{grid-column:1}
+ .topbar{position:static}
+ .kpis{grid-template-columns:repeat(2,1fr)}.kpi.hero{grid-column:span 2}
+}
+@media(max-width:760px){
+ .kpis{grid-template-columns:1fr 1fr}.kpi.hero{grid-column:span 2}
+ .kpi.hero .v{font-size:32px}
+ .alerts{grid-template-columns:1fr}
+ .wf .lab{width:110px}.wf .amt{width:92px}
+}
+@media(max-width:560px){#hasta .genpart{display:none}}
+
+@media print{
+ .side,.topbar,.bar,.chips,.btn{display:none!important}
+ .tab-pane{display:block!important}
+ .shell{grid-template-columns:1fr}
+ body{background:#fff;color:#000}
+ .card,.kpi,.alert{box-shadow:none;break-inside:avoid}
+}
 </style></head><body>
-<div class="top"><h1 id="brand" style="display:flex;align-items:center">🍺 ANTIMO</h1><span class="badge" id="hasta"></span><span class="badge hidden" id="appbadge" style="border-color:var(--pos);color:var(--pos)">✏️ Modo edición</span><span class="grow"></span><button class="btn" id="pullbtn">🔄 Traer ventas</button><div class="um" id="um"><button class="btn" id="userbtn" aria-haspopup="true" aria-expanded="false"><span id="userbadge">👤</span><span class="caret">▾</span></button><div class="umpop hidden" id="umpop" role="menu"><button class="umitem hidden" id="cfgbtn" role="menuitem">⚙️ Bistrosoft</button><button class="umitem" id="print" role="menuitem">🖨️ Imprimir / PDF</button><button class="umitem" id="actbtn" role="menuitem">📋 Actividad</button><div class="umsep"></div><button class="umitem" id="logoutbtn" role="menuitem">🚪 Salir</button></div></div></div>
-<div class="tabs" id="tabs">
-  <button data-t="resumen" class="on">Resumen</button><button data-t="rent">Rentabilidad</button><button data-t="recetas">Recetas</button>
-  <button data-t="compras">Compras</button><button data-t="caja">Caja</button><button data-t="costos">Costos</button><button data-t="opex">OPEX</button>
-</div>
+<div class="shell">
+
+ <!-- ===== Sidebar de navegación ===== -->
+ <aside class="side">
+  <div class="sidebrand"><h1 id="brand" style="display:flex;align-items:center">🍺 ANTIMO</h1></div>
+  <div class="navlabel">Panel</div>
+  <nav class="tabs" id="tabs" aria-label="Secciones">
+   <button data-t="resumen" class="on"><span class="ic">📊</span>Resumen</button>
+   <button data-t="rent"><span class="ic">💹</span>Rentabilidad</button>
+   <button data-t="recetas"><span class="ic">📖</span>Recetas</button>
+   <button data-t="compras"><span class="ic">🛒</span>Compras</button>
+   <button data-t="caja"><span class="ic">💵</span>Caja</button>
+   <button data-t="costos"><span class="ic">💲</span>Costos</button>
+   <button data-t="opex"><span class="ic">🏦</span>OPEX</button>
+  </nav>
+  <div class="sidefoot">Panel de gestión<br>ANTIMO</div>
+ </aside>
+
+ <!-- ===== Columna principal ===== -->
+ <div class="main">
+
+  <header class="topbar">
+   <span class="ttl">Panel de gestión</span>
+   <span class="badge" id="hasta"></span>
+   <span class="badge hidden" id="appbadge" style="border-color:var(--pos);color:var(--pos)">✏️ Modo edición</span>
+   <span class="grow"></span>
+   <button class="btn" id="pullbtn">🔄 Traer ventas</button>
+   <div class="um" id="um">
+    <button class="btn" id="userbtn" aria-haspopup="true" aria-expanded="false"><span id="userbadge">👤</span><span class="caret">▾</span></button>
+    <div class="umpop hidden" id="umpop" role="menu">
+     <button class="umitem hidden" id="cfgbtn" role="menuitem">⚙️ Bistrosoft</button>
+     <button class="umitem" id="print" role="menuitem">🖨️ Imprimir / PDF</button>
+     <button class="umitem" id="actbtn" role="menuitem">📋 Actividad</button>
+     <div class="umsep"></div>
+     <button class="umitem" id="logoutbtn" role="menuitem">🚪 Salir</button>
+    </div>
+   </div>
+  </header>
+
+  <div class="content">
+
 <div class="bar">
   <div class="ctl"><label>Desde</label><input type="date" id="fDesde"></div>
   <div class="ctl"><label>Hasta</label><input type="date" id="fHasta"></div>
   <div class="ctl"><label>Rango rápido</label><div class="prs" id="prs"></div></div>
   <div class="ctl"><label>Categoría / grupo</label><select id="fCat"></select></div>
-  <div class="ctl" style="flex:1;min-width:150px"><label>Buscar producto</label><input type="search" id="fSearch" placeholder="ej: fernet"></div>
+  <div class="ctl" style="flex:1;min-width:180px"><label>Buscar producto</label><input type="search" id="fSearch" placeholder="ej: fernet" style="width:100%"></div>
   <div class="ctl"><label>&nbsp;</label><button class="btn" id="cmp">⇄ Comparar</button></div>
   <div class="ctl hidden" id="exsWrap"><label>&nbsp;</label><button class="btn" id="exs" title="Saca de la tabla, la matriz BCG y las alertas los productos que marcaste con precio sospechoso. Los KPIs y el P&amp;L siguen incluyendo todo.">⚠️ Sin sospechosos</button></div>
   <div class="ctl"><label>&nbsp;</label><button class="btn" id="reset">↺ Limpiar</button></div>
 </div>
-<div class="bar hidden" id="barB" style="background:#191f28">
-  <span class="mut" style="font-size:12px">Comparar con:</span>
+<div class="bar hidden" id="barB" style="background:#191f28;margin-top:10px">
+  <span class="mut" style="font-size:12px;align-self:center">Comparar con:</span>
   <div class="ctl"><label>Desde B</label><input type="date" id="fDesdeB"></div>
   <div class="ctl"><label>Hasta B</label><input type="date" id="fHastaB"></div>
 </div>
@@ -139,25 +307,25 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
     <div class="card"><div class="h3">Rentabilidad por producto <span class="mut" style="font-weight:400">— clic en un producto para ver el desglose</span></div><div class="scroll"><table id="tRent"></table></div>
       <div class="legend" id="mgLeg"></div></div>
     <div><div class="card"><div class="h3">Matriz de menú (BCG) <span class="mut" data-tip="X=cuánto se vende, Y=margen. Estrella=vende y deja mucho; Vaca=vende mucho, margen flojo; Interrogante=poco pero rinde; Perro=poco y flojo.">ⓘ</span></div><div id="bcg" style="position:relative"></div><div class="quad2" id="quad"></div></div>
-      <div class="card"><div class="h3">Por categoría</div><div class="scroll" style="max-height:230px"><table id="tCat"></table></div></div></div>
+      <div class="card"><div class="h3">Por categoría</div><div class="scroll" style="max-height:280px"><table id="tCat"></table></div></div></div>
   </div>
 </div>
 
 <div id="tab-recetas" class="tab-pane hidden">
   <div class="card">
    <div class="h3">📖 Recetas y costos
-     <span class="seg" id="rGrupo" style="margin-left:8px"><button class="btn on" data-g="todos" style="border-radius:8px 0 0 8px">Todos</button><button class="btn" data-g="BEBIDA">🍹 Bebidas</button><button class="btn" data-g="COMIDA" style="border-radius:0 8px 8px 0">🍔 Comida</button></span>
+     <span class="seg" id="rGrupo" style="margin-left:8px;display:inline-flex"><button class="btn on" data-g="todos" style="border-radius:9px 0 0 9px">Todos</button><button class="btn" data-g="BEBIDA" style="border-radius:0">🍹 Bebidas</button><button class="btn" data-g="COMIDA" style="border-radius:0 9px 9px 0">🍔 Comida</button></span>
      <select id="rCat"></select>
      <select id="rTipo"><option value="all">Todos los tipos</option><option value="receta">Receta</option><option value="promo_2x1">Promo 2x1</option><option value="combo">Combo</option><option value="pour">Pour (vaso)</option><option value="botella">Botella</option><option value="directo">Directo</option><option value="nd">Sin datos</option></select>
      <button class="btn hidden" id="newRec" style="margin-left:auto">➕ Nuevo producto</button><input type="search" id="rSearch" placeholder="buscar producto" style="margin-left:8px">
    </div>
-   <div class="legend" id="recetashint" style="margin-bottom:6px"></div>
+   <div class="legend" id="recetashint" style="margin-bottom:8px;margin-top:0"></div>
    <div class="scroll"><table id="tRecetas"></table></div>
   </div>
 </div>
 <div id="tab-compras" class="tab-pane hidden">
   <div class="card"><div class="h3">🛒 Compras
-    <span class="seg" style="margin-left:6px"><button class="btn on" id="mReal" style="border-radius:8px 0 0 8px">Consumo del período</button><button class="btn" id="mRepo" style="border-radius:0 8px 8px 0">Reposición Mié→Dom</button></span>
+    <span class="seg" style="margin-left:6px;display:inline-flex"><button class="btn on" id="mReal" style="border-radius:9px 0 0 9px">Consumo del período</button><button class="btn" id="mRepo" style="border-radius:0 9px 9px 0">Reposición Mié→Dom</button></span>
     <span class="mut" id="comprahint" style="font-weight:400"></span>
     <button class="btn" id="expPar" style="margin-left:auto">⬇ Exportar a Excel</button></div>
     <div class="scroll"><table id="tPar"></table></div>
@@ -166,8 +334,10 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 </div>
 
 <div id="tab-caja" class="tab-pane hidden">
-  <div class="card"><div class="h3">💵 Control de caja <input type="date" id="fCaja" style="margin-left:6px"></div><div id="caja"></div></div>
-  <div class="card"><div class="h3">❓ Sin datos (N/D)</div><div class="scroll" style="max-height:240px"><table id="tND"></table></div></div>
+  <div class="cols">
+   <div class="card"><div class="h3">💵 Control de caja <input type="date" id="fCaja" style="margin-left:6px"></div><div id="caja"></div></div>
+   <div class="card"><div class="h3">❓ Sin datos (N/D)</div><div class="scroll" style="max-height:320px"><table id="tND"></table></div></div>
+  </div>
 </div>
 
 <div id="tab-costos" class="tab-pane hidden">
@@ -181,13 +351,13 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 <div id="tab-opex" class="tab-pane hidden">
   <div class="cols">
     <div class="card"><div class="h3">🏦 Costos fijos (OPEX) — <span id="opextot"></span>/mes<button class="btn hidden" id="opAdd" style="margin-left:auto">➕ Agregar concepto</button></div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:8px">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px">
         <label class="ml">Vigencia</label><select id="opVigF"></select>
         <button class="btn hidden" id="opVigAdd" title="Crear una vigencia nueva copiando los rubros de la actual. Los períodos anteriores siguen usando el OPEX viejo.">➕ Nueva vigencia</button>
         <button class="btn hidden" id="opVigDel" title="Borrar esta vigencia">🗑</button>
         <span class="mut" id="opvighint" style="font-size:12px"></span>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="ml">Categoría</label><select id="opCatF"></select><input type="search" id="opSearchF" placeholder="buscar concepto"><span class="mut" id="opexfhint" style="font-size:12px"></span></div><div id="opexbar" class="hidden" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;padding:9px 12px;border-radius:9px;background:rgba(232,131,74,.10);border:1px solid var(--accent)"><span style="color:var(--accent);font-weight:600;font-size:13px">✏️ Tenés cambios sin guardar</span><span class="mut" id="opexbarhint" style="font-size:12px"></span><button class="btn on" id="opexSave" style="margin-left:auto">Guardar cambios</button><button class="btn" id="opexUndo">Descartar</button></div><div class="scroll"><table id="tOpex"></table></div></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"><label class="ml">Categoría</label><select id="opCatF"></select><input type="search" id="opSearchF" placeholder="buscar concepto"><span class="mut" id="opexfhint" style="font-size:12px"></span></div><div id="opexbar" class="hidden" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:10px 14px;border-radius:11px;background:rgba(232,131,74,.10);border:1px solid var(--accent)"><span style="color:var(--accent);font-weight:600;font-size:13px">✏️ Tenés cambios sin guardar</span><span class="mut" id="opexbarhint" style="font-size:12px"></span><button class="btn on" id="opexSave" style="margin-left:auto">Guardar cambios</button><button class="btn" id="opexUndo">Descartar</button></div><div class="scroll"><table id="tOpex"></table></div></div>
     <div><div class="card"><div class="h3">Composición</div><div id="opexchart"></div></div>
       <div class="card"><div class="h3">Peso del OPEX</div><div id="opexpeso"></div></div></div>
   </div>
@@ -195,6 +365,10 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 
 <div id="modalHost"></div>
 <div class="foot" id="foot"></div>
+
+  </div><!-- /.content -->
+ </div><!-- /.main -->
+</div><!-- /.shell -->
 
 <script>
 let DATA={};
