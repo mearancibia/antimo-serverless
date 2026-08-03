@@ -144,6 +144,12 @@ body.dockoff #filterdock{max-height:0;opacity:0}
 /* El espacio recuperado va a las tablas, no a un hueco en blanco. */
 .scroll{transition:max-height .16s cubic-bezier(.4,0,.2,1)}
 body.dockoff .scroll{max-height:calc(62vh + 150px)}
+/* Tabla secundaria de columna ("Por categoría"): caja propia mas chica que la principal,
+   pero gana los mismos 150px al colapsar el dock. Estaba con max-height inline, que le
+   ganaba a la regla de arriba. Con 12 categorias se veian 9; con 430px entran las 12.
+   #tND (Caja) queda con su inline a proposito: son 5 filas, ~180px, nunca llega al tope. */
+.scroll.scrollsec{max-height:280px}
+body.dockoff .scroll.scrollsec{max-height:430px}
 /* Que el navegador no compense el colapso reajustando el scroll. */
 html{overflow-anchor:none}
 @media(prefers-reduced-motion:reduce){#filterdock,.scroll{transition:none}}
@@ -394,7 +400,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
     <div class="card"><div class="h3">Rentabilidad por producto <span class="mut" style="font-weight:400">— clic en un producto para ver el desglose</span></div><div class="scroll"><table id="tRent"></table></div>
       <div class="legend" id="mgLeg"></div></div>
     <div><div class="card"><div class="h3">Matriz de menú (BCG) <span class="mut" data-tip="X=cuánto se vende, Y=margen. Estrella=vende y deja mucho; Vaca=vende mucho, margen flojo; Interrogante=poco pero rinde; Perro=poco y flojo.">ⓘ</span></div><div id="bcg" style="position:relative"></div><div class="quad2" id="quad"></div></div>
-      <div class="card"><div class="h3">Por categoría</div><div class="scroll" style="max-height:280px"><table id="tCat"></table></div></div></div>
+      <div class="card"><div class="h3">Por categoría</div><div class="scroll scrollsec"><table id="tCat"></table></div></div></div>
   </div>
 </div>
 
