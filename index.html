@@ -11,7 +11,14 @@
  --sh3:0 12px 40px rgba(0,0,0,.45);
  --sw:252px;--hh:60px;
  --pad:26px;
+ /* Sangrado unico del sidebar: lo comparten la marca, el rotulo y los items del menu,
+    para que el logo y el texto del menu arranquen en la misma columna. */
+ --navpad:12px;
+ /* Alto del banner de entorno dev (lo inserta bannerDev()). 0 si no existe: los sticky
+    de sidebar y topbar se corren solos cuando aparece, sin tocar el JS. */
+ --banner-h:0px;
 }
+body:has(#devbanner){--banner-h:35px}
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
 body{
@@ -30,24 +37,24 @@ body{
 
 /* --- Sidebar --- */
 .side{
- grid-column:1;position:sticky;top:0;align-self:start;height:100vh;
+ grid-column:1;position:sticky;top:var(--banner-h);align-self:start;height:calc(100vh - var(--banner-h));
  background:linear-gradient(180deg,var(--side),var(--side2));
  border-right:1px solid var(--line);display:flex;flex-direction:column;
  padding:18px 14px;gap:18px;overflow-y:auto;z-index:30;
 }
-.sidebrand{display:flex;align-items:center;padding:2px 6px 0}
+.sidebrand{display:flex;align-items:center;padding:2px var(--navpad) 0}
 h1#brand{font-size:20px;display:flex;align-items:center}
 .brandbtn{background:none;border:0;padding:0;margin:0;cursor:pointer;display:flex;align-items:center;border-radius:8px;opacity:.95;transition:opacity .12s,transform .12s}
 .brandbtn:hover{opacity:1;transform:translateY(-1px)}
 .brandbtn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent)}
 .brandbtn img{height:38px!important}
-.navlabel{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#6d7d8f;padding:0 10px;font-weight:700}
+.navlabel{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#6d7d8f;padding:0 var(--navpad);font-weight:700}
 
 .tabs{display:flex;flex-direction:column;gap:3px;margin:0}
 .tabs button{
  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
  background:none;border:0;color:#a6b3c2;font:inherit;font-size:14px;font-weight:500;
- padding:10px 12px;border-radius:9px;cursor:pointer;position:relative;
+ padding:10px var(--navpad);border-radius:9px;cursor:pointer;position:relative;
  transition:background .13s,color .13s;
 }
 .tabs button::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);
@@ -58,12 +65,12 @@ h1#brand{font-size:20px;display:flex;align-items:center}
 .tabs button.on::before{height:22px}
 .tabs button .ic{width:19px;text-align:center;font-size:15px;opacity:.95;flex:none}
 
-.sidefoot{margin-top:auto;padding:12px 10px 2px;border-top:1px solid var(--line);color:#66768a;font-size:11px;line-height:1.5}
+.sidefoot{margin-top:auto;padding:12px var(--navpad) 2px;border-top:1px solid var(--line);color:#66768a;font-size:11px;line-height:1.5}
 
 /* --- Columna principal --- */
 .main{grid-column:2;min-width:0;display:flex;flex-direction:column}
 .topbar{
- position:sticky;top:0;z-index:25;min-height:var(--hh);
+ position:sticky;top:var(--banner-h);z-index:25;min-height:var(--hh);
  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
  padding:11px var(--pad);background:rgba(15,20,25,.86);
  backdrop-filter:saturate(160%) blur(10px);-webkit-backdrop-filter:saturate(160%) blur(10px);
@@ -89,6 +96,16 @@ h1#brand{font-size:20px;display:flex;align-items:center}
 
 .bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;margin-top:4px;box-shadow:var(--sh1)}
 .ctl{display:flex;flex-direction:column;gap:3px}
+/* Alturas parejas dentro de la barra de filtros: sin esto los .btn de los presets son mas
+   bajos que los input/select y las etiquetas en mayuscula quedan escalonadas. */
+.bar select,.bar input[type=date],.bar input[type=search]{height:36px}
+.bar .btn{min-height:36px}
+.bar .prs{min-height:36px;align-items:center}
+/* El buscador cede ancho antes de forzar un corte de linea. */
+.bar .ctl.grow1{flex:1 1 160px;min-width:0}
+/* Los botones de accion viajan juntos: si algo corta, corta el grupo entero y no queda
+   "Limpiar" solo en un segundo renglon. */
+.bar .baract{display:flex;gap:12px;align-items:flex-end;margin-left:auto}
 .ctl label,.ml{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
 select,input[type=search],input[type=date],input[type=number],input[type=text],input[type=password]{
  background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:9px;
@@ -98,6 +115,7 @@ input[type=search]{min-width:170px}
 input[type=date]{color-scheme:dark}
 
 .chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.chips:empty{margin-top:0}
 .chip{background:#2a2016;border:1px solid var(--accent);color:#f0d9c4;border-radius:20px;padding:4px 11px;font-size:11.5px;cursor:pointer;transition:background .12s}
 .chip:hover{background:#332618}.chip b{color:#fff}
 .chip.nuevas{background:#16281f;border-color:var(--pos);color:#bfe3d2;font-weight:600;padding:5px 13px;font-size:12px}
@@ -128,6 +146,12 @@ input[type=date]{color-scheme:dark}
 
 .cols{display:grid;grid-template-columns:1.35fr minmax(0,1fr);gap:16px;align-items:start}
 .cols>*{min-width:0}
+/* Rentabilidad: la tabla necesita mas aire (con 1.35fr se cortaba la columna "Mg total"),
+   y a la matriz BCG le sobraba alto. El minmax de la derecha evita que la matriz se aplaste. */
+#tab-rent .cols{grid-template-columns:minmax(0,1.9fr) minmax(340px,1fr)}
+/* Donde cada columna tiene UNA sola tarjeta, que queden del mismo alto. No se aplica a
+   #tab-rent ni #tab-opex: ahi la columna derecha son dos tarjetas apiladas dentro de un div. */
+#tab-resumen .cols{align-items:stretch}
 
 /* --- Tablas panorámicas --- */
 table{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -145,6 +169,10 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .ubar{display:inline-block;height:7px;background:var(--int);border-radius:3px;vertical-align:middle;margin-left:6px;opacity:.7}
 .clik{cursor:pointer}.clik:hover td{background:#20303f}
 .grpsub{background:var(--card2);font-weight:700;font-size:11.5px}
+/* N/D: "Qué falta" y "Dónde cargarlo" son texto largo. A ancho completo entran en una linea;
+   en pantallas mas chicas prefiero que envuelvan antes que aparezca scroll horizontal.
+   Las celdas numericas (.n) siguen nowrap para no partir un importe. */
+#tND td:not(.n){white-space:normal}
 
 .quad2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
 .q{border-radius:12px;padding:11px 13px;background:var(--card2);border:1px solid var(--line)}
@@ -191,7 +219,10 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 /* --- Gráficos SVG a todo el ancho disponible --- */
 #pnl,#beq,#trend,#bcg,#opexchart,#opexpeso,#caja{width:100%}
 #trend>div{width:100%}
-#trend svg{width:100%!important;height:auto;max-width:none!important;display:block}
+/* El SVG conserva su ancho natural (renderTrend() calcula W y le pone overflow-x:auto al
+   contenedor). Forzarlo a width:100% lo escalaba a 0.686 y las etiquetas de dia, dibujadas
+   a font-size 9.5, terminaban en ~6.5px reales: ilegibles. */
+#trend svg{max-width:none;height:auto;display:block}
 #bcg svg{width:100%!important;max-width:none!important;height:auto;display:block}
 #bcgTip{position:absolute;pointer-events:none;background:#0e141a;border:1px solid var(--line2);
  border-radius:8px;padding:6px 9px;font-size:11.5px;line-height:1.35;white-space:nowrap;z-index:20;
@@ -199,7 +230,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 #bcg circle{cursor:pointer}
 
 /* ============ RESPONSIVE ============ */
-@media(max-width:1180px){.cols{grid-template-columns:1fr}}
+@media(max-width:1180px){.cols,#tab-rent .cols{grid-template-columns:1fr}}
 @media(max-width:1024px){
  :root{--pad:18px}
  .shell{grid-template-columns:1fr}
@@ -252,7 +283,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
  <div class="main">
 
   <header class="topbar">
-   <span class="ttl">Panel de gestión</span>
+   <!-- "Panel de gestión" vive en el pie del sidebar; aca competia con los badges. -->
    <span class="badge" id="hasta"></span>
    <span class="badge hidden" id="appbadge" style="border-color:var(--pos);color:var(--pos)">✏️ Modo edición</span>
    <span class="grow"></span>
@@ -276,10 +307,12 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   <div class="ctl"><label>Hasta</label><input type="date" id="fHasta"></div>
   <div class="ctl"><label>Rango rápido</label><div class="prs" id="prs"></div></div>
   <div class="ctl"><label>Categoría / grupo</label><select id="fCat"></select></div>
-  <div class="ctl" style="flex:1;min-width:180px"><label>Buscar producto</label><input type="search" id="fSearch" placeholder="ej: fernet" style="width:100%"></div>
-  <div class="ctl"><label>&nbsp;</label><button class="btn" id="cmp">⇄ Comparar</button></div>
-  <div class="ctl hidden" id="exsWrap"><label>&nbsp;</label><button class="btn" id="exs" title="Saca de la tabla, la matriz BCG y las alertas los productos que marcaste con precio sospechoso. Los KPIs y el P&amp;L siguen incluyendo todo.">⚠️ Sin sospechosos</button></div>
-  <div class="ctl"><label>&nbsp;</label><button class="btn" id="reset">↺ Limpiar</button></div>
+  <div class="ctl grow1"><label>Buscar producto</label><input type="search" id="fSearch" placeholder="ej: fernet" style="width:100%"></div>
+  <div class="baract">
+    <div class="ctl"><label>&nbsp;</label><button class="btn" id="cmp">⇄ Comparar</button></div>
+    <div class="ctl hidden" id="exsWrap"><label>&nbsp;</label><button class="btn" id="exs" title="Saca de la tabla, la matriz BCG y las alertas los productos que marcaste con precio sospechoso. Los KPIs y el P&amp;L siguen incluyendo todo.">⚠️ Sin sospechosos</button></div>
+    <div class="ctl"><label>&nbsp;</label><button class="btn" id="reset">↺ Limpiar</button></div>
+  </div>
 </div>
 <div class="bar hidden" id="barB" style="background:#191f28;margin-top:10px">
   <span class="mut" style="font-size:12px;align-self:center">Comparar con:</span>
@@ -334,10 +367,10 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 </div>
 
 <div id="tab-caja" class="tab-pane hidden">
-  <div class="cols">
-   <div class="card"><div class="h3">💵 Control de caja <input type="date" id="fCaja" style="margin-left:6px"></div><div id="caja"></div></div>
-   <div class="card"><div class="h3">❓ Sin datos (N/D)</div><div class="scroll" style="max-height:320px"><table id="tND"></table></div></div>
-  </div>
+  <!-- Apiladas a ancho completo, NO en .cols: la tabla N/D tiene columnas nowrap y en media
+       columna se cortaba al 39%, con scroll horizontal dentro de una tarjeta angosta. -->
+  <div class="card"><div class="h3">💵 Control de caja <input type="date" id="fCaja" style="margin-left:6px"></div><div id="caja"></div></div>
+  <div class="card"><div class="h3">❓ Sin datos (N/D)</div><div class="scroll" style="max-height:320px"><table id="tND"></table></div></div>
 </div>
 
 <div id="tab-costos" class="tab-pane hidden">
