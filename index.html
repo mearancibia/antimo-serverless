@@ -253,6 +253,11 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .wf .barwrap{flex:1;background:#0e141a;border-radius:6px;height:24px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.03)}
 .wf .fill{height:100%;border-radius:6px}
 .wf .amt{width:110px;text-align:right;font-variant-numeric:tabular-nums;flex:none}
+/* Filas clickeables de la cascada. `.clik` a secas no sirve: apunta a los <td> de las tablas. */
+.wf .row.clik{cursor:pointer;border-radius:8px;padding:2px 6px;margin:0 -6px;transition:background .12s}
+.wf .row.clik:hover,.wf .row.clik:focus-visible{background:var(--card2);outline:none}
+.wf .row.clik:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+.wf .row.clik:hover .lab{color:var(--ink)}
 
 /* --- Gráficos SVG a todo el ancho disponible --- */
 #pnl,#beq,#trend,#bcg,#opexchart,#opexpeso,#caja{width:100%}
@@ -900,8 +905,107 @@ function renderPnl(){
    +`</table><div class="legend" style="margin-top:6px">Dif = cuánto cambió A respecto de B. Las barras están a la misma escala para poder compararlas visualmente.</div>`+notaProrr;
   return;
  }
- const max=Math.max(t.ventas,1);const bar=(lab,val,col)=>`<div class="row"><div class="lab">${lab}</div><div class="barwrap"><div class="fill" style="width:${Math.max(0,Math.min(100,Math.abs(val)/max*100)).toFixed(0)}%;background:${col}"></div></div><div class="amt">${fM(val)}</div></div>`;
- host.innerHTML='<div class="wf">'+PNL_LINEAS.map(([lab,k,col])=>bar(lab,t[k],col||(t[k]>=0?'#4a9d7f':'#c85a54'))).join('')+'</div>'+notaProrr;
+ const max=Math.max(t.ventas,1);const bar=(lab,k,val,col)=>`<div class="row clik" data-k="${k}" role="button" tabindex="0" title="Ver de qué está hecho"><div class="lab">${lab}</div><div class="barwrap"><div class="fill" style="width:${Math.max(0,Math.min(100,Math.abs(val)/max*100)).toFixed(0)}%;background:${col}"></div></div><div class="amt">${fM(val)}</div></div>`;
+ host.innerHTML='<div class="wf">'+PNL_LINEAS.map(([lab,k,col])=>bar(lab,k,t[k],col||(t[k]>=0?'#4a9d7f':'#c85a54'))).join('')
+  +'</div><div class="legend" style="margin-top:8px">Clic en cualquier línea para ver de qué está hecha.</div>'+notaProrr;
+ host.querySelectorAll('.wf .row[data-k]').forEach(r=>{
+  const ir=()=>pnlDetalle(r.dataset.k);
+  r.onclick=ir; r.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();ir();}};});
+}
+
+// ---------- DE QUÉ ESTÁ HECHA CADA LÍNEA DEL P&L ----------
+// Regla que ordena todo esto: el detalle se arma con los MISMOS datos que la barra, no por un
+// camino paralelo. Si el detalle no suma el total, es que uno de los dos está mal — por eso el
+// pie del modal compara ambas cifras y avisa si no coinciden, en vez de disimularlo.
+let _pnlVista={};
+function pnlFilas(k,vista){
+ const ds=rangeDias(st.desde,st.hasta);
+ const v=prodView(ds).filter(x=>!x.nd).filter(passF);
+ const agrup=(arr,nom,val)=>{const m={};arr.forEach(x=>{const g=nom(x);m[g]=(m[g]||0)+(val(x)||0);});
+  return Object.entries(m).map(([n,val])=>({n,v:val})).filter(r=>r.v)
+   .sort((a,b)=>Math.abs(b.v)-Math.abs(a.v));};
+ if(k==='ventas') return agrup(v,x=>vista==='prod'?x.pos:x.cat,x=>x.monto);
+ if(k==='mb')     return agrup(v.filter(x=>x.mgtot!=null),x=>vista==='prod'?x.pos:x.cat,x=>x.mgtot);
+ if(k==='cogs'){
+  if(vista==='prod') return agrup(v.filter(x=>x.costo!=null),x=>x.pos,x=>x.costo*x.u);
+  // Por insumo: se reusa consumo_dia (que ya respeta el filtro de categoría) valorizado al cxu.
+  // Verificado contra las 50 noches del histórico: da lo mismo que ventas − margen al 0,000%.
+  const CD=consumoDia(),tot={};
+  ds.forEach(d=>{const cd=CD[DK(d)]||{};for(const i in cd)tot[i]=(tot[i]||0)+cd[i];});
+  return Object.entries(tot).map(([i,q])=>({n:i,v:q*((DATA.insumos[i]||{}).cxu||0)}))
+   .filter(r=>r.v>0).sort((a,b)=>b.v-a.v);
+ }
+ if(k==='opex'){
+  // Día por día, para que un rango que cruza un cambio de vigencia sume los rubros de cada una
+  // (mismo recorrido que opexRango, que es quien calcula la barra). El /30 es el prorrateo de
+  // mensual a diario; el share, el prorrateo por filtro de categoría.
+  const sh=totals(st.desde,st.hasta).share,ac={};
+  eachDay(ISO[st.desde],ISO[st.hasta],iso=>{const p=opexPeriodo(iso);if(!p)return;
+   (p.opex_detalle||[]).forEach(r=>{const n=vista==='item'?(r.item||'(sin nombre)'):(r.cat||'(sin rubro)');
+    ac[n]=(ac[n]||0)+(r.monto||0)/30*sh;});});
+  return Object.entries(ac).map(([n,v])=>({n,v})).filter(r=>r.v>0).sort((a,b)=>b.v-a.v);
+ }
+ return [];
+}
+const PNL_DET={
+ ventas:{tit:'Ventas',vistas:[['cat','Por categoría'],['prod','Por producto']],
+  exp:'Lo facturado en el período, producto por producto, según el ranking del POS. No incluye los productos N/D (sin costear), que sí se ven en Caja.'},
+ cogs:{tit:'Costo de insumos',vistas:[['ins','Por insumo'],['prod','Por producto']],
+  exp:'Lo que costó producir lo que se vendió: cada receta valorizada al precio de sus insumos. <b>No es lo que se compró</b> en el período — para eso está la solapa Compras.'},
+ mb:{tit:'Margen bruto',vistas:[['cat','Por categoría'],['prod','Por producto']],
+  exp:'Ventas menos costo de insumos, producto por producto. Todavía no descuenta el OPEX.'},
+ opex:{tit:'OPEX',vistas:[['cat','Por rubro'],['item','Por ítem']],
+  exp:'Los costos fijos del bar. Se cargan por mes, así que acá se muestran <b>prorrateados</b> a los días del período (monto mensual ÷ 30 × días).'},
+ resop:{tit:'Resultado',vistas:[],exp:''}
+};
+function pnlDetalle(k){
+ const meta=PNL_DET[k];if(!meta)return;
+ const t=totals(st.desde,st.hasta),total=t[k];
+ const dias=calDaysRange(st.desde,st.hasta),noches=rangeDias(st.desde,st.hasta).length;
+ const per=`${ddmmOf(ISO[st.desde])} → ${ddmmOf(ISO[st.hasta])} · ${dias} días (${noches} noches con datos)`;
+ const pintar=()=>{
+  const cuerpo=document.getElementById('pnlBody');if(!cuerpo)return;
+  if(k==='resop'){
+   // El resultado no "se compone" de partes: es lo que queda de la cascada. Mostrar un ranking
+   // acá seria inventar una atribución. Se muestra el camino y cuánto pesa cada paso.
+   cuerpo.innerHTML=`<table style="width:100%">
+    <tr><th>Paso</th><th class="n">Monto</th><th class="n">% de ventas</th><th class="n">Por noche</th></tr>`
+    +PNL_LINEAS.map(([lab,kk])=>`<tr${kk==='resop'?' style="font-weight:700"':''}><td>${lab}</td><td class="n">${f0(t[kk])}</td>
+      <td class="n">${t.ventas?(t[kk]/t.ventas*100).toFixed(1)+'%':'—'}</td>
+      <td class="n">${noches?f0(t[kk]/noches):'—'}</td></tr>`).join('')
+    +`</table><div class="legend" style="margin-top:10px">Es el resultado <b>operativo</b>: no incluye impuestos, retiros de socios ni inversiones. Para ver de qué está hecho cada paso, cerrá y hacé clic en su barra.</div>`;
+   return;
+  }
+  const vista=_pnlVista[k]||meta.vistas[0][0];
+  const filas=pnlFilas(k,vista);
+  const suma=filas.reduce((s,r)=>s+r.v,0);
+  const max=filas.length?Math.max(...filas.map(r=>Math.abs(r.v))):1;
+  const desvio=total?Math.abs(suma-total)/Math.abs(total)*100:0;
+  cuerpo.innerHTML=
+   `<div class="seg" style="margin-bottom:10px">`+meta.vistas.map(([id,lab],i)=>
+     `<button class="btn sm${vista===id?' on':''}" data-v="${id}" style="border-radius:${i===0?'9px 0 0 9px':'0 9px 9px 0'}">${esc(lab)}</button>`).join('')+`</div>
+    <div class="scroll" style="max-height:46vh"><table>
+     <tr><th>${vista==='ins'?'Insumo':vista==='prod'?'Producto':vista==='item'?'Ítem':vista==='cat'&&k==='opex'?'Rubro':'Categoría'}</th>
+      <th class="n">Monto</th><th class="n">%</th><th style="width:34%"></th></tr>`
+   +filas.map(r=>`<tr><td>${esc(r.n)}</td><td class="n">${f0(r.v)}</td>
+      <td class="n">${suma?(r.v/suma*100).toFixed(1)+'%':'—'}</td>
+      <td><div class="barwrap" style="height:10px"><div class="fill" style="width:${(Math.abs(r.v)/max*100).toFixed(0)}%;background:${r.v>=0?'#5a8fd6':'#c85a54'}"></div></div></td></tr>`).join('')
+   +`</table></div>
+    <div class="legend" style="margin-top:10px">${filas.length} ${filas.length===1?'línea':'líneas'} · suman ${f0(suma)}`
+   +(desvio>0.5?` — <span class="neg">no coincide con los ${f0(total)} de la barra (${desvio.toFixed(1)}% de desvío)</span>`:` = el total de la barra ✓`)+`</div>`;
+  cuerpo.querySelectorAll('.seg .btn').forEach(b=>b.onclick=()=>{_pnlVista[k]=b.dataset.v;pintar();});
+ };
+ document.getElementById('modalHost').innerHTML=`<div class="ovl" id="ovl"><div class="modal" style="max-width:680px">
+   <span class="mclose" id="mx">✕</span>
+   <h2>${esc(meta.tit)} · ${f0(total)}</h2>
+   <div class="mut" style="font-size:12.5px;margin-top:2px">${per}</div>
+   ${meta.exp?`<div class="legend" style="margin-top:10px">${meta.exp}</div>`:''}
+   ${(k==='opex'&&t.opexProrrateado)?`<div class="warn">⚠️ Hay un filtro activo: el OPEX es del bar entero y acá se muestra prorrateado al ${(t.share*100).toFixed(1)}% que esta selección representa de las ventas. Es una asignación, no un costo medido de esta categoría.</div>`:''}
+   <div id="pnlBody" style="margin-top:12px"></div></div></div>`;
+ pintar();
+ const close=()=>document.getElementById('modalHost').innerHTML='';
+ document.getElementById('mx').onclick=close;
+ document.getElementById('ovl').onclick=e=>{if(e.target.id==='ovl')close();};
 }
 function renderBeq(){
  const t=totals(st.desde,st.hasta),host=document.getElementById('beq');const dd=calDaysRange(st.desde,st.hasta);
