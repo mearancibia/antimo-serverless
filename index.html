@@ -9,7 +9,10 @@
  --sh1:0 1px 2px rgba(0,0,0,.35);
  --sh2:0 2px 4px rgba(0,0,0,.28),0 8px 24px rgba(0,0,0,.30);
  --sh3:0 12px 40px rgba(0,0,0,.45);
- --sw:252px;--hh:60px;
+ --sw:252px;
+ /* Alto de la topbar: lo usan su propio min-height y el top sticky de #filterdock, para que
+    los dos no se desincronicen. */
+ --topbar-h:60px;
  --pad:26px;
  /* Sangrado unico del sidebar: lo comparten la marca, el rotulo y los items del menu,
     para que el logo y el texto del menu arranquen en la misma columna. */
@@ -70,7 +73,7 @@ h1#brand{font-size:20px;display:flex;align-items:center}
 /* --- Columna principal --- */
 .main{grid-column:2;min-width:0;display:flex;flex-direction:column}
 .topbar{
- position:sticky;top:var(--banner-h);z-index:25;min-height:var(--hh);
+ position:sticky;top:var(--banner-h);z-index:25;min-height:var(--topbar-h);
  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
  padding:11px var(--pad);background:rgba(15,20,25,.86);
  backdrop-filter:saturate(160%) blur(10px);-webkit-backdrop-filter:saturate(160%) blur(10px);
@@ -96,16 +99,31 @@ h1#brand{font-size:20px;display:flex;align-items:center}
 
 .bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;margin-top:4px;box-shadow:var(--sh1)}
 .ctl{display:flex;flex-direction:column;gap:3px}
-/* Alturas parejas dentro de la barra de filtros: sin esto los .btn de los presets son mas
-   bajos que los input/select y las etiquetas en mayuscula quedan escalonadas. */
+/* La barra principal es una grilla con areas explicitas, no flex-wrap: asi el corte de
+   renglon lo decide el CSS y no el ancho sobrante. Con flex faltaban 61px a 1710px de
+   ventana y "Limpiar" se caia solo a un segundo renglon con la fila vacia a su izquierda.
+   El grid va en .barmain y no en .bar porque #barB (la barra de comparacion) comparte la
+   clase y NO tiene estas areas: con la grilla en .bar, sus hijos caian en celdas sueltas. */
+.bar.barmain{
+ display:grid;align-items:end;gap:10px 12px;flex-wrap:nowrap;
+ grid-template-columns:auto auto auto auto minmax(150px,1fr) auto;
+ grid-template-areas:"desde hasta rango cat buscar acts";
+}
+.ctl-desde{grid-area:desde}.ctl-hasta{grid-area:hasta}
+.ctl-rango{grid-area:rango}.ctl-cat{grid-area:cat}
+.ctl-buscar{grid-area:buscar;min-width:0}
+/* El min-width:170px global de input[type=search] es lo que le impedia encogerse. */
+.bar input[type=search]{min-width:0}
+/* Los tres botones viajan juntos en su propio contenedor. Es necesario que sea un
+   contenedor y no tres hermanos sueltos: #exsWrap aparece y desaparece segun el estado, y
+   si fueran hermanos directos la grilla se recalcularia sola cada vez que el JS lo togglea. */
+.baracts{grid-area:acts;display:flex;align-items:end;gap:8px;justify-self:end}
+/* Alturas parejas: sin esto los .btn de los presets son mas bajos que los input/select y
+   las etiquetas en mayuscula quedan escalonadas (tops medidos: 130, 131 y 137). */
 .bar select,.bar input[type=date],.bar input[type=search]{height:36px}
 .bar .btn{min-height:36px}
-.bar .prs{min-height:36px;align-items:center}
-/* El buscador cede ancho antes de forzar un corte de linea. */
-.bar .ctl.grow1{flex:1 1 160px;min-width:0}
-/* Los botones de accion viajan juntos: si algo corta, corta el grupo entero y no queda
-   "Limpiar" solo en un segundo renglon. */
-.bar .baract{display:flex;gap:12px;align-items:flex-end;margin-left:auto}
+.prs{gap:4px;flex-wrap:nowrap;min-height:36px;align-items:center}
+.prs .btn{padding:7px 10px;min-height:36px;white-space:nowrap}
 .ctl label,.ml{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
 select,input[type=search],input[type=date],input[type=number],input[type=text],input[type=password]{
  background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:9px;
@@ -114,6 +132,25 @@ select:focus,input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 
 input[type=search]{min-width:170px}
 input[type=date]{color-scheme:dark}
 
+/* Dock de filtros: se ancla bajo la topbar y se va con transform, no colapsando el alto.
+   Colapsar (max-height:0) empujaria todo el contenido hacia arriba en pleno scroll y se ve
+   como un salto; anclada, la barra flota sobre el contenido y desplazarla no mueve nada.
+   z-index 20 (no 30): tiene que pasar POR DEBAJO de la topbar (25) al esconderse, si no se
+   la ve montada encima durante la transicion. */
+#filterdock{
+ position:sticky;top:calc(var(--banner-h) + var(--topbar-h));z-index:20;
+ background:var(--bg);padding-bottom:4px;
+ transition:transform .22s cubic-bezier(.4,0,.2,1),opacity .16s linear;
+ will-change:transform;
+}
+/* pointer-events:none es imprescindible: sin eso la barra invisible sigue comiendo clics. */
+#filterdock.off{
+ transform:translateY(calc(-100% - var(--topbar-h) - var(--banner-h)));
+ opacity:0;pointer-events:none;
+}
+@media(prefers-reduced-motion:reduce){#filterdock{transition:none}}
+/* #chips queda AFUERA del dock a proposito: es la unica senal de que hay filtros activos.
+   Si se escondiera con la barra, se verian datos filtrados sin ningun indicio de filtro. */
 .chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
 .chips:empty{margin-top:0}
 .chip{background:#2a2016;border:1px solid var(--accent);color:#f0d9c4;border-radius:20px;padding:4px 11px;font-size:11.5px;cursor:pointer;transition:background .12s}
@@ -230,6 +267,21 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 #bcg circle{cursor:pointer}
 
 /* ============ RESPONSIVE ============ */
+/* Monitores angostos: baja el bloque de presets junto con Categoria, en un renglon
+   deliberado y completo. Nunca un boton huerfano.
+   El corte va en 1780px, no en 1600: medido, la fila unica necesita 1366px de contenido
+   (Desde 138 + Hasta 138 + presets 516 + Categoria 236 + Buscar en su piso de 150 +
+   acciones 188) + 60 de gaps + 34 de padding/borde = 1460, y con el sidebar (252) y el
+   padding de .content (52) eso da 1764px de ventana. Entre 1600 y 1764 la fila unica se
+   desbordaba: el ancho sobrante se lo comia el bloque de presets. */
+@media(max-width:1780px){
+ .bar.barmain{
+  grid-template-columns:auto auto minmax(150px,1fr) auto;
+  grid-template-areas:
+   "desde hasta buscar acts"
+   "rango rango cat    cat";
+ }
+}
 @media(max-width:1180px){.cols,#tab-rent .cols{grid-template-columns:1fr}}
 @media(max-width:1024px){
  :root{--pad:18px}
@@ -255,6 +307,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 
 @media print{
  .side,.topbar,.bar,.chips,.btn{display:none!important}
+ #filterdock{position:static;transform:none;opacity:1}
  .tab-pane{display:block!important}
  .shell{grid-template-columns:1fr}
  body{background:#fff;color:#000}
@@ -302,13 +355,14 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 
   <div class="content">
 
-<div class="bar">
-  <div class="ctl"><label>Desde</label><input type="date" id="fDesde"></div>
-  <div class="ctl"><label>Hasta</label><input type="date" id="fHasta"></div>
-  <div class="ctl"><label>Rango rápido</label><div class="prs" id="prs"></div></div>
-  <div class="ctl"><label>Categoría / grupo</label><select id="fCat"></select></div>
-  <div class="ctl grow1"><label>Buscar producto</label><input type="search" id="fSearch" placeholder="ej: fernet" style="width:100%"></div>
-  <div class="baract">
+<div id="filterdock">
+<div class="bar barmain">
+  <div class="ctl ctl-desde"><label>Desde</label><input type="date" id="fDesde"></div>
+  <div class="ctl ctl-hasta"><label>Hasta</label><input type="date" id="fHasta"></div>
+  <div class="ctl ctl-rango"><label>Rango rápido</label><div class="prs" id="prs"></div></div>
+  <div class="ctl ctl-cat"><label>Categoría / grupo</label><select id="fCat"></select></div>
+  <div class="ctl ctl-buscar"><label>Buscar producto</label><input type="search" id="fSearch" placeholder="ej: fernet" style="width:100%"></div>
+  <div class="baracts">
     <div class="ctl"><label>&nbsp;</label><button class="btn" id="cmp">⇄ Comparar</button></div>
     <div class="ctl hidden" id="exsWrap"><label>&nbsp;</label><button class="btn" id="exs" title="Saca de la tabla, la matriz BCG y las alertas los productos que marcaste con precio sospechoso. Los KPIs y el P&amp;L siguen incluyendo todo.">⚠️ Sin sospechosos</button></div>
     <div class="ctl"><label>&nbsp;</label><button class="btn" id="reset">↺ Limpiar</button></div>
@@ -318,6 +372,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   <span class="mut" style="font-size:12px;align-self:center">Comparar con:</span>
   <div class="ctl"><label>Desde B</label><input type="date" id="fDesdeB"></div>
   <div class="ctl"><label>Hasta B</label><input type="date" id="fHastaB"></div>
+</div>
 </div>
 <div class="chips" id="chips"></div>
 
@@ -1897,4 +1952,25 @@ fetch('/api/me').then(r=>r.json()).then(j=>{
  if(j.env==='dev')bannerDev();
 }).catch(()=>{}).then(cargarDatos);
 if(_hayDatos()){if(st.preset&&!aplicarPreset(st.preset))st.preset=null;rerender();}
+
+// Auto-ocultar la barra de filtros. Solo agrega/saca una clase: no toca el estado.
+(function(){
+ var dock=document.getElementById('filterdock');
+ if(!dock)return;
+ var last=window.scrollY,pend=false,UMBRAL=6,PISO=120;
+ function upd(){
+  pend=false;
+  var y=window.scrollY;
+  // Si el usuario esta tipeando o eligiendo una fecha, no la escondas.
+  if(dock.contains(document.activeElement)){last=y;return;}
+  if(y<PISO)             dock.classList.remove('off');
+  else if(y-last>UMBRAL) dock.classList.add('off');
+  else if(last-y>UMBRAL) dock.classList.remove('off');
+  last=y;
+ }
+ addEventListener('scroll',function(){
+  if(!pend){pend=true;requestAnimationFrame(upd);}
+ },{passive:true});
+ dock.addEventListener('focusin',function(){dock.classList.remove('off');});
+})();
 </script></body></html>
