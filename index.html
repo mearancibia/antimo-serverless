@@ -10,15 +10,12 @@
  --sh2:0 2px 4px rgba(0,0,0,.28),0 8px 24px rgba(0,0,0,.30);
  --sh3:0 12px 40px rgba(0,0,0,.45);
  --sw:252px;
- /* Alto de la topbar: lo usan su propio min-height y el top sticky de #filterdock, para que
-    los dos no se desincronicen. */
- --topbar-h:60px;
  --pad:26px;
  /* Sangrado unico del sidebar: lo comparten la marca, el rotulo y los items del menu,
     para que el logo y el texto del menu arranquen en la misma columna. */
  --navpad:12px;
  /* Alto del banner de entorno dev (lo inserta bannerDev()). 0 si no existe: los sticky
-    de sidebar y topbar se corren solos cuando aparece, sin tocar el JS. */
+    del sidebar se corre solo cuando aparece, sin tocar el JS. */
  --banner-h:0px;
 }
 body:has(#devbanner){--banner-h:35px}
@@ -68,20 +65,18 @@ h1#brand{font-size:20px;display:flex;align-items:center}
 .tabs button.on::before{height:22px}
 .tabs button .ic{width:19px;text-align:center;font-size:15px;opacity:.95;flex:none}
 
-.sidefoot{margin-top:auto;padding:12px var(--navpad) 2px;border-top:1px solid var(--line);color:#66768a;font-size:11px;line-height:1.5}
+/* Bloque de sesion al pie del sidebar (antes era la topbar). `margin-top:auto` lo empuja
+   abajo; el .sidefoot va debajo y ya no necesita el auto. */
+.sidesession{margin-top:auto;display:flex;flex-direction:column;gap:7px;padding:12px var(--navpad) 0;border-top:1px solid var(--line)}
+/* En la columna angosta del sidebar los badges no pueden ser una pildora de una linea. */
+.sidesession .badge{display:block;white-space:normal;text-align:center;font-size:11px;padding:5px 10px;line-height:1.35}
+.sidesession .btn{width:100%;justify-content:center}
+.sidesession #userbtn{width:100%;justify-content:center}
+.sidefoot{padding:10px var(--navpad) 2px;color:#66768a;font-size:11px;line-height:1.5}
 
 /* --- Columna principal --- */
 .main{grid-column:2;min-width:0;display:flex;flex-direction:column}
-.topbar{
- position:sticky;top:var(--banner-h);z-index:25;min-height:var(--topbar-h);
- display:flex;align-items:center;gap:12px;flex-wrap:wrap;
- padding:11px var(--pad);background:rgba(15,20,25,.86);
- backdrop-filter:saturate(160%) blur(10px);-webkit-backdrop-filter:saturate(160%) blur(10px);
- border-bottom:1px solid var(--line);
-}
-.topbar .ttl{font-size:15.5px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
 .content{padding:18px var(--pad) 60px;flex:1;min-width:0}
-.grow{flex:1 1 auto}
 
 /* ============ COMPONENTES ============ */
 .badge{font-size:11.5px;background:var(--card2);border:1px solid var(--line);border-radius:20px;padding:4px 11px;color:var(--mut)}
@@ -234,10 +229,11 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 [data-tip]{cursor:help;border-bottom:1px dotted var(--mut)}
 
 /* --- Menú de usuario --- */
-.um{position:relative;display:inline-block}
+.um{position:relative;display:block}
 #userbtn{display:inline-flex;align-items:center;gap:6px;border-color:var(--accent);color:var(--accent)}
 #userbtn .caret{font-size:10px;opacity:.8}
-.umpop{position:absolute;right:0;top:calc(100% + 8px);z-index:60;min-width:220px;background:var(--card);
+/* Abre hacia ARRIBA: el boton vive al pie del sidebar, no en una barra superior. */
+.umpop{position:absolute;left:0;bottom:calc(100% + 8px);z-index:60;min-width:220px;background:var(--card);
  border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:var(--sh3)}
 .umitem{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);
  font:inherit;font-size:13.5px;padding:9px 11px;border-radius:8px;cursor:pointer}
@@ -299,7 +295,12 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
  .tabs button::before{left:12px;right:12px;top:auto;bottom:0;transform:none;width:auto;height:0;border-radius:3px 3px 0 0}
  .tabs button.on::before{height:2px}
  .main{grid-column:1}
- .topbar{position:static}
+ /* El sidebar pasa a ser una fila: el bloque de sesion se acuesta con ella. NO se oculta
+    junto con .sidefoot — adentro viven "Traer ventas" y "Salir". */
+ .sidesession{margin-top:0;flex-direction:row;align-items:center;gap:8px;padding:0;border-top:0;flex:none}
+ .sidesession .badge{display:inline-block;white-space:nowrap}
+ .sidesession .btn,.sidesession #userbtn{width:auto}
+ .umpop{top:calc(100% + 8px);bottom:auto;left:auto;right:0}
  .kpis{grid-template-columns:repeat(2,1fr)}.kpi.hero{grid-column:span 2}
 }
 @media(max-width:760px){
@@ -311,7 +312,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 @media(max-width:560px){#hasta .genpart{display:none}}
 
 @media print{
- .side,.topbar,.bar,.chips,.btn{display:none!important}
+ .side,.bar,.chips,.btn{display:none!important}
  #filterdock{max-height:none;opacity:1}
  .tab-pane{display:block!important}
  .shell{grid-template-columns:1fr}
@@ -334,17 +335,12 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
    <button data-t="costos"><span class="ic">💲</span>Costos</button>
    <button data-t="opex"><span class="ic">🏦</span>OPEX</button>
   </nav>
-  <div class="sidefoot">Panel de gestión<br>ANTIMO</div>
- </aside>
-
- <!-- ===== Columna principal ===== -->
- <div class="main">
-
-  <header class="topbar">
-   <!-- "Panel de gestión" vive en el pie del sidebar; aca competia con los badges. -->
+  <!-- Sesion y estado al pie del sidebar. Vivian en una topbar propia que ocupaba 60px de
+       alto en todas las solapas; aca no le sacan alto a ninguna tabla. Los ids son los
+       mismos, asi que el JS (updateAppUI, el menu de sesion, pull) no cambia. -->
+  <div class="sidesession">
    <span class="badge" id="hasta"></span>
    <span class="badge hidden" id="appbadge" style="border-color:var(--pos);color:var(--pos)">✏️ Modo edición</span>
-   <span class="grow"></span>
    <button class="btn" id="pullbtn">🔄 Traer ventas</button>
    <div class="um" id="um">
     <button class="btn" id="userbtn" aria-haspopup="true" aria-expanded="false"><span id="userbadge">👤</span><span class="caret">▾</span></button>
@@ -356,7 +352,12 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
      <button class="umitem" id="logoutbtn" role="menuitem">🚪 Salir</button>
     </div>
    </div>
-  </header>
+  </div>
+  <div class="sidefoot">Panel de gestión<br>ANTIMO</div>
+ </aside>
+
+ <!-- ===== Columna principal ===== -->
+ <div class="main">
 
   <div class="content">
 
