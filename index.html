@@ -132,23 +132,21 @@ select:focus,input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 
 input[type=search]{min-width:170px}
 input[type=date]{color-scheme:dark}
 
-/* Dock de filtros: se ancla bajo la topbar y se va con transform, no colapsando el alto.
-   Colapsar (max-height:0) empujaria todo el contenido hacia arriba en pleno scroll y se ve
-   como un salto; anclada, la barra flota sobre el contenido y desplazarla no mueve nada.
-   z-index 20 (no 30): tiene que pasar POR DEBAJO de la topbar (25) al esconderse, si no se
-   la ve montada encima durante la transicion. */
+/* Dock de filtros: colapsa el alto y le cede el espacio a las tablas.
+   No se ancla con sticky+transform (como estaba antes): eso solo sirve si la que scrollea es
+   la ventana, y medido, la ventana casi no scrollea — Caja tiene 34px de recorrido, Costos
+   175, Recetas 200. El que scrollea es el .scroll de cada tabla, por dentro. */
 #filterdock{
- position:sticky;top:calc(var(--banner-h) + var(--topbar-h));z-index:20;
- background:var(--bg);padding-bottom:4px;
- transition:transform .22s cubic-bezier(.4,0,.2,1),opacity .16s linear;
- will-change:transform;
+ overflow:hidden;max-height:280px;opacity:1;
+ transition:max-height .16s cubic-bezier(.4,0,.2,1),opacity .1s linear;
 }
-/* pointer-events:none es imprescindible: sin eso la barra invisible sigue comiendo clics. */
-#filterdock.off{
- transform:translateY(calc(-100% - var(--topbar-h) - var(--banner-h)));
- opacity:0;pointer-events:none;
-}
-@media(prefers-reduced-motion:reduce){#filterdock{transition:none}}
+body.dockoff #filterdock{max-height:0;opacity:0}
+/* El espacio recuperado va a las tablas, no a un hueco en blanco. */
+.scroll{transition:max-height .16s cubic-bezier(.4,0,.2,1)}
+body.dockoff .scroll{max-height:calc(62vh + 150px)}
+/* Que el navegador no compense el colapso reajustando el scroll. */
+html{overflow-anchor:none}
+@media(prefers-reduced-motion:reduce){#filterdock,.scroll{transition:none}}
 /* #chips queda AFUERA del dock a proposito: es la unica senal de que hay filtros activos.
    Si se escondiera con la barra, se verian datos filtrados sin ningun indicio de filtro. */
 .chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
@@ -198,7 +196,8 @@ th:hover{color:var(--ink)}
 tbody tr:last-child td{border-bottom:0}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .neg{color:var(--neg);font-weight:600}.pos{color:var(--pos)}.mut{color:var(--mut)}
-.scroll{max-height:min(62vh,620px);overflow:auto;border-radius:10px}
+/* Sin min(): el tope de 620px anulaba la ganancia del dock colapsado en monitores altos. */
+.scroll{max-height:62vh;overflow:auto;border-radius:10px}
 .scroll::-webkit-scrollbar{width:10px;height:10px}
 .scroll::-webkit-scrollbar-thumb{background:#33404f;border-radius:8px;border:2px solid var(--card)}
 .scroll::-webkit-scrollbar-track{background:transparent}
@@ -307,7 +306,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 
 @media print{
  .side,.topbar,.bar,.chips,.btn{display:none!important}
- #filterdock{position:static;transform:none;opacity:1}
+ #filterdock{max-height:none;opacity:1}
  .tab-pane{display:block!important}
  .shell{grid-template-columns:1fr}
  body{background:#fff;color:#000}
@@ -1953,24 +1952,45 @@ fetch('/api/me').then(r=>r.json()).then(j=>{
 }).catch(()=>{}).then(cargarDatos);
 if(_hayDatos()){if(st.preset&&!aplicarPreset(st.preset))st.preset=null;rerender();}
 
-// Auto-ocultar la barra de filtros. Solo agrega/saca una clase: no toca el estado.
+// Auto-ocultar la barra de filtros. Solo agrega/saca una clase del body.
+// Se dispara con wheel y no con scrollY porque en la mayoria de las solapas el que
+// scrollea es el contenedor .scroll de la tabla, no la ventana.
 (function(){
  var dock=document.getElementById('filterdock');
  if(!dock)return;
- var last=window.scrollY,pend=false,UMBRAL=6,PISO=120;
- function upd(){
-  pend=false;
-  var y=window.scrollY;
-  // Si el usuario esta tipeando o eligiendo una fecha, no la escondas.
-  if(dock.contains(document.activeElement)){last=y;return;}
-  if(y<PISO)             dock.classList.remove('off');
-  else if(y-last>UMBRAL) dock.classList.add('off');
-  else if(last-y>UMBRAL) dock.classList.remove('off');
-  last=y;
+ var b=document.body, acum=0, UMBRAL_SUBIDA=24;
+
+ function contenedorScrolleable(el){
+  for(;el && el!==b; el=el.parentElement){
+   var cs=getComputedStyle(el);
+   if(/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight>el.clientHeight+1) return el;
+  }
+  return document.scrollingElement;
  }
- addEventListener('scroll',function(){
-  if(!pend){pend=true;requestAnimationFrame(upd);}
- },{passive:true});
- dock.addEventListener('focusin',function(){dock.classList.remove('off');});
+
+ addEventListener('wheel', function(e){
+  if(dock.contains(e.target)) return;          // rueda sobre los filtros: no tocar
+  if(e.deltaY>0){                              // baja: ocultar YA, sin umbral
+   acum=0; b.classList.add('dockoff'); return;
+  }
+  if(e.deltaY<0){                              // sube: solo si ya llego al tope
+   var sc=contenedorScrolleable(e.target);
+   if(sc.scrollTop<=0){
+    acum+=-e.deltaY;
+    if(acum>UMBRAL_SUBIDA){ b.classList.remove('dockoff'); acum=0; }
+   } else acum=0;
+  }
+ }, {passive:true, capture:true});
+
+ // Reaparece si el mouse va a la zona de la cabecera
+ addEventListener('mousemove', function(e){
+  if(e.clientY<64) b.classList.remove('dockoff');
+ }, {passive:true});
+
+ // Reaparece al cambiar de solapa y al enfocar cualquier filtro
+ document.getElementById('tabs').addEventListener('click', function(){
+  b.classList.remove('dockoff');
+ });
+ dock.addEventListener('focusin', function(){ b.classList.remove('dockoff'); });
 })();
 </script></body></html>
