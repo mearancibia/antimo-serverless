@@ -505,6 +505,25 @@ cuánto comprar para cubrir un ciclo de apertura, **restando el stock cargado** 
 insumos vigilados, con columnas Necesito / Tengo / Comprar. El CSV exportado refleja el modo activo
 y en `real` no incluye columna "Comprar", para que nadie lo lea como una orden de compra.
 
+⚠️ **`repo` es UN ciclo (las noches que abre el bar), no el período elegido.** Es la confusión
+natural al mirar la tabla: "vendí 202 fernets y me dice que compre 6 botellas". Los 202 son del
+período entero; las 6 botellas cubren 5 noches. La tabla se puede auditar sola cruzando sus
+propios renglones: 6 u × 750ml ÷ 60ml = 75 vasos, y la Coca (8 u × 2,25L ÷ 250ml = 72) y el
+hielo (1 u × 10kg ÷ 120g = 83) tienen que dar lo mismo. Si no dan, ahí sí hay algo roto.
+
+**`consumoRepo()` promedia cada día de semana sobre TODAS las noches que el bar abrió**, contando
+como 0 las que ese insumo no se vendió. Antes promediaba solo las noches en que el insumo
+aparecía: un insumo que se vende la mitad de los martes daba el doble. Sobre 50 noches reales,
+**69 de 121 insumos cambiaban la cantidad a comprar** (Heineken chica pedía 13 u en vez de 2,
+Red Bull 13 en vez de 4). El Fernet casi no se movía (25→22 u): se vende todas las noches, así
+que no tenía ceros que promediar — por eso el bug no se veía mirando el producto estrella.
+
+**Salvedad del debut:** el promedio de cada insumo arranca en la primera noche del rango en que
+aparece, no en la primera noche del rango. Sin eso, un producto nuevo se diluye contra semanas
+en las que todavía no existía y la reposición queda corta — Cerveza Quilmes 1L, que debuta en la
+noche 28 de 50, pedía 9 u en vez de 18. Son 12 insumos de 121 los que dependen de esta salvedad.
+Es la misma Regla #0 de siempre: no se rellena con ceros una historia que no ocurrió.
+
 ---
 
 ## 11. Estado actual y pendientes

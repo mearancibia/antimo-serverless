@@ -1241,11 +1241,35 @@ function consumoDia(){
  });
  _cdKey=key;_cdCache=out;return out;}
 function consumoRango(){const ds=rangeDias(st.desde,st.hasta),tot={},CD=consumoDia();ds.forEach(d=>{const cd=CD[DK(d)]||{};for(const i in cd)tot[i]=(tot[i]||0)+cd[i];});return tot;}
-function consumoRepo(){const ds=rangeDias(st.desde,st.hasta);const byW={},CD=consumoDia();ds.forEach(d=>{const cd=CD[DK(d)]||{};for(const i in cd){(byW[i]||(byW[i]={}));(byW[i][d.dow]||(byW[i][d.dow]=[])).push(cd[i]);}});
+// "Cuanto se consume un viernes tipico" = promedio sobre TODAS las noches de viernes que el
+// bar abrio, contando como 0 las que ese insumo no se vendio. Antes se promediaba solo sobre
+// las noches en que aparecia, y un insumo que se vende la mitad de los martes daba el doble:
+// sobre 50 noches reales, 69 de 121 insumos cambiaban la cantidad a comprar (Heineken chica
+// pedia 13 u en vez de 2). El Fernet casi no se movia (25->22 u): se vende todas las noches.
+//
+// Salvedad deliberada: el promedio de cada insumo arranca en su DEBUT (la primera noche del
+// rango en que aparece). Si no, un producto nuevo se diluye contra semanas en las que todavia
+// no existia y la reposicion queda corta. Regla #0: no se rellena con ceros una historia que
+// no ocurrio.
+function consumoRepo(){
+ const ds=rangeDias(st.desde,st.hasta),CD=consumoDia();
  // Las noches de apertura salen del historico real, no de una lista fija: rotuladas por fecha
  // de cierre, las noches que abre el bar caen en otros dias de los que uno diria de memoria.
- const OPEN=DOWN.filter(w=>patronApertura().abre[w]),tot={};
- for(const i in byW){let s=0;OPEN.forEach(w=>{const arr=byW[i][w]||[];if(arr.length)s+=arr.reduce((a,b)=>a+b,0)/arr.length;});if(s>0)tot[i]=s;}return tot;}
+ const OPEN=new Set(DOWN.filter(w=>patronApertura().abre[w]));
+ const noches=ds.filter(d=>OPEN.has(d.dow)&&Object.keys(CD[DK(d)]||{}).length);
+ const debut={};
+ noches.forEach((d,ix)=>{const cd=CD[DK(d)]||{};for(const i in cd)if(debut[i]===undefined)debut[i]=ix;});
+ const suma={},noch={};
+ noches.forEach((d,ix)=>{const cd=CD[DK(d)]||{};
+  for(const i in debut){if(ix<debut[i])continue;
+   (suma[i]||(suma[i]={}));(noch[i]||(noch[i]={}));
+   suma[i][d.dow]=(suma[i][d.dow]||0)+(cd[i]||0);
+   noch[i][d.dow]=(noch[i][d.dow]||0)+1;}});
+ const tot={};
+ for(const i in suma){let s=0;
+  for(const w in noch[i])s+=suma[i][w]/noch[i][w];
+  if(s>0)tot[i]=s;}
+ return tot;}
 // Dos modos MUY distintos, que antes se mostraban igual y confundían:
 //  'real' = CONSUMO HISTÓRICO del período elegido. No es una lista de compras: con 47 días
 //           seleccionados, "477 Stella" es lo que se consumió en 47 días, no lo que hay que
