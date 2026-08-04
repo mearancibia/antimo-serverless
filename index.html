@@ -629,7 +629,7 @@ if(!st.preset&&st.hastaAlFinal&&nochesNuevas().length) st.hasta=DK(DIAS[DIAS.len
 function save(){try{localStorage.setItem('antimo2',JSON.stringify({tab:st.tab,desde:st.desde,hasta:st.hasta,catgrp:st.catgrp,compras:st.compras,exclSusp:st.exclSusp,preset:st.preset,
  hastaAlFinal:ISO[st.hasta]===DIAS[DIAS.length-1].iso}));}catch(e){}}
 let APP=false;
-function applyData(d){if(!d||!d.dias)return;DATA=d;DIAS=DATA.dias;ISO=Object.fromEntries(DIAS.map(x=>[DK(x),x.iso||DK(x)]));_patC=null;_cdCache=null;if(!ISO[st.desde])st.desde=DK(DIAS[0]);if(!ISO[st.hasta])st.hasta=DK(DIAS[DIAS.length-1]);
+function applyData(d){if(!d||!d.dias)return;DATA=d;DIAS=DATA.dias;ISO=Object.fromEntries(DIAS.map(x=>[DK(x),x.iso||DK(x)]));_patC=null;_cdCache=null;_prodIdx=null;_cbCache=null;if(!ISO[st.desde])st.desde=DK(DIAS[0]);if(!ISO[st.hasta])st.hasta=DK(DIAS[DIAS.length-1]);
  // Con preset activo el rango se recalcula contra los datos recien llegados: despues de "Traer
  // ventas", la noche nueva entra sola en la vista sin tocar nada.
  // Si el preset guardado se quedo sin noches (datos viejos, o un backfill que corrio el historico),
@@ -722,14 +722,87 @@ const fFecha=iso=>iso<='2000-01-01'?'siempre':iso.slice(8,10)+'-'+iso.slice(5,7)
 function prodAgg(p,ds){let u=0,m=0;ds.forEach(d=>{const bd=p.byday[DK(d)];if(bd){u+=bd[0];m+=bd[1];}});return {u,m};}
 // productos con métricas para el rango actual + filtros
 function prodView(ds){
- return DATA.productos.map(p=>{const a=prodAgg(p,ds);const v={pos:p.pos,key:p.key,susp:p.susp,susp_motivo:p.susp_motivo,cat:p.cat,grupo:p.grupo,nd:p.nd,motivo:p.motivo,falta:p.falta,donde:p.donde,tipo:p.tipo,costo:p.costo,nota:p.nota,breakdown:p.breakdown,receta_nombre:p.receta_nombre,receta_ings:p.receta_ings,combo_comp:p.combo_comp,editable:p.editable,precioLista:p.precio_lista,u:a.u,monto:a.m};
+ return explotarCombos(DATA.productos.map(p=>{const a=prodAgg(p,ds);const v={pos:p.pos,key:p.key,susp:p.susp,susp_motivo:p.susp_motivo,cat:p.cat,grupo:p.grupo,nd:p.nd,motivo:p.motivo,falta:p.falta,donde:p.donde,tipo:p.tipo,costo:p.costo,nota:p.nota,breakdown:p.breakdown,receta_nombre:p.receta_nombre,receta_ings:p.receta_ings,combo_comp:p.combo_comp,editable:p.editable,precioLista:p.precio_lista,u:a.u,monto:a.m};
   // p.costo puede no venir: al cajero el servidor le recorta el costo (RBAC). Eso NO lo vuelve
   // N/D — simplemente no hay margen para calcular, y se deja sin calcular antes que inventar un
   // 0 que se leería como "margen 100%" (Regla #0). Las solapas que muestran margen no se
   // renderizan para ese rol, así que nadie ve un hueco.
   if(!p.nd&&p.costo==null){v.pv=a.u?Math.round(a.m/a.u):0;}
   else if(!p.nd){v.pv=a.u?Math.round(a.m/a.u):0;v.mgu=Math.round((v.pv||0)-p.costo);v.mgtot=Math.round((v.pv-p.costo)*a.u);v.mgpct=v.pv?+(((v.pv-p.costo)/v.pv)*100).toFixed(1):0;v.fc=v.pv?+((p.costo/v.pv)*100).toFixed(1):null;}
-  return v;}).filter(v=>v.u>0);}
+  return v;}).filter(v=>v.u>0));}
+
+// ---------- EXPLOSIÓN DE COMBOS ----------
+// Un combo de cumpleaños es UN ítem del POS que adentro lleva pizzas, papas y bebida. Sin
+// explotar, sus $900.000 se anotaban enteros en la categoría del combo y las 5 pizzas de cada uno
+// nunca aparecían en PIZZAS: el 68% de las pizzas que salían de la cocina quedaban fuera de su
+// categoría, y con el filtro "PIZZAS" activo Compras pedía 12% menos masa de la que se usa.
+//
+// Reparto por PRECIO DE LISTA (el criterio estándar para vender paquetes): cada componente se
+// lleva la parte del precio del combo proporcional a lo que valdría suelto, así el descuento del
+// combo se reparte parejo entre todos. Las unidades se reparten igual: un Combo cumpleaños suma
+// 5 unidades a PIZZA COMUN y 2 a PAPAS CLASICAS.
+//
+// NO se toca el editor de Recetas: renderRecetas() lee DATA.productos directo, así que el combo
+// sigue existiendo como tal para editarlo.
+//
+// Tres casos en los que NO se explota, a propósito (Regla #0 — antes dejar el dato como está que
+// inventar un reparto):
+//   1. Combos homogéneos ("SMIRNOFF + 4 ENERGIZANTES"): todo su contenido ya es de la categoría
+//      donde está el combo. Repartirlos no movería un peso.
+//   2. Algún componente sin precio de lista o sin costo.
+//   3. Componentes que son insumos sueltos (el gin y el Speed del Premium) y cuyo RESIDUAL
+//      —lo que queda del precio después de valuar las comidas a lista— da <= 0: ahí no hay forma
+//      de saber cuánto vale esa bebida sin suponerlo.
+let _prodIdx=null;
+const prodIdx=()=>_prodIdx||(_prodIdx=Object.fromEntries(DATA.productos.map(p=>[p.pos,p])));
+function explotarCombos(list){
+ const idx=prodIdx(),byPos={},orden=[];
+ list.forEach(v=>{byPos[v.pos]=Object.assign({},v);orden.push(v.pos);});
+ const sumar=(pos,plantilla,u,monto,costoU)=>{
+  let r=byPos[pos];
+  if(!r){r=byPos[pos]={pos,key:plantilla.key,cat:plantilla.cat,grupo:plantilla.grupo,tipo:plantilla.tipo,
+    nd:false,costo:costoU,breakdown:plantilla.breakdown,receta_nombre:plantilla.receta_nombre,
+    precioLista:plantilla.precio_lista,u:0,monto:0};orden.push(pos);}
+  r.u+=u;r.monto+=monto;return r;};
+ let hubo=false;
+ list.forEach(v=>{
+  const p=idx[v.pos],comp=p&&p.combo_comp;
+  if(v.nd||v.tipo!=='combo'||!comp||!comp.length||!v.u||v.costo==null)return;
+  const partes=comp.map(([nom,q,un])=>({nom,q,un,sp:un==='producto'?idx[nom]:null}));
+  const catDe=x=>x.sp?x.sp.cat:v.cat;
+  if(partes.every(x=>catDe(x)===v.cat))return;                       // 1. homogéneo
+  const prods=partes.filter(x=>x.sp);
+  if(prods.some(x=>!(x.sp.precio_lista>0)||x.sp.costo==null))return; // 2. falta precio o costo
+  const pu=v.monto/v.u, L=prods.reduce((s,x)=>s+x.q*x.sp.precio_lista,0);
+  if(!L)return;
+  const sueltos=partes.filter(x=>!x.sp);
+  let residV=0,residC=0;
+  if(sueltos.length){
+   residV=pu-L; if(residV<=0)return;                                 // 3. no se puede valuar
+   residC=v.costo-prods.reduce((s,x)=>s+x.q*x.sp.costo,0);
+   if(residC<0)return;
+  }
+  const base=L+residV;                                               // = pu si hay sueltos
+  hubo=true;delete byPos[v.pos];
+  prods.forEach(x=>{
+   const val=x.q*x.sp.precio_lista;
+   sumar(x.nom,x.sp,x.q*v.u,pu*v.u*val/base,x.sp.costo);});
+  if(sueltos.length){
+   // El resto (bebida) no es ningún producto existente: va como fila propia, con el nombre del
+   // combo, para que se vea de dónde salió y no se confunda con una venta suelta.
+   const nom=v.pos+' · '+sueltos.map(x=>x.nom).join(' + ');
+   sumar(nom,{key:v.key+'::resto',cat:v.cat,grupo:v.grupo,tipo:'combo'},v.u,residV*v.u,residC);}
+ });
+ if(!hubo)return list;
+ return orden.filter(pos=>byPos[pos]).map(pos=>{
+  const r=byPos[pos];
+  if(r.costo==null){r.pv=r.u?Math.round(r.monto/r.u):0;return r;}
+  r.pv=r.u?Math.round(r.monto/r.u):0;
+  r.mgu=Math.round(r.pv-r.costo);r.mgtot=Math.round((r.pv-r.costo)*r.u);
+  r.mgpct=r.pv?+(((r.pv-r.costo)/r.pv)*100).toFixed(1):0;
+  r.fc=r.pv?+((r.costo/r.pv)*100).toFixed(1):null;
+  return r;});
+}
 function passF(v){if(st.catgrp.startsWith('g:')&&v.grupo!==st.catgrp.slice(2))return false;if(st.catgrp.startsWith('c:')&&v.cat!==st.catgrp.slice(2))return false;if(st.search&&!v.pos.toLowerCase().includes(st.search.toLowerCase()))return false;return true;}
 function classify(list){const c=list.filter(x=>!x.nd);if(!c.length)return;const U=c.reduce((s,x)=>s+x.u,0);const pop=U/c.length*0.7;const cm=c.reduce((s,x)=>s+x.mgtot,0)/U;c.forEach(x=>{const hp=x.u>=pop,hm=x.mgu>=cm;x.clase=hp&&hm?'ESTRELLA':hp&&!hm?'VACA':!hp&&hm?'INTERROGANTE':'PERRO';});}
 // Se excluye ANTES de classify(): si no, un margen falso del 98% corre el promedio
@@ -1396,15 +1469,48 @@ function consumoDia(){
  const key=st.catgrp+' '+st.search;
  if(_cdCache&&_cdKey===key)return _cdCache;                  // se recalcula solo si cambió el filtro
  const out={};
+ const sumar=(bd,mult)=>{for(const f in bd.byday){const u=bd.byday[f][0];if(!u)continue;
+  const cd=out[f]||(out[f]={});for(const i in mult)cd[i]=(cd[i]||0)+mult[i]*u;}};
  DATA.productos.forEach(p=>{
-  if(p.nd||!p.breakdown||!passF(p))return;
-  for(const f in p.byday){
-   const u=p.byday[f][0];if(!u)continue;
-   const cd=out[f]||(out[f]={});
-   p.breakdown.forEach(b=>{cd[b.insumo]=(cd[b.insumo]||0)+b.qty*u;});
-  }
+  if(p.nd||!p.breakdown)return;
+  const piezas=comboPiezas(p);
+  if(piezas){   // combo heterogéneo: cada pieza va contra la categoría de SU componente
+   piezas.forEach(z=>{if(passF({pos:z.pos,cat:z.cat,grupo:z.grupo}))sumar(p,z.bd);});
+   return;}
+  if(!passF(p))return;
+  const bd={};p.breakdown.forEach(b=>{bd[b.insumo]=(bd[b.insumo]||0)+b.qty;});
+  sumar(p,bd);
  });
  _cdKey=key;_cdCache=out;return out;}
+// Para filtrar por categoría, un combo heterogéneo no se puede tratar como un bloque: sus insumos
+// tienen que ir a la categoría del componente del que salieron. La receta plana del combo ya
+// perdió ese dato, así que se rearma desde combo_comp — cada componente aporta SU receta × la
+// cantidad que lleva, y lo que sobra (los insumos sueltos, el gin y el Speed del Premium) queda
+// en la categoría del propio combo. Sin esto, filtrar PIZZAS pedía 576 bollos de masa en vez de
+// 651: se perdía el 12% que entra por los combos.
+// Devuelve null si el combo es homogéneo o si falta la receta de algún componente — ahí no hay
+// nada que repartir y se usa el camino normal.
+let _cbCache=null;
+function comboPiezas(p){
+ _cbCache||(_cbCache=new Map());
+ if(_cbCache.has(p.pos))return _cbCache.get(p.pos);
+ const idx=prodIdx(),comp=p.combo_comp;let r=null;
+ if(comp&&comp.length&&p.breakdown){
+  const partes=comp.map(([nom,q,un])=>({nom,q,un,sp:un==='producto'?idx[nom]:null}));
+  const prods=partes.filter(x=>x.sp);
+  if(!partes.every(x=>(x.sp?x.sp.cat:p.cat)===p.cat) && prods.every(x=>x.sp.breakdown)){
+   const piezas=[],resto={};
+   p.breakdown.forEach(b=>{resto[b.insumo]=(resto[b.insumo]||0)+b.qty;});
+   prods.forEach(x=>{const bd={};
+    x.sp.breakdown.forEach(b=>{bd[b.insumo]=(bd[b.insumo]||0)+b.qty*x.q;
+     resto[b.insumo]=(resto[b.insumo]||0)-b.qty*x.q;});
+    piezas.push({cat:x.sp.cat,grupo:x.sp.grupo,pos:x.sp.pos,bd});});
+   const rbd={};for(const i in resto)if(resto[i]>1e-6)rbd[i]=resto[i];
+   if(Object.keys(rbd).length)piezas.push({cat:p.cat,grupo:p.grupo,pos:p.pos,bd:rbd});
+   r=piezas;
+  }
+ }
+ _cbCache.set(p.pos,r);return r;}
 function consumoRango(){const ds=rangeDias(st.desde,st.hasta),tot={},CD=consumoDia();ds.forEach(d=>{const cd=CD[DK(d)]||{};for(const i in cd)tot[i]=(tot[i]||0)+cd[i];});return tot;}
 // "Cuanto se consume un viernes tipico" = promedio sobre TODAS las noches de viernes que el
 // bar abrio, contando como 0 las que ese insumo no se vendio. Antes se promediaba solo sobre
