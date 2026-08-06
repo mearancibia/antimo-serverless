@@ -1788,19 +1788,38 @@ function previewImportModal(precios,stock,noExisten,invalidas){
 }
 
 // ---------- CAJA ----------
+// Cierres que caen dentro del rango elegido arriba. renderCaja() usaba DATA.cajas entero, así
+// que elegir "Este mes" no movía nada: el selector seguía ofreciendo las 60 noches del histórico
+// y el contador decía "60 cierres". El filtro global manda sobre todo el tablero (CLAUDE.md §10)
+// y Caja no era la excepción, era un olvido.
+// Devuelve el índice original (i) junto a cada caja: st.ci se guarda en localStorage como índice
+// sobre DATA.cajas, y cambiarle el significado invalidaría el estado ya guardado.
+function cajasRango(){
+ const a=ISO[st.desde],b=ISO[st.hasta];
+ return (DATA.cajas||[]).map((c,i)=>({c,i,iso:cajaIso(c)}))
+  .filter(x=>x.iso&&x.iso>=a&&x.iso<=b)
+  .sort((x,y)=>x.iso<y.iso?-1:1);}
 function renderCaja(){
- const el=document.getElementById('caja'),sel=document.getElementById('fCaja'),cajas=DATA.cajas;
- if(!cajas.length){sel.style.display='none';el.innerHTML='<div class="mut">Sin cierres.</div>';return;}
- if(st.ci>=cajas.length)st.ci=cajas.length-1;
- const isos=cajas.map(cajaIso).filter(Boolean).sort();sel.min=isos[0]||'';sel.max=isos[isos.length-1]||'';sel.value=cajaIso(cajas[st.ci])||'';
- const c=cajas[st.ci],R=k=>k==null?'—':f0(k);
+ const el=document.getElementById('caja'),sel=document.getElementById('fCaja');
+ const enR=cajasRango();
+ if(!enR.length){sel.style.display='none';
+  el.innerHTML=`<div class="mut">${(DATA.cajas||[]).length
+   ?'No hay cierres de caja en el período elegido — ampliá el rango de fechas de arriba.'
+   :'Sin cierres.'}</div>`;return;}
+ sel.style.display='';
+ // Si la caja que estaba elegida quedó fuera del rango, se salta a la última de adentro (la más
+ // reciente), que es el mismo criterio que usa el arranque.
+ let cur=enR.find(x=>x.i===st.ci);
+ if(!cur){cur=enR[enR.length-1];st.ci=cur.i;}
+ sel.min=enR[0].iso;sel.max=enR[enR.length-1].iso;sel.value=cur.iso;
+ const c=cur.c,R=k=>k==null?'—':f0(k);
  const tk=(c.comensales&&c.total_vendido)?f0(c.total_vendido/c.comensales):'—';
  const dr=(c.detalle_retiros||[]).map(x=>Array.isArray(x)?{concepto:x[0],monto:x[1],user:'',hora:''}:x);
  const dd=(c.detalle_descuentos||[]).map(x=>Array.isArray(x)?{concepto:x[0],monto:x[1],user:'',hora:''}:x);
  let retTab=dr.length?`<div class="h3" style="margin-top:12px">Retiros (${dr.length})</div><table><tr><th>Concepto</th><th>Operador</th><th>Hora</th><th class="n">Monto</th></tr>`+dr.map(r=>`<tr><td>${esc(r.concepto||'—')}</td><td class="mut">${esc(r.user||'—')}</td><td class="mut">${esc(r.hora||'—')}</td><td class="n neg">${f0(r.monto)}</td></tr>`).join('')+'</table>':'';
  let descTab=dd.length?`<div class="h3" style="margin-top:12px">Descuentos (${dd.length})</div><table><tr><th>Concepto</th><th>Operador</th><th>Hora</th><th class="n">Monto</th></tr>`+dd.map(r=>`<tr><td>${esc(r.concepto||'—')}</td><td class="mut">${esc(r.user||'—')}</td><td class="mut">${esc(r.hora||'—')}</td><td class="n neg">${f0(r.monto)}</td></tr>`).join('')+'</table>':'';
  const noUser=dr.length&&!dr.some(r=>r.user)?'<div class="legend">Para ver operador y hora en cada movimiento, volvé a correr el conector (versión nueva).</div>':'';
- el.innerHTML=`<div class="mut">Noche del <b>${esc(c.fecha)}</b> · ${cajas.length} cierres.</div>
+ el.innerHTML=`<div class="mut">Noche del <b>${esc(c.fecha)}</b> · ${enR.length} ${enR.length===1?'cierre':'cierres'} en el período.</div>
   <div class="mini"><div><span class="ml">Total vendido</span><div class="mv">${R(c.total_vendido)}</div></div><div><span class="ml">Efectivo</span><div class="mv">${R(c.efectivo)}</div></div><div><span class="ml">Tarjetas</span><div class="mv">${R(c.tarjetas)}</div></div><div><span class="ml">QR</span><div class="mv">${R(c.qr)}</div></div></div>
   <div class="mini" style="margin-top:1px"><div><span class="ml">Descuentos</span><div class="mv" style="color:var(--neg)">${R(c.descuentos)}</div></div><div><span class="ml">Retiros</span><div class="mv" style="color:var(--neg)">${R(c.retiros)}</div></div><div><span class="ml">Comensales</span><div class="mv">${c.comensales!=null?c.comensales:'—'}</div></div><div><span class="ml">Ticket prom.</span><div class="mv">${tk}</div></div></div>
   ${retTab}${descTab}${noUser}`;
@@ -2086,7 +2105,11 @@ document.getElementById('exs').onclick=()=>{st.exclSusp=!st.exclSusp;rerender();
 document.getElementById('reset').onclick=()=>{st.catgrp='all';st.search='';aplicarPreset('todo');st.cmp=false;st.exclSusp=false;st.mgF=null;st.claseF=null;rerender();};
 document.getElementById('mReal').onclick=()=>{st.compras='real';renderCompras();};
 document.getElementById('mRepo').onclick=()=>{st.compras='repo';renderCompras();};
-document.getElementById('fCaja').onchange=e=>{const iso=e.target.value;let bi=0,bd=1e15;(DATA.cajas||[]).forEach((c,i)=>{const d=Math.abs(new Date(cajaIso(c))-new Date(iso));if(d<bd){bd=d;bi=i;}});st.ci=bi;renderCaja();};
+// Busca la noche más cercana DENTRO del rango: si buscara sobre todas, tipear una fecha de
+// afuera saltaría a un cierre que el resto del tablero no está mostrando.
+document.getElementById('fCaja').onchange=e=>{const iso=e.target.value,enR=cajasRango();if(!enR.length)return;
+ let best=enR[0],bd=1e15;enR.forEach(x=>{const d=Math.abs(new Date(x.iso)-new Date(iso));if(d<bd){bd=d;best=x;}});
+ st.ci=best.i;renderCaja();};
 document.getElementById('expPar').onclick=exportCSV;
 document.getElementById('print').onclick=()=>window.print();
 document.querySelectorAll('#rGrupo button').forEach(b=>b.onclick=()=>{st.rGrupo=b.dataset.g;document.querySelectorAll('#rGrupo button').forEach(x=>x.classList.toggle('on',x.dataset.g===st.rGrupo));renderRecetas();});
