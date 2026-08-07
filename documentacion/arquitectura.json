@@ -223,7 +223,7 @@
       "name": "Publicar un cambio",
       "desc": "El circuito de trabajo: nada llega a producción sin pasar antes por el entorno de pruebas.",
       "steps": [
-        { "n": 1, "node": "app_local", "action": "Se edita en la Mac", "detail": "Carpeta BETA Vercel/INSTALABLE_ANTIMO." },
+        { "n": 1, "node": "app_local", "action": "Se edita en la Mac", "detail": "Carpeta ~/Desktop/ANTIMO (la app local)." },
         { "n": 2, "node": "vercel", "action": "git push origin desarrollo", "detail": "Vercel escucha el repositorio: detecta el push y reconstruye solo. Publica en antimo-develop.vercel.app con el cartel de DESARROLLO." },
         { "n": 3, "node": "index_html", "action": "Se prueba ahí", "detail": "Ese entorno usa su propia base de Supabase: nada de lo que se toque afecta al bar." },
         { "n": 4, "node": "vercel", "action": "merge a main + push", "detail": "Recién con el visto bueno. Vercel publica en antimo-serverless-iota.vercel.app; sin ANTIMO_ENV, el cartel no aparece." }
