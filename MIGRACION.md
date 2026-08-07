@@ -1,7 +1,7 @@
 # Migración a Vercel + Supabase
 
 Fork serverless de ANTIMO (la app local sigue existiendo sin cambios). Vive en
-`~/Desktop/ANTIMO-web/`.
+`~/Desktop/ANTIMO/DASHBOARD/` (`DESARROLLO/` para trabajar, `LIVE/` es lo publicado).
 
 ## Arquitectura
 
