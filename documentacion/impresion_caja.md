@@ -5,9 +5,9 @@
 | Modo | Cómo | Estado |
 |---|---|---|
 | **No imprimir** | — | ✅ **Es el default** |
+| **Impresora del bar** | Relay que consulta al servidor | ✅ Anda — **es el modo para usar** |
 | **USB directo** (WebUSB) | La impresora colgada del celu por un cable OTG | ✅ Anda |
 | **Diálogo del sistema** | Abre la ventana de impresión del celu | ✅ Anda, pero frena la pantalla |
-| **Impresora WiFi del bar** | Relay en la red local | ❌ **Bloqueado por el navegador**, ver abajo |
 
 El default es **no imprimir** a propósito. El modo "diálogo del sistema" usa `window.print()`,
 que abre un modal y **bloquea la pantalla hasta que alguien lo cierra**: con eso puesto por
@@ -39,28 +39,82 @@ en el celular no hay forma de saltearlo. El relay en la red del bar sería
 Ponerle HTTPS al relay tampoco alcanza: habría que instalar un certificado de confianza en cada
 celular, algo que no se sostiene en un bar.
 
-### La salida: dar vuelta la dirección
+### La solución: dar vuelta la dirección ✅
 
-En vez de que el celular le hable al relay, **que el relay pregunte al servidor**:
+En vez de que el celular le hable al relay, **el relay le pregunta al servidor**:
 
 ```
-CELULAR ──HTTPS──► /api/caja_venta ──► Supabase: cola de impresión
+CELULAR ──HTTPS──► /api/caja_venta ──► Supabase: cola_impresion
                                               ▲
-RELAY (PC del bar) ──HTTPS cada 2s────────────┘   pide trabajos pendientes
-   │
+RELAY (PC del bar) ──HTTPS cada 3s────────────┘   GET /api/print_pend
+   │                                              POST /api/print_ok
    └──socket 9100──► impresora POS80C
 ```
 
-El relay abre la conexión **hacia afuera**, que es siempre HTTPS y nunca está bloqueada. No
-necesita IP fija, ni abrir puertos, ni que el celular y la impresora se vean entre sí.
+El relay abre la conexión **hacia afuera**, que es siempre HTTPS y nunca está bloqueada:
 
-**Lo que hay que construir:** una tabla `cola_impresion` en Supabase, dos endpoints (uno que
-encola al cobrar y otro que el relay consulta y marca como impreso), y el relay en Node puro
-—reusando el `imprimirPorSocket()` del `print-bridge.js` de referencia, que ya está probado
-contra la impresora real—. Es medio día de trabajo y queda pendiente de decisión.
+- no hace falta IP fija para la PC del relay (sí para la impresora)
+- no hay que abrir ningún puerto en el router
+- el celular y la impresora no necesitan verse entre sí
 
-**Mientras tanto**, si hace falta ticket en papel: **USB al celu** (anda hoy, sin nada más), o
-bajar el `.txt` desde Ajustes.
+**Los bytes ESC/POS los arma el celular** y viajan en base64 dentro del cobro. Así hay **un solo
+codificador** (el de `caja.html`, testeado) y el relay queda tonto: decodifica y escupe al socket.
+Un segundo codificador del lado del relay se terminaría desincronizando, y los tickets saldrían
+distintos según por dónde se imprimieron.
+
+Como el ticket viaja **dentro** de la venta, un cobro hecho sin señal se guarda en la cola del
+celular **con su ticket adentro**: cuando vuelve la red, se sincroniza y se imprime.
+
+---
+
+## Poner en marcha el relay
+
+### 1. Generar el token
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Ese valor va en **dos lugares, idéntico**:
+- En **Vercel** → Settings → Environment Variables → `PRINT_RELAY_TOKEN`
+- En la **PC del bar**, al arrancar el relay (abajo)
+
+> Si la variable no está en Vercel, los endpoints del relay quedan **cerrados** (falla cerrada).
+> Dejarla vacía desactiva la impresión; nunca la abre a cualquiera.
+
+### 2. Darle IP fija a la impresora
+
+En el router, reserva DHCP para la impresora (o IP fija desde su menú). Si la IP cambia, el relay
+deja de encontrarla.
+
+### 3. Arrancar el relay en la PC del bar
+
+Necesita **Node** instalado. No hay `npm install`: es Node puro.
+
+```bash
+ANTIMO_URL=https://antimo-develop.vercel.app \
+PRINT_RELAY_TOKEN=el-token-generado \
+IMPRESORA_IP=192.168.0.50 \
+node scripts/print_relay.js
+```
+
+Variables opcionales: `IMPRESORA_PUERTO` (default 9100) e `INTERVALO_MS` (default 3000, mínimo 2000).
+
+La ventana tiene que quedar abierta. Si el relay está apagado, **no se pierde nada**: los tickets
+se acumulan en la cola y salen todos juntos cuando se prenda.
+
+### 4. Probar
+
+En el celular: ⚙️ → "Impresora del bar" → **Imprimir prueba**. No hace falta cobrar nada.
+
+### Qué pasa si algo falla
+
+| Situación | Qué hace |
+|---|---|
+| Impresora apagada | Reintenta cada ciclo. A los **5 intentos** abandona ese ticket, para que uno imposible no trabe los que esperan detrás. |
+| Se corta internet en la PC | Avisa una vez y sigue intentando. Al volver, imprime lo acumulado. |
+| Token mal puesto | **Sale con un mensaje claro.** No se queda girando: reintentar no lo va a arreglar. |
+| Relay apagado toda la noche | Los tickets quedan encolados. Sólo se imprimen los de las **últimas 12 horas** — uno de una noche que ya cerró no le sirve a nadie. |
 
 ---
 

@@ -369,6 +369,31 @@ def _caja_venta(data, sb):
     tickets = sb.table("tickets_backup").select("data").eq("iso", iso).execute().data or []
     sb.table("cajas_backup").upsert({"fecha_key": iso, "data": _derivar_caja(iso, tickets)}).execute()
 
+    # Cola de impresión: sólo si el celular mandó el ticket ya renderizado (modo relay activo).
+    # Va DESPUÉS de guardar la venta y en su propio try: si encolar falla, el cobro igual quedó.
+    # Imprimir nunca puede voltear un cobro.
+    escpos = data.get("escpos")
+    if escpos:
+        try:
+            sb.table("cola_impresion").upsert({
+                "ticket": ticket, "iso": iso, "escpos": str(escpos)[:400000],
+                "estado": "pendiente", "intentos": 0}).execute()
+        except Exception as e:
+            print("WARN: no pude encolar la impresión ->", repr(e))
+
+
+def _print_test(data, sb):
+    """Encola una impresión de prueba. Sirve para probar la impresora del bar SIN cobrar, que es
+    lo que hace falta el día que se instala: si no, la única forma de saber si anda sería hacer
+    una venta de verdad y después borrarla."""
+    escpos = data.get("escpos")
+    if not escpos:
+        return "Falta el ticket a imprimir"
+    sb.table("cola_impresion").upsert({
+        "ticket": "test-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"),
+        "iso": datetime.date.today().isoformat(), "escpos": str(escpos)[:400000],
+        "estado": "pendiente", "intentos": 0}).execute()
+
 
 def _backup_excluir(data, sb):
     """Válvula anti doble conteo: marca una noche como 'ya volcada a Bistrosoft'. Saca del
@@ -389,8 +414,13 @@ ROUTES = {
     "combo": _combo, "sospechoso": _sospechoso, "dia_cerrado": _dia_cerrado, "stock": _stock,
     "stock_bulk": _stock_bulk, "costos_bulk": _costos_bulk, "opex_save": _opex_save,
     "opex_vigencia": _opex_vigencia, "producto": _producto,
-    "caja_venta": _caja_venta, "backup_excluir": _backup_excluir,
+    "caja_venta": _caja_venta, "backup_excluir": _backup_excluir, "print_test": _print_test,
 }
+
+# Endpoints de ROUTES que NO tocan los datos del negocio, así que no hace falta volver a correr
+# el motor después. Recalcular por una impresión de prueba sería leer Supabase entero y recostear
+# los 109 productos para nada.
+SIN_RECOMPUTE = {"print_test"}
 
 # POST que NO recalcula y no aplica en la nube (no hay filesystem persistente donde dejar el Excel).
 MSG_EXCEL = ("Generar el Excel completo se hace desde la app local (run_ANTIMO_app), no desde la nube.")

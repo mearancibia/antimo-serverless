@@ -182,6 +182,7 @@ header .ic{width:38px;height:38px;border-radius:9px;border:1px solid var(--line)
   <label for="impModo">Cómo imprimir</label>
   <select id="impModo">
     <option value="no">No imprimir (por defecto)</option>
+    <option value="relay">Impresora del bar (por el relay)</option>
     <option value="usb">USB directo — impresora conectada al celu (OTG)</option>
     <option value="navegador">Diálogo del sistema — abre una ventana en cada cobro</option>
   </select>
@@ -200,8 +201,9 @@ header .ic{width:38px;height:38px;border-radius:9px;border:1px solid var(--line)
 
   <p class="nota">Si la impresora sale con símbolos raros en vez de tildes, probá otro juego de
   caracteres. El ticket nunca queda ilegible: lo que no se puede representar se imprime sin tilde.</p>
-  <p class="nota"><b>Impresora WiFi del bar:</b> todavía no se puede desde acá. La app se sirve por
-  HTTPS y el navegador bloquea el pedido a una dirección de red local — ver la nota del proyecto.</p>
+  <p class="nota"><b>Impresora del bar:</b> el ticket viaja con el cobro y lo imprime el relay que
+  corre en la PC del bar (<code>print_relay.js</code>). Si el relay está apagado, los tickets
+  quedan encolados y salen todos juntos cuando se prenda.</p>
 </div></dialog>
 
 <script>
@@ -417,6 +419,13 @@ async function confirmarCobro() {
     })),
     pagos: leerPagos()
   };
+  // Modo relay: el ticket ya renderizado viaja DENTRO de la venta. Va acá y no aparte para que
+  // un cobro hecho sin señal se guarde en la cola CON su ticket adentro: cuando vuelva la red,
+  // se sincroniza y se imprime, sin perder el comprobante de esa venta.
+  if (impCfg().modo === "relay") {
+    try { venta.escpos = bytesABase64(docABytes(docTicket(venta, false), impCfg().codepage)); }
+    catch (e) { console.warn("no pude armar el ticket:", e); }   // el cobro sigue igual
+  }
   $("#confirmar").disabled = true;
   const r = await enviar(venta);
   if (r !== "error") {
@@ -624,6 +633,14 @@ function docABytes(doc, cp) {
 const docATexto = doc => doc.ops.map(o =>
   o.t === "text" ? o.s : o.t === "feed" ? "\n".repeat(o.n || 1) : "").join("");
 
+/** Uint8Array -> base64, para que los bytes viajen dentro del JSON del cobro.
+ *  De a pedazos: btoa(String.fromCharCode(...miles de bytes)) revienta el stack de argumentos. */
+function bytesABase64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 4096) s += String.fromCharCode(...bytes.subarray(i, i + 4096));
+  return btoa(s);
+}
+
 /** El ticket de una venta de la caja de respaldo. */
 function docTicket(venta, copia) {
   const d = nuevoDoc();
@@ -719,6 +736,26 @@ async function imprimir(venta, copia) {
   ultimaVenta = venta;
   const cfg = impCfg();
   if (cfg.modo === "no") return;
+  // En modo relay no se imprime desde el celular: el ticket ya viajó con el cobro y lo saca el
+  // relay de la PC del bar. Salvo que sea una REIMPRESIÓN, que no pasa por el cobro y por eso
+  // necesita un camino propio: se manda a la cola del servidor por su cuenta.
+  if (cfg.modo === "relay") {
+    if (!copia) return;
+    try {
+      const r = await fetch("/api/caja_venta", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.assign({}, venta, {
+          escpos: bytesABase64(docABytes(docTicket(venta, true), cfg.codepage)) }))
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "error del servidor");
+      aviso("🖨️ Copia enviada a la impresora del bar.", "good");
+    } catch (e) {
+      aviso("🖨️ No pude mandar la copia: " + e.message, "bad");
+    }
+    return;
+  }
   const doc = docTicket(venta, copia);
   let r;
   if (cfg.modo === "usb") r = await imprimirUSB(docABytes(doc, cfg.codepage));
@@ -793,6 +830,19 @@ $("#impCP").onchange = e => guardarImpCfg(Object.assign(impCfg(), { codepage: e.
 $("#impTest").onclick = async () => {
   $("#dlgCfg").close();
   const cfg = impCfg(), doc = docTicket(ventaDePrueba(), false);
+  if (cfg.modo === "relay") {
+    try {
+      const r = await fetch("/api/print_test", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escpos: bytesABase64(docABytes(doc, cfg.codepage)) })
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "error del servidor");
+      aviso("🖨️ Prueba encolada. Sale en unos segundos si el relay está prendido.", "good");
+    } catch (e) { aviso("🖨️ " + e.message, "bad"); }
+    return;
+  }
   const r = cfg.modo === "usb" ? await imprimirUSB(docABytes(doc, cfg.codepage))
                                : imprimirNavegador(doc);
   if (!r.ok) aviso("🖨️ " + r.error, "bad");

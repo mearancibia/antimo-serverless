@@ -127,6 +127,30 @@ create table if not exists backup_excluido (
   updated_at timestamptz not null default now()
 );
 
+-- ================= COLA DE IMPRESIÓN (relay al revés) =================
+-- La app se sirve por HTTPS y el navegador BLOQUEA como mixed content cualquier pedido a
+-- http://192.168.x.x, así que el celular no le puede hablar al relay de la red del bar. Se da
+-- vuelta la dirección: el celular encola acá, y el relay (en la PC del bar) PREGUNTA por HTTPS
+-- cada pocos segundos. La conexión sale hacia afuera, que nunca está bloqueada: no hace falta
+-- IP fija, ni abrir puertos, ni que el celular vea a la impresora.
+--
+-- `escpos` viaja YA RENDERIZADO (base64) desde el celular. Así hay UN SOLO codificador ESC/POS
+-- —el de caja.html, testeado en scripts/test_escpos.js— y el relay queda tonto: lee bytes y los
+-- escupe al socket 9100. Un segundo codificador en el relay se desincronizaría del primero.
+-- `ticket` NO es clave foránea contra tickets_backup a propósito: acá también entran las
+-- impresiones de prueba, que existen antes de que haya ninguna venta. Poder probar la impresora
+-- sin cobrar es justo lo que hace falta el día que se instala.
+create table if not exists cola_impresion (
+  ticket text primary key,
+  iso text not null,
+  escpos text not null,                    -- bytes ESC/POS en base64
+  estado text not null default 'pendiente' check (estado in ('pendiente','impreso')),
+  intentos int not null default 0,
+  creado_ts timestamptz not null default now(),
+  impreso_ts timestamptz
+);
+create index if not exists cola_impresion_pend_idx on cola_impresion (estado, creado_ts);
+
 -- ================= OVERRIDES (ediciones del dueño) =================
 create table if not exists precios_override (
   insumo text primary key, precio numeric not null, updated_at timestamptz not null default now()
@@ -201,7 +225,7 @@ begin
     'antimo_data','app_meta','costo_base','lista_precios','recetas','maestro_productos',
     'opex_base','ventas','cajas','precios_override','recetas_extra','precio_lista_override',
     'pours_extra','maestro_extra','insumos_extra','combos_extra','sospechosos','dias_cerrados','stock',
-    'tickets_backup','ventas_backup','cajas_backup','backup_excluido',
+    'tickets_backup','ventas_backup','cajas_backup','backup_excluido','cola_impresion',
     'users','audit_log'
   ] loop
     execute format('alter table %I enable row level security;', t);

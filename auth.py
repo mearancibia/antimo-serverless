@@ -127,8 +127,9 @@ GET_CAJERO = frozenset({"ping", "me", "data"})
 #   backup_excluir             -> la válvula que saca una noche del cómputo. Es admin a
 #     propósito: a diferencia de `dia_cerrado` (que solo dice "no abrió"), esta borra ventas
 #     reales de los totales. Quien la toca decide qué factura el bar esa noche.
+#   print_test                                -> probar la impresora del bar desde /caja
 POST_CAJERO = frozenset({"logout", "precio", "costos_bulk", "stock", "stock_bulk",
-                         "dia_cerrado", "pull", "caja_venta"})
+                         "dia_cerrado", "pull", "caja_venta", "print_test"})
 
 
 def normalizar_rol(rol):
@@ -150,6 +151,28 @@ def puede_get(rol, name):
 
 def puede_post(rol, name):
     return True if es_admin(rol) else (name in POST_CAJERO)
+
+
+# ---------------------------------------------------------------- relay de impresión
+# El relay corre en una PC del bar, sin nadie sentado adelante: no puede loguearse con usuario y
+# contraseña ni sostener una cookie. Se autentica con un token dedicado (env var
+# PRINT_RELAY_TOKEN), que es el patrón normal para máquina-a-máquina.
+#
+# ⚠️ FALLA CERRADA: si la variable no está definida, `relay_autorizado` devuelve False SIEMPRE.
+# Sin esto, un deploy sin configurar dejaría los endpoints del relay abiertos a cualquiera. Y el
+# alcance del token es mínimo a propósito: sólo lee la cola de impresión y la marca impresa. No
+# da acceso a ventas, costos, OPEX ni usuarios — si se filtra, lo peor que pasa es que alguien
+# vea o descarte tickets.
+def relay_autorizado(headers):
+    esperado = os.environ.get("PRINT_RELAY_TOKEN") or ""
+    if not esperado:
+        return False
+    dado = (headers.get("Authorization") or "")
+    if not dado.startswith("Bearer "):
+        return False
+    # compare_digest y no ==: comparar strings con == corta en el primer byte distinto y filtra
+    # el token de a un carácter por vez midiendo cuánto tarda.
+    return hmac.compare_digest(dado[7:].strip(), esperado)
 
 
 # Campos que NO viajan al navegador de un cajero.

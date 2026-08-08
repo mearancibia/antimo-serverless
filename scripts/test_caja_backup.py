@@ -46,7 +46,8 @@ class FakeTable:
     def upsert(self, rows, on_conflict=None):
         rows = rows if isinstance(rows, list) else [rows]
         keys = {"tickets_backup": ("ticket",), "cajas_backup": ("fecha_key",),
-                "ventas_backup": ("ticket", "nombre"), "backup_excluido": ("iso",)}[self.name]
+                "ventas_backup": ("ticket", "nombre"), "backup_excluido": ("iso",),
+                "cola_impresion": ("ticket",)}[self.name]
         t = self.db.setdefault(self.name, [])
         for r in rows:
             kv = tuple(r.get(k) for k in keys)

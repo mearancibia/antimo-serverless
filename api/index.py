@@ -11,13 +11,13 @@ auditoría. Y GET /api/data le vuelve RECORTADO (auth.filtrar_data): lo que no p
 AUDITORÍA: cada acción (editar/borrar/pull/config/login/logout) se registra en audit_log con el
 usuario (sacado de la sesión verificada, infalsificable), la acción y el payload (password redactado).
 """
-import json, os
+import json, os, datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 from sl_common import (client, recompute, get_bistro_config, save_bistro_config, write_pull,
                        find_user, user_role, audit, recent_audit)
-from handlers import ROUTES, NORECOMPUTE
+from handlers import ROUTES, NORECOMPUTE, SIN_RECOMPUTE
 import bistro
 import auth
 
@@ -84,6 +84,26 @@ class handler(BaseHTTPRequestHandler):
         name = self._name()
         if name == "ping":
             return self._send(200, {"app": True, "env": ENV})
+
+        # ---- relay de impresión: trabajos pendientes ----
+        # Va ANTES del chequeo de sesión porque el relay es una máquina y no tiene cookie; se
+        # autentica con su propio token. No afloja nada: si el token no está configurado o no
+        # coincide, es 401 y nunca llega a la base.
+        if name == "print_pend":
+            if not auth.relay_autorizado(self.headers):
+                return self._send(401, {"ok": False, "error": "relay no autorizado"})
+            try:
+                # Sólo lo reciente: un pendiente de hace días es de una noche que ya cerró y
+                # nadie quiere que salga por la impresora al reconectar el relay.
+                desde = (datetime.datetime.now(datetime.timezone.utc)
+                         - datetime.timedelta(hours=12)).isoformat()
+                r = (self._sb().table("cola_impresion")
+                     .select("ticket,iso,escpos,intentos")
+                     .eq("estado", "pendiente").gte("creado_ts", desde)
+                     .order("creado_ts").limit(20).execute().data or [])
+                return self._send(200, {"ok": True, "jobs": r})
+            except Exception as e:
+                return self._send(500, {"ok": False, "error": str(e)})
         user, rol = self._auth()
         if name == "me":
             if not user:
@@ -135,6 +155,35 @@ class handler(BaseHTTPRequestHandler):
         # ---- login (público) ----
         if name == "login":
             return self._login(data)
+
+        # ---- relay de impresión: marcar impreso / reportar fallo ----
+        # Igual que print_pend: token propio, antes del chequeo de sesión.
+        if name == "print_ok":
+            if not auth.relay_autorizado(self.headers):
+                return self._send(401, {"ok": False, "error": "relay no autorizado"})
+            tk = str(data.get("ticket") or "").strip()
+            if not tk:
+                return self._send(400, {"ok": False, "error": "falta el ticket"})
+            try:
+                sb = self._sb()
+                if data.get("error"):
+                    # Falló la impresión: se cuenta el intento y queda pendiente para el próximo
+                    # ciclo. A partir de 5 intentos se abandona, para no trabar la cola con un
+                    # ticket imposible (impresora rota) mientras los nuevos esperan detrás.
+                    n = int(data.get("intentos") or 0) + 1
+                    campos = {"intentos": n}
+                    if n >= 5:
+                        campos["estado"] = "impreso"     # se da por perdido, no bloquea la cola
+                        print("WARN: ticket", tk, "abandonado tras 5 intentos de impresión")
+                    sb.table("cola_impresion").update(campos).eq("ticket", tk).execute()
+                else:
+                    sb.table("cola_impresion").update({
+                        "estado": "impreso",
+                        "impreso_ts": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    }).eq("ticket", tk).execute()
+                return self._send(200, {"ok": True})
+            except Exception as e:
+                return self._send(500, {"ok": False, "error": str(e)})
 
         # ---- todo lo demás exige sesión ----
         user, rol = self._auth()
@@ -217,6 +266,8 @@ class handler(BaseHTTPRequestHandler):
             if err:
                 return self._send(200, {"ok": False, "error": err})
             audit(sb, user, name, data)
+            if name in SIN_RECOMPUTE:
+                return self._send(200, {"ok": True})
             DATA = recompute(sb)
             # El recálculo devuelve el DATA completo; al cajero le vuelve recortado igual que
             # por GET /api/data (si no, guardar un precio le filtraba todo de rebote).
