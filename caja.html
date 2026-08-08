@@ -1,6 +1,11 @@
 <!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0f1419">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/caja-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/caja-icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>ANTIMO · Caja de respaldo</title>
 <style>
 /* Mismos tokens que el dashboard (index.html): esto es el mismo producto, otra pantalla.
@@ -107,13 +112,29 @@ input[type=number],input[type=text],select{width:100%;height:var(--tap);border-r
 .pend{background:var(--card2);border:1px solid var(--accent);border-radius:10px;padding:10px 12px;
  margin:0 14px 10px;font-size:13px;display:none}
 .pend.show{display:block}
+header .ic{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);
+ background:var(--card2);font-size:16px}
+.nota{font-size:12px;color:var(--mut);line-height:1.5;margin-top:10px}
+.nota b{color:var(--ink)}
+
+/* El ticket para el diálogo de impresión del sistema. Oculto en pantalla; en papel es lo ÚNICO
+   que sale, con monoespaciada para que las columnas de epIzqDer() queden alineadas. */
+#print-area{display:none;white-space:pre;font:12px/1.35 "Courier New",monospace;color:#000}
+@media print{
+  body>*{display:none!important}
+  #print-area{display:block!important;color:#000;background:#fff}
+}
 </style></head><body>
 
 <div id="devbanner" hidden>⚠️ ENTORNO DE DESARROLLO</div>
 <header>
   <h1>Caja de respaldo<small id="sub">cargando…</small></h1>
+  <button class="ic" id="btnReimp" hidden title="Reimprimir el último ticket">🧾</button>
+  <button class="ic" id="btnCfg" title="Impresión">⚙️</button>
   <span class="chip" id="net">···</span>
 </header>
+
+<div id="print-area"></div>
 
 <div class="pend" id="pend"></div>
 
@@ -155,6 +176,34 @@ input[type=number],input[type=text],select{width:100%;height:var(--tap);border-r
   <button class="btn pri" style="width:100%;margin-top:14px" id="confirmar">Confirmar cobro</button>
 </div></dialog>
 
+<dialog id="dlgCfg"><div class="sheet">
+  <h2>Impresión <button onclick="dlgCfg.close()">✕</button></h2>
+
+  <label for="impModo">Cómo imprimir</label>
+  <select id="impModo">
+    <option value="no">No imprimir (por defecto)</option>
+    <option value="usb">USB directo — impresora conectada al celu (OTG)</option>
+    <option value="navegador">Diálogo del sistema — abre una ventana en cada cobro</option>
+  </select>
+  <p class="nota">El diálogo del sistema <b>frena la pantalla</b> hasta que lo cerrás: sirve para
+  una reimpresión suelta, no para cobrar toda una noche.</p>
+
+  <label for="impCP">Juego de caracteres (tildes y ñ)</label>
+  <select id="impCP">
+    <option value="CP858">CP858 — el habitual en térmicas</option>
+    <option value="CP437">CP437</option>
+    <option value="CP1252">CP1252 — Windows</option>
+  </select>
+
+  <button class="btn sec" style="width:100%;margin-top:14px" id="impTest">Imprimir prueba</button>
+  <button class="btn sec" style="width:100%;margin-top:8px" id="impTxt">Bajar prueba como .txt</button>
+
+  <p class="nota">Si la impresora sale con símbolos raros en vez de tildes, probá otro juego de
+  caracteres. El ticket nunca queda ilegible: lo que no se puede representar se imprime sin tilde.</p>
+  <p class="nota"><b>Impresora WiFi del bar:</b> todavía no se puede desde acá. La app se sirve por
+  HTTPS y el navegador bloquea el pedido a una dirección de red local — ver la nota del proyecto.</p>
+</div></dialog>
+
 <script>
 "use strict";
 /* ================================================================= utilidades */
@@ -194,36 +243,50 @@ const MEDIOS = ["EFECTIVO", "TARJETA", "QR", "TRANSFERENCIA"];
 const DESCUENTOS = [10, 20, 30, 40, 50];   // los únicos porcentajes que se usan en el bar
 
 /* ================================================================= catálogo */
-async function cargar() {
-  let r;
-  try {
-    r = await fetch("/api/me", { credentials: "same-origin" });
-  } catch (e) { return aviso("Sin conexión. No puedo cargar el catálogo.", "bad"); }
-  if (r.status === 401) { location.href = "/login"; return; }
-  const me = await r.json();
-  if (me.env === "dev") $("#devbanner").hidden = false;
-  $("#sub").textContent = me.user + " · noche " + nocheISO();
+const CAT_CACHE = "catalogo";      // último catálogo bueno, en IndexedDB
 
-  const d = await fetch("/api/data", { credentials: "same-origin" });
-  if (!d.ok) return aviso("No pude traer los productos.", "bad");
-  const DATA = await d.json();
-
+function aplicarCatalogo(productos) {
   // El catálogo son los productos que ANTIMO ya conoce (los mismos que muestra Recetas), para
   // que el nombre que se emite caiga en la misma fila del ranking al normalizar. No se inventan
   // nombres nuevos: uno que no matchee aparecería como un producto aparte en el tablero.
-  st.prods = (DATA.productos || [])
+  st.prods = (productos || [])
     .map(p => ({ pos: p.pos, cat: p.cat || "(sin categoría)", precio: p.precio_lista || 0 }))
     .sort((a, b) => a.pos.localeCompare(b.pos, "es"));
-
-  const sin = st.prods.filter(p => !p.precio).length;
-  if (sin) {
-    const e = $("#pend");
-    e.className = "pend show";
-    e.innerHTML = "⚠️ <b>" + sin + " producto(s) sin precio de lista.</b> Aparecen en gris y no se " +
-      "pueden cobrar hasta que cargues su precio en el tablero (Rentabilidad → columna «Lista»).";
-  }
   pintarCats();
   pintar();
+  pintarPend();
+}
+
+async function cargar() {
+  // 1) Lo primero, el catálogo guardado: la pantalla queda usable en el acto, incluso sin red y
+  //    con la app recién abierta desde el ícono. Después se revalida contra el servidor.
+  const guardado = await idbGet(CAT_CACHE, "productos");
+  if (guardado) aplicarCatalogo(guardado);
+
+  let me = null;
+  try {
+    const r = await fetch("/api/me", { credentials: "same-origin" });
+    if (r.status === 401) { location.href = "/login"; return; }
+    me = await r.json();
+  } catch (e) {
+    // Sin red: se sigue trabajando con lo cacheado. NO se manda a /login — eso, offline, sería
+    // una pantalla de login que tampoco carga, y el cajero se queda sin poder cobrar.
+    $("#sub").textContent = (guardado ? "sin conexión · " : "") + "noche " + nocheISO();
+    if (!guardado) aviso("Sin conexión y sin catálogo guardado. Conectate una vez para bajarlo.", "bad");
+    return;
+  }
+  if (me.env === "dev") $("#devbanner").hidden = false;
+  $("#sub").textContent = me.user + " · noche " + nocheISO();
+
+  try {
+    const d = await fetch("/api/data", { credentials: "same-origin" });
+    if (!d.ok) throw new Error("http " + d.status);
+    const DATA = await d.json();
+    aplicarCatalogo(DATA.productos);
+    await idbPut(CAT_CACHE, "productos", DATA.productos || []);
+  } catch (e) {
+    if (!guardado) aviso("No pude traer los productos.", "bad");
+  }
 }
 
 function pintarCats() {
@@ -365,16 +428,50 @@ async function confirmarCobro() {
     if (r === "cola") aviso("📤 Cobrado $" + fmt(bruto - desc) +
       " — sin conexión, queda guardado y se envía solo.", "bad");
     else aviso("✅ Cobrado $" + fmt(bruto - desc), "good");
+    // Recién ACÁ se imprime: la venta ya está guardada (o en cola). Si la impresora falla, el
+    // cobro no se toca. Y va sin await para no demorar la pantalla en pleno rush.
+    $("#btnReimp").hidden = false;
+    imprimir(venta).catch(e => console.warn("impresión:", e));
   }
   pintarResumen();
 }
 
-/* ---------------- envío con cola: un cobro NUNCA se pierde por falta de señal --------------
- * Versión mínima sobre localStorage. El offline-first completo (IndexedDB + service worker)
- * viene después; esto ya evita perder una venta si la red se corta a mitad del rush. */
-const COLA = "antimo_caja_cola";
-const leerCola = () => { try { return JSON.parse(localStorage.getItem(COLA)) || []; } catch (e) { return []; } };
-const guardarCola = c => localStorage.setItem(COLA, JSON.stringify(c));
+/* ================================================================= IndexedDB
+ * Guarda la cola de cobros y el último catálogo. Se usa IndexedDB y no localStorage porque
+ * localStorage es SÍNCRONO y el navegador lo puede vaciar bajo presión de memoria — con plata
+ * cobrada adentro, eso es perder ventas. IndexedDB es transaccional y sobrevive mucho mejor.
+ * Sin librerías: son tres helpers sobre la API cruda. */
+const DB_NAME = "antimo_caja", DB_VER = 1, COLA = "cola";
+let _db;
+
+function idb() {
+  if (_db) return _db;
+  _db = new Promise((ok, fail) => {
+    const q = indexedDB.open(DB_NAME, DB_VER);
+    q.onupgradeneeded = () => {
+      const d = q.result;
+      if (!d.objectStoreNames.contains(COLA)) d.createObjectStore(COLA, { keyPath: "ticket" });
+      if (!d.objectStoreNames.contains(CAT_CACHE)) d.createObjectStore(CAT_CACHE);
+    };
+    q.onsuccess = () => ok(q.result);
+    q.onerror = () => fail(q.error);
+  });
+  return _db;
+}
+
+function _tx(store, modo, fn) {
+  return idb().then(d => new Promise((ok, fail) => {
+    const t = d.transaction(store, modo), r = fn(t.objectStore(store));
+    t.oncomplete = () => ok(r && r.result !== undefined ? r.result : undefined);
+    t.onerror = () => fail(t.error);
+  }));
+}
+
+const idbGet = (store, k) => _tx(store, "readonly", s => s.get(k)).catch(() => undefined);
+const idbPut = (store, k, v) => _tx(store, "readwrite", s => s.put(v, k)).catch(() => undefined);
+const leerCola = () => _tx(COLA, "readonly", s => s.getAll()).then(r => r || []).catch(() => []);
+const encolar = v => _tx(COLA, "readwrite", s => s.put(v));
+const desencolar = t => _tx(COLA, "readwrite", s => s.delete(t));
 
 async function postVenta(v) {
   const r = await fetch("/api/caja_venta", {
@@ -398,30 +495,44 @@ async function enviar(v) {
     // Un 403/401 NO va a la cola: reintentarlo mil veces tampoco lo va a aceptar, y dejarlo
     // ahí haría creer que el cobro está hecho cuando el servidor lo rechazó.
     if (/permiso|sesión/i.test(e.message)) { aviso(e.message, "bad"); return "error"; }
-    const c = leerCola(); c.push(v); guardarCola(c);
-    pintarPend();
+    await encolar(v);
+    await pintarPend();
     return "cola";             // para el cajero el cobro está hecho: no se pierde
   }
 }
 
+let drenando = false;
 async function drenar() {
-  const c = leerCola();
-  if (!c.length) return;
-  const quedan = [];
-  for (const v of c) {
-    try { await postVenta(v); }          // idempotente por `ticket`: reenviar no duplica
-    catch (e) { quedan.push(v); }
-  }
-  guardarCola(quedan);
-  pintarPend();
-  if (c.length && !quedan.length) aviso("✅ Se sincronizaron " + c.length + " cobro(s) pendientes.", "good");
+  if (drenando) return;        // dos disparos juntos (online + timer) reenviarían lo mismo
+  drenando = true;
+  try {
+    const c = await leerCola();
+    if (!c.length) return;
+    let enviados = 0;
+    for (const v of c) {
+      try {
+        await postVenta(v);    // idempotente por `ticket`: reenviar no duplica
+        await desencolar(v.ticket);   // recién se borra si el servidor confirmó
+        enviados++;
+      } catch (e) { /* queda en la cola para el próximo intento */ }
+    }
+    await pintarPend();
+    if (enviados) aviso("✅ Se sincronizaron " + enviados + " cobro(s) pendientes.", "good");
+  } finally { drenando = false; }
 }
 
-function pintarPend() {
-  const n = leerCola().length, e = $("#pend");
-  if (!n) { if (e.textContent.includes("pendiente")) e.className = "pend"; return; }
-  e.className = "pend show";
-  e.innerHTML = "📤 <b>" + n + " cobro(s) sin enviar.</b> Se mandan solos al volver la conexión.";
+/** Un solo cartel con las dos cosas que el cajero tiene que saber: cobros sin enviar y
+ *  productos que no puede cobrar. Antes eran dos y se pisaban entre sí. */
+async function pintarPend() {
+  const n = (await leerCola()).length;
+  const sin = st.prods.filter(p => !p.precio).length;
+  const partes = [];
+  if (n) partes.push("📤 <b>" + n + " cobro(s) sin enviar.</b> Se mandan solos al volver la conexión.");
+  if (sin) partes.push("⚠️ <b>" + sin + " producto(s) sin precio de lista.</b> Aparecen en gris y no se " +
+    "pueden cobrar hasta que cargues su precio en el tablero (Rentabilidad → columna «Lista»).");
+  const e = $("#pend");
+  e.innerHTML = partes.join("<hr style='border:0;border-top:1px solid var(--line);margin:8px 0'>");
+  e.className = partes.length ? "pend show" : "pend";
 }
 
 function red() {
@@ -429,6 +540,195 @@ function red() {
   c.textContent = on ? "en línea" : "sin red";
   c.className = "chip " + (on ? "on" : "off");
   if (on) drenar();
+}
+
+/* ================================================================= impresión ESC/POS
+ * Portado del POS de referencia (POS-COMANDERA), mismos bytes y mismas code pages: son las que
+ * ya se probaron contra la OCOM/POS-80 real, y adivinar acá se paga en rollos de papel.
+ *
+ * Regla de oro: GUARDAR SIEMPRE VA PRIMERO. Imprimir es posterior y nunca puede bloquear ni
+ * revertir un cobro. Si la impresora está apagada, la venta ya quedó igual.
+ */
+const CP437_858_MAP = {
+  "ü":0x81,"é":0x82,"â":0x83,"ä":0x84,"à":0x85,"å":0x86,"ê":0x88,"ë":0x89,"è":0x8A,"ï":0x8B,
+  "î":0x8C,"ì":0x8D,"Ä":0x8E,"Å":0x8F,"É":0x90,"ô":0x93,"ö":0x94,"ò":0x95,"û":0x96,"ù":0x97,
+  "ÿ":0x98,"Ö":0x99,"Ü":0x9A,"á":0xA0,"í":0xA1,"ó":0xA2,"ú":0xA3,"ñ":0xA4,"Ñ":0xA5,"¿":0xA8,
+  "¡":0xAD,"°":0xF8
+};
+// Mapa completo del POS de referencia, no recortado a lo que usa el castellano: un producto
+// con nombre francés o alemán ("Crème", "Jägermeister") saldría degradado sin necesidad.
+const CP1252_MAP = {
+  "€":0x80,"Š":0x8A,"Ž":0x8E,"š":0x9A,"ž":0x9E,"Ÿ":0x9F,"¡":0xA1,"¿":0xBF,"°":0xB0,
+  "À":0xC0,"Á":0xC1,"Â":0xC2,"Ä":0xC4,"Å":0xC5,"Ç":0xC7,"È":0xC8,"É":0xC9,"Ê":0xCA,"Ë":0xCB,
+  "Ì":0xCC,"Í":0xCD,"Î":0xCE,"Ï":0xCF,"Ñ":0xD1,"Ò":0xD2,"Ó":0xD3,"Ô":0xD4,"Ö":0xD6,"Ù":0xD9,
+  "Ú":0xDA,"Û":0xDB,"Ü":0xDC,"à":0xE0,"á":0xE1,"â":0xE2,"ä":0xE4,"å":0xE5,"ç":0xE7,"è":0xE8,
+  "é":0xE9,"ê":0xEA,"ë":0xEB,"ì":0xEC,"í":0xED,"î":0xEE,"ï":0xEF,"ñ":0xF1,"ò":0xF2,"ó":0xF3,
+  "ô":0xF4,"ö":0xF6,"ù":0xF9,"ú":0xFA,"û":0xFB,"ü":0xFC
+};
+// Último recurso: degradar a ASCII. Un ticket sin tildes se lee; uno con basura, no.
+const SIN_ACENTO = {"á":"a","é":"e","í":"i","ó":"o","ú":"u","Á":"A","É":"E","Í":"I","Ó":"O",
+  "Ú":"U","ü":"u","Ü":"U","ñ":"n","Ñ":"N","¿":"?","¡":"!","°":"o"};
+const CODEPAGE_INFO = {
+  CP858: { escN: 19, map: CP437_858_MAP },
+  CP437: { escN: 0, map: CP437_858_MAP },
+  CP1252: { escN: 16, map: CP1252_MAP }
+};
+const ESC_COLS = 48;                 // Font A (12x24) en papel de 80mm a 203dpi
+
+function encodeEscPos(str, cp) {
+  const info = CODEPAGE_INFO[cp] || CODEPAGE_INFO.CP858, out = [];
+  for (const ch of String(str)) {
+    const c = ch.charCodeAt(0);
+    if (c < 128) out.push(c);
+    else if (info.map[ch] !== undefined) out.push(info.map[ch]);
+    else if (SIN_ACENTO[ch] !== undefined) out.push(SIN_ACENTO[ch].charCodeAt(0));
+    else out.push(0x3F);             // "?" antes que un byte al azar
+  }
+  return out;
+}
+
+const epLinea = c => (c || "-").repeat(ESC_COLS);
+function epIzqDer(izq, der) {
+  izq = String(izq); der = String(der);
+  const hueco = ESC_COLS - izq.length - der.length;
+  return hueco < 1 ? (izq + " " + der).slice(0, ESC_COLS) : izq + " ".repeat(hueco) + der;
+}
+
+function nuevoDoc() {
+  const ops = [], d = {
+    ops,
+    align: a => (ops.push({ t: "align", a }), d),      // 0 izq · 1 centro · 2 der
+    bold: on => (ops.push({ t: "bold", on }), d),
+    size: (w, h) => (ops.push({ t: "size", w, h }), d),
+    line: s => (ops.push({ t: "text", s: (s || "") + "\n" }), d),
+    feed: n => (ops.push({ t: "feed", n: n || 1 }), d),
+    cut: () => (ops.push({ t: "cut" }), d)
+  };
+  return d;
+}
+
+function docABytes(doc, cp) {
+  const info = CODEPAGE_INFO[cp] || CODEPAGE_INFO.CP858;
+  const b = [0x1B, 0x40, 0x1B, 0x74, info.escN];       // ESC @ (reset) · ESC t n (code page)
+  for (const op of doc.ops) {
+    if (op.t === "align") b.push(0x1B, 0x61, op.a);
+    else if (op.t === "bold") b.push(0x1B, 0x45, op.on ? 1 : 0);
+    else if (op.t === "size") b.push(0x1D, 0x21, (op.h ? 1 : 0) | (op.w ? 0x10 : 0));
+    else if (op.t === "text") b.push(...encodeEscPos(op.s, cp));
+    else if (op.t === "feed") b.push(0x1B, 0x64, op.n);
+    else if (op.t === "cut") b.push(0x1D, 0x56, 0x42, 0x00);
+  }
+  return new Uint8Array(b);
+}
+
+const docATexto = doc => doc.ops.map(o =>
+  o.t === "text" ? o.s : o.t === "feed" ? "\n".repeat(o.n || 1) : "").join("");
+
+/** El ticket de una venta de la caja de respaldo. */
+function docTicket(venta, copia) {
+  const d = nuevoDoc();
+  d.align(1).bold(true).size(1, 0).line("ANTIMO").bold(false).size(0, 0);
+  d.line("Caja de respaldo");
+  if (copia) d.bold(true).line("*** COPIA ***").bold(false);
+  d.align(0).line(epLinea("="));
+  d.line(epIzqDer("Noche " + venta.iso, venta.hora || ""));
+  d.line("Ticket " + String(venta.ticket).slice(0, 8));
+  d.line(epLinea("-"));
+  let bruto = 0;
+  for (const l of venta.lineas) {
+    bruto += l.monto;
+    d.line(epIzqDer(l.unidades + " x " + l.nombre, "$" + fmt(l.monto)));
+  }
+  d.line(epLinea("-"));
+  d.line(epIzqDer("Subtotal", "$" + fmt(bruto)));
+  if (venta.descuento) d.line(epIzqDer("Descuento " + (venta.descuento_pct || "") + "%",
+    "-$" + fmt(venta.descuento)));
+  d.bold(true).size(1, 1).line(epIzqDer("TOTAL", "$" + fmt(bruto - (venta.descuento || 0))))
+    .size(0, 0).bold(false);
+  d.line(epLinea("-"));
+  for (const p of venta.pagos) d.line(epIzqDer(p.medio, "$" + fmt(p.monto)));
+  d.line(epLinea("="));
+  d.align(1).line("Gracias por su visita").align(0);
+  d.feed(6).cut();
+  return d;
+}
+
+/* ---------------- modos de impresión ---------------- */
+// ⚠️ El default es NO IMPRIMIR, y es a propósito. El modo "navegador" usa window.print(), que
+// abre el diálogo modal del sistema y BLOQUEA la pantalla hasta que alguien lo cierra: con eso
+// puesto por defecto, cada cobro frenaría la caja en pleno rush, justo lo contrario de para lo
+// que existe este módulo. La impresión se prende una vez, a mano, cuando hay una impresora.
+const impCfg = () => Object.assign(
+  { modo: "no", codepage: "CP858" },
+  JSON.parse(localStorage.getItem("antimo_caja_imp") || "{}"));
+const guardarImpCfg = c => localStorage.setItem("antimo_caja_imp", JSON.stringify(c));
+
+let usbDevice = null;
+
+/** Modo navegador: diálogo de impresión del sistema. Es el respaldo universal — anda con
+ *  cualquier impresora que el dispositivo ya tenga instalada, sin permisos ni relay. */
+function imprimirNavegador(doc) {
+  const a = $("#print-area");
+  a.textContent = docATexto(doc);
+  print();
+  return { ok: true };
+}
+
+/** Modo WebUSB: la impresora colgada del celu por USB-OTG. Anda sobre HTTPS (Vercel lo es) y
+ *  no necesita nada en la red del bar. */
+async function imprimirUSB(bytes) {
+  try {
+    if (!navigator.usb) throw new Error("Este navegador no soporta WebUSB (usá Chrome en Android).");
+    if (!usbDevice) usbDevice = await navigator.usb.requestDevice({ filters: [{ classCode: 7 }] });
+    const dev = usbDevice;
+    if (!dev.opened) await dev.open();
+    if (dev.configuration === null) await dev.selectConfiguration(1);
+    let iface = null, epOut = null;
+    for (const conf of dev.configurations)
+      for (const int of conf.interfaces)
+        for (const alt of int.alternates)
+          if (alt.interfaceClass === 7) {
+            iface = int.interfaceNumber;
+            const ep = alt.endpoints.find(x => x.direction === "out");
+            if (ep) epOut = ep.endpointNumber;
+          }
+    if (iface === null || epOut === null) throw new Error("El dispositivo USB no expone una impresora.");
+    await dev.claimInterface(iface);
+    await dev.transferOut(epOut, bytes);
+    return { ok: true };
+  } catch (e) {
+    const m = String(e && e.message || e);
+    return { ok: false, error: /claim|access denied|open/i.test(m)
+      ? "La impresora está tomada por el sistema. Sacala de la cola de impresión del equipo."
+      : m };
+  }
+}
+
+/** Guarda el ticket como .txt. Último recurso cuando no hay impresora: queda el comprobante. */
+function bajarTicketTxt(doc, venta) {
+  const url = URL.createObjectURL(new Blob([docATexto(doc)], { type: "text/plain;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = "ticket-" + String(venta.ticket).slice(0, 8) + ".txt";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+let ultimaVenta = null;        // para el botón Reimprimir
+
+async function imprimir(venta, copia) {
+  ultimaVenta = venta;
+  const cfg = impCfg();
+  if (cfg.modo === "no") return;
+  const doc = docTicket(venta, copia);
+  let r;
+  if (cfg.modo === "usb") r = await imprimirUSB(docABytes(doc, cfg.codepage));
+  else r = imprimirNavegador(doc);
+  if (!r.ok) {
+    // La venta YA está guardada. La impresión que falla se avisa y se ofrece salida, nunca
+    // deshace el cobro.
+    aviso("🖨️ No se pudo imprimir: " + r.error + " — el cobro igual quedó guardado.", "bad");
+    $("#btnReimp").hidden = false;
+  }
 }
 
 /* ================================================================= eventos */
@@ -474,8 +774,49 @@ $("#descs").onclick = e => {
 };
 $("#addPago").onclick = () => agregarPago(0);
 $("#confirmar").onclick = confirmarCobro;
+
+/* ---- impresión ---- */
+const ventaDePrueba = () => ({
+  ticket: "PRUEBA00", iso: nocheISO(), hora: new Date().toTimeString().slice(0, 5),
+  descuento: 2000, descuento_pct: 10,
+  lineas: [{ nombre: "FERNET CON COCA", unidades: 2, monto: 20000 },
+           { nombre: "PIZZA MUZZARELLA (ñ, á, é)", unidades: 1, monto: 0 }],
+  pagos: [{ medio: "EFECTIVO", monto: 18000 }]
+});
+$("#btnCfg").onclick = () => {
+  const c = impCfg();
+  $("#impModo").value = c.modo; $("#impCP").value = c.codepage;
+  $("#dlgCfg").showModal();
+};
+$("#impModo").onchange = e => guardarImpCfg(Object.assign(impCfg(), { modo: e.target.value }));
+$("#impCP").onchange = e => guardarImpCfg(Object.assign(impCfg(), { codepage: e.target.value }));
+$("#impTest").onclick = async () => {
+  $("#dlgCfg").close();
+  const cfg = impCfg(), doc = docTicket(ventaDePrueba(), false);
+  const r = cfg.modo === "usb" ? await imprimirUSB(docABytes(doc, cfg.codepage))
+                               : imprimirNavegador(doc);
+  if (!r.ok) aviso("🖨️ " + r.error, "bad");
+};
+$("#impTxt").onclick = () => { bajarTicketTxt(docTicket(ventaDePrueba(), false), ventaDePrueba()); };
+$("#btnReimp").onclick = () => {
+  if (!ultimaVenta) return aviso("Todavía no hay ningún ticket para reimprimir.", "bad");
+  imprimir(ultimaVenta, true);
+};
 addEventListener("online", red);
 addEventListener("offline", red);
+// Al volver del bloqueo de pantalla, el evento "online" puede no dispararse (el celu nunca
+// llegó a reportarse offline). Reintentar al reenfocar cubre ese caso.
+addEventListener("visibilitychange", () => { if (!document.hidden) red(); });
+// Y un reintento periódico por si la red "está" pero no llega al servidor (wifi del bar caído,
+// portal cautivo): navigator.onLine miente en esos casos, dice true igual.
+setInterval(() => { if (navigator.onLine) drenar(); }, 60000);
+
+/* Service worker: es lo que hace que la pantalla ABRA sin internet. Si falla el registro la app
+   sigue funcionando igual, solo pierde el arranque offline — por eso no se avisa nada. */
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => navigator.serviceWorker.register("/sw.js", { scope: "/caja" })
+    .catch(e => console.warn("SW no registrado:", e)));
+}
 
 red();
 pintarPend();

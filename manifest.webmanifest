@@ -1,0 +1,16 @@
+{
+  "name": "ANTIMO · Caja de respaldo",
+  "short_name": "Caja ANTIMO",
+  "description": "Segunda caja de cobro del bar. Funciona sin internet: los cobros se guardan y se sincronizan solos.",
+  "start_url": "/caja",
+  "scope": "/caja",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1419",
+  "theme_color": "#0f1419",
+  "lang": "es-AR",
+  "icons": [
+    { "src": "/caja-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/caja-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

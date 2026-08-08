@@ -4,7 +4,10 @@
     { "src": "index.html", "use": "@vercel/static" },
     { "src": "login.html", "use": "@vercel/static" },
     { "src": "actividad.html", "use": "@vercel/static" },
-    { "src": "caja.html", "use": "@vercel/static" }
+    { "src": "caja.html", "use": "@vercel/static" },
+    { "src": "sw.js", "use": "@vercel/static" },
+    { "src": "manifest.webmanifest", "use": "@vercel/static" },
+    { "src": "caja-icon.svg", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/api/([^/?]+).*", "dest": "/api/index.py?__name=$1" },
