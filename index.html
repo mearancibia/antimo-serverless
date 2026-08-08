@@ -51,19 +51,23 @@ h1#brand{font-size:20px;display:flex;align-items:center}
 .navlabel{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#6d7d8f;padding:0 var(--navpad);font-weight:700}
 
 .tabs{display:flex;flex-direction:column;gap:3px;margin:0}
-.tabs button{
+.tabs button,.tabs a.navlink{
  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
  background:none;border:0;color:#a6b3c2;font:inherit;font-size:14px;font-weight:500;
  padding:10px var(--navpad);border-radius:9px;cursor:pointer;position:relative;
- transition:background .13s,color .13s;
+ transition:background .13s,color .13s;text-decoration:none;
 }
 .tabs button::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);
  width:3px;height:0;background:var(--accent);border-radius:0 3px 3px 0;transition:height .15s}
-.tabs button:hover{background:rgba(255,255,255,.045);color:var(--ink)}
-.tabs button:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ring)}
+.tabs button:hover,.tabs a.navlink:hover{background:rgba(255,255,255,.045);color:var(--ink)}
+.tabs button:focus-visible,.tabs a.navlink:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ring)}
 .tabs button.on{background:rgba(232,131,74,.12);color:#f6e0d1;font-weight:650}
 .tabs button.on::before{height:22px}
-.tabs button .ic{width:19px;text-align:center;font-size:15px;opacity:.95;flex:none}
+.tabs button .ic,.tabs a.navlink .ic{width:19px;text-align:center;font-size:15px;opacity:.95;flex:none}
+/* El link a la caja de respaldo NO es una solapa: lleva a otra pagina (/caja). Se separa con una
+   linea para que no parezca una seccion mas del panel y nadie espere volver con el boton atras. */
+.tabs .navsep{height:1px;background:var(--line2);margin:8px var(--navpad)}
+.tabs a.navlink .ext{margin-left:auto;font-size:11px;opacity:.55;flex:none}
 
 /* Bloque de sesion al pie del sidebar (antes era la topbar). `margin-top:auto` lo empuja
    abajo; el .sidefoot va debajo y ya no necesita el auto. */
@@ -296,9 +300,13 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   padding:10px 16px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto}
  .navlabel,.sidefoot{display:none}
  .tabs{flex-direction:row;gap:4px}
- .tabs button{padding:8px 12px;white-space:nowrap}
+ .tabs button,.tabs a.navlink{padding:8px 12px;white-space:nowrap;width:auto}
  .tabs button::before{left:12px;right:12px;top:auto;bottom:0;transform:none;width:auto;height:0;border-radius:3px 3px 0 0}
  .tabs button.on::before{height:2px}
+ /* En fila, el separador se acuesta: si no, queda una raya horizontal de 1px flotando entre
+    los items. Y el texto no se parte en dos renglones (white-space:nowrap arriba). */
+ .tabs .navsep{width:1px;height:auto;margin:6px 5px;flex:none}
+ .tabs a.navlink .ext{margin-left:4px}
  .main{grid-column:1}
  /* El sidebar pasa a ser una fila: el bloque de sesion se acuesta con ella. NO se oculta
     junto con .sidefoot — adentro viven "Traer ventas" y "Salir". */
@@ -339,6 +347,11 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
    <button data-t="caja"><span class="ic">💵</span>Caja</button>
    <button data-t="costos"><span class="ic">💲</span>Costos</button>
    <button data-t="opex"><span class="ic">🏦</span>OPEX</button>
+   <!-- Caja de respaldo: es OTRA pagina (/caja), no una solapa del panel, y por eso va como
+        link y separada. Se muestra a TODOS los roles: cobrar es justamente lo que hace el
+        cajero. Quien no tenga permiso igual se come un 403 del lado del servidor. -->
+   <div class="navsep"></div>
+   <a class="navlink" href="/caja"><span class="ic">🧾</span>Caja de respaldo<span class="ext">↗</span></a>
   </nav>
   <!-- Sesion y estado al pie del sidebar. Vivian en una topbar propia que ocupaba 60px de
        alto en todas las solapas; aca no le sacan alto a ninguna tabla. Los ids son los
