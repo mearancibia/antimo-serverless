@@ -201,6 +201,7 @@ header .ic{width:38px;height:38px;border-radius:9px;border:1px solid var(--line)
 
   <p class="nota">Si la impresora sale con símbolos raros en vez de tildes, probá otro juego de
   caracteres. El ticket nunca queda ilegible: lo que no se puede representar se imprime sin tilde.</p>
+  <p class="nota" id="relayEstado"></p>
   <p class="nota"><b>Impresora del bar:</b> el ticket viaja con el cobro y lo imprime el relay que
   corre en la PC del bar (<code>print_relay.js</code>). Si el relay está apagado, los tickets
   quedan encolados y salen todos juntos cuando se prenda.</p>
@@ -240,7 +241,9 @@ function aviso(txt, kind) {
 }
 
 /* ================================================================= estado */
-const st = { prods: [], cat: "all", q: "", ticket: [], desc: 0 };   // desc = % de descuento
+// `relay` arranca en null = "todavía no sé" (nunca cargó /api/me). Distinto de false, que es
+// "el servidor dice que NO está configurado": no es lo mismo no saber que saber que falta.
+const st = { prods: [], cat: "all", q: "", ticket: [], desc: 0, relay: null };   // desc = % de descuento
 const MEDIOS = ["EFECTIVO", "TARJETA", "QR", "TRANSFERENCIA"];
 const DESCUENTOS = [10, 20, 30, 40, 50];   // los únicos porcentajes que se usan en el bar
 
@@ -278,6 +281,7 @@ async function cargar() {
     return;
   }
   if (me.env === "dev") $("#devbanner").hidden = false;
+  st.relay = !!me.relay;
   $("#sub").textContent = me.user + " · noche " + nocheISO();
 
   try {
@@ -823,6 +827,14 @@ const ventaDePrueba = () => ({
 $("#btnCfg").onclick = () => {
   const c = impCfg();
   $("#impModo").value = c.modo; $("#impCP").value = c.codepage;
+  // Estado del relay del lado del servidor, para no tener que adivinar si el token quedó bien
+  // cargado en Vercel. `st.relay` viene de /api/me; si nunca cargó (offline), no se dice nada
+  // en vez de afirmar algo falso.
+  const e = $("#relayEstado");
+  if (st.relay === null) e.innerHTML = "";
+  else if (st.relay) e.innerHTML = '<span class="ok">✅ El servidor tiene el token del relay cargado.</span>';
+  else e.innerHTML = '<span class="warn">⚠️ Falta cargar <code>PRINT_RELAY_TOKEN</code> en Vercel ' +
+    '(y redeployar). Hasta entonces, la impresora del bar no va a recibir nada.</span>';
   $("#dlgCfg").showModal();
 };
 $("#impModo").onchange = e => guardarImpCfg(Object.assign(impCfg(), { modo: e.target.value }));

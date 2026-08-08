@@ -110,8 +110,14 @@ class handler(BaseHTTPRequestHandler):
                 return self._send(401, {"ok": False, "error": "no autenticado", "env": ENV})
             # `tabs` es lo que el frontend usa para dibujar el menú. Es una comodidad de UI, no
             # la defensa: aunque alguien lo falsee, el backend bloquea igual por rol.
+            # `relay` dice sólo SI está configurado el token, nunca su valor. Sin esto, cargar
+            # PRINT_RELAY_TOKEN en Vercel es un paso a ciegas: el endpoint del relay responde
+            # 401 igual esté configurado o no (falla cerrada), así que desde afuera no hay forma
+            # de saber si quedó bien puesto hasta que falla la impresión en pleno servicio.
+            # Va en /api/me y no en /api/ping porque ping es público.
             return self._send(200, {"ok": True, "user": user, "rol": rol,
-                                    "tabs": auth.tabs_de(rol), "env": ENV})
+                                    "tabs": auth.tabs_de(rol), "env": ENV,
+                                    "relay": bool(os.environ.get("PRINT_RELAY_TOKEN"))})
         if not user:
             return self._send(401, {"ok": False, "error": "no autenticado"})
         if not auth.puede_get(rol, name):
