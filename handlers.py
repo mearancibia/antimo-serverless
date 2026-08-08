@@ -294,8 +294,14 @@ def _derivar_caja(iso, tickets):
         desc = _num(d.get("descuento"))
         if desc:
             v["descuentos"] += desc
+            # Sin concepto el tablero mostraría "—" en la tabla de descuentos de la noche. Como
+            # en la caja de respaldo el descuento se elige por porcentaje, ese % ES el concepto.
+            pct = _num(d.get("descuento_pct"))
+            concepto = str(d.get("descuento_concepto") or "")[:50]
+            if not concepto and pct:
+                concepto = "Descuento %g%%" % pct
             v["detalle_descuentos"].append({
-                "concepto": str(d.get("descuento_concepto") or "")[:50], "monto": desc,
+                "concepto": concepto, "monto": desc,
                 "user": str(d.get("user") or ""), "hora": str(d.get("hora") or "")})
         v["total_vendido"] -= desc          # total_vendido = neto cobrado
         for p in (d.get("pagos") or []):

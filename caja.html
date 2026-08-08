@@ -86,6 +86,13 @@ label{display:block;font-size:12px;color:var(--mut);margin:12px 0 5px}
 input[type=number],input[type=text],select{width:100%;height:var(--tap);border-radius:10px;
  border:1px solid var(--line);background:var(--card2);padding:0 12px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* Grilla en vez de flex-wrap: con 6 opciones, el último chip que sobra se estiraba a lo ancho
+   de su fila y parecía otro control. Así quedan 3+3 parejos en el celu y 6 en una fila si entra. */
+.descs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+@media(min-width:560px){.descs{grid-template-columns:repeat(6,1fr)}}
+.descs button{height:var(--tap);border-radius:10px;background:var(--card2);
+ border:1px solid var(--line);color:var(--mut);font-size:14px;font-weight:600}
+.descs button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#1a1005}
 .pagos .pg{display:grid;grid-template-columns:1.2fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px}
 .pg button{color:var(--neg);font-size:20px;padding:0 8px}
 .resumen{background:var(--card2);border-radius:11px;padding:12px;margin-top:14px;font-size:14px}
@@ -136,21 +143,13 @@ input[type=number],input[type=text],select{width:100%;height:var(--tap);border-r
 
 <dialog id="dlgCobro"><div class="sheet">
   <h2>Cobrar <button onclick="dlgCobro.close()">✕</button></h2>
-  <div class="grid2">
-    <div><label for="comensales">Comensales</label>
-      <input id="comensales" type="number" min="0" step="1" value="1" inputmode="numeric"></div>
-    <div><label for="descuento">Descuento $</label>
-      <input id="descuento" type="number" min="0" step="1" value="0" inputmode="numeric"></div>
-  </div>
-  <label for="descConcepto">Motivo del descuento</label>
-  <input id="descConcepto" type="text" placeholder="opcional" maxlength="50">
+
+  <label>Descuento</label>
+  <div class="descs" id="descs"></div>
 
   <label>Medios de pago</label>
   <div class="pagos" id="pagos"></div>
   <button class="btn sec" style="width:100%" id="addPago">+ Otro medio</button>
-
-  <label for="recibido">Efectivo recibido (para el vuelto)</label>
-  <input id="recibido" type="number" min="0" step="1" placeholder="opcional" inputmode="numeric">
 
   <div class="resumen" id="resumen"></div>
   <button class="btn pri" style="width:100%;margin-top:14px" id="confirmar">Confirmar cobro</button>
@@ -190,8 +189,9 @@ function aviso(txt, kind) {
 }
 
 /* ================================================================= estado */
-const st = { prods: [], cat: "all", q: "", ticket: [] };
+const st = { prods: [], cat: "all", q: "", ticket: [], desc: 0 };   // desc = % de descuento
 const MEDIOS = ["EFECTIVO", "TARJETA", "QR", "TRANSFERENCIA"];
+const DESCUENTOS = [10, 20, 30, 40, 50];   // los únicos porcentajes que se usan en el bar
 
 /* ================================================================= catálogo */
 async function cargar() {
@@ -303,22 +303,30 @@ const leerPagos = () => [...$("#pagos").children].map(d => ({
   monto: +d.querySelector("input").value || 0
 })).filter(p => p.monto > 0);
 
+/** Descuento en PESOS a partir del % elegido. Se redondea acá, una sola vez, para que el
+ *  importe que se muestra sea exactamente el que se manda y el que se cobra: si se redondeara
+ *  al mostrar y no al enviar, la caja quedaría descuadrada por unos pesos sin motivo visible. */
+const descPesos = () => Math.round(totalTicket() * st.desc / 100);
+
+function pintarDescuentos() {
+  $("#descs").innerHTML = [0].concat(DESCUENTOS).map(p =>
+    `<button data-p="${p}" aria-pressed="${p === st.desc}">${p ? p + "%" : "Sin desc."}</button>`
+  ).join("");
+}
+
 function pintarResumen() {
   const bruto = totalTicket();
-  const desc = Math.max(0, +$("#descuento").value || 0);
+  const desc = descPesos();
   const neto = bruto - desc;
   const pg = leerPagos(), sum = pg.reduce((s, p) => s + p.monto, 0);
-  const rec = +$("#recibido").value || 0;
-  const vuelto = rec ? rec - (pg.find(p => p.medio === "EFECTIVO") || { monto: 0 }).monto : 0;
   const dif = +(sum - neto).toFixed(2);
 
   let h = `<div><span>Bruto</span><b>$${fmt(bruto)}</b></div>`;
-  if (desc) h += `<div><span>Descuento</span><b class="warn">−$${fmt(desc)}</b></div>`;
+  if (desc) h += `<div><span>Descuento ${st.desc}%</span><b class="warn">−$${fmt(desc)}</b></div>`;
   h += `<div class="big"><span>A cobrar</span><span>$${fmt(neto)}</span></div>`;
   h += `<div><span>Pagos cargados</span><b>$${fmt(sum)}</b></div>`;
   if (dif) h += `<div><span>${dif > 0 ? "Sobra" : "Falta"}</span>
                  <b class="warn">$${fmt(Math.abs(dif))}</b></div>`;
-  if (rec && vuelto > 0) h += `<div><span>Vuelto</span><b class="ok">$${fmt(vuelto)}</b></div>`;
   $("#resumen").innerHTML = h;
 
   // Se exige que los pagos cuadren con el neto: si no, la caja de la noche no cierra contra
@@ -330,13 +338,14 @@ function pintarResumen() {
 
 async function confirmarCobro() {
   const bruto = totalTicket();
-  const desc = Math.max(0, +$("#descuento").value || 0);
+  const desc = descPesos();
   const venta = {
     ticket: uuid(),
     iso: nocheISO(),                     // se calcula al COBRAR, no al abrir la app
-    comensales: Math.max(0, parseInt($("#comensales").value, 10) || 0),
+    // El descuento viaja en PESOS: es lo que espera el backend y lo que guarda la caja de
+    // Bistrosoft. El % es solo la forma de elegirlo en pantalla.
     descuento: desc,
-    descuento_concepto: $("#descConcepto").value.slice(0, 50),
+    descuento_pct: st.desc,              // informativo, para el detalle de la caja
     hora: new Date().toTimeString().slice(0, 5),
     // nombre CRUDO y monto en PESOS. El motor normaliza el nombre; convertir acá desdoblaría
     // el producto, y mandar centavos lo inflaría 100 veces.
@@ -446,13 +455,24 @@ $("#lineas").onclick = e => {
 };
 $("#vaciar").onclick = () => { st.ticket = []; pintarLineas(); refrescar(); $("#dlgTicket").close(); };
 $("#cobrar").onclick = () => {
-  $("#descuento").value = 0; $("#descConcepto").value = ""; $("#recibido").value = "";
+  st.desc = 0;                       // cada cobro arranca sin descuento
+  pintarDescuentos();
   pintarPagos(true);
   $("#dlgCobro").showModal();
 };
+$("#descs").onclick = e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const p = +b.dataset.p;
+  st.desc = (p === st.desc) ? 0 : p;          // volver a tocar el mismo lo saca
+  pintarDescuentos();
+  // Si hay un solo medio de pago cargado, se ajusta solo al nuevo neto. Con dos o más no se
+  // toca: el reparto entre medios lo decidió el cajero y no hay forma de adivinar cuál cambia.
+  const pgs = $("#pagos").children;
+  if (pgs.length === 1) pgs[0].querySelector("input").value = Math.round(totalTicket() - descPesos());
+  pintarResumen();
+};
 $("#addPago").onclick = () => agregarPago(0);
-$("#descuento").oninput = pintarResumen;
-$("#recibido").oninput = pintarResumen;
 $("#confirmar").onclick = confirmarCobro;
 addEventListener("online", red);
 addEventListener("offline", red);
