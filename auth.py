@@ -118,13 +118,17 @@ GET_CAJERO = frozenset({"ping", "me", "data"})
 #   precio / costos_bulk / stock / stock_bulk -> Costos y Compras (precios de insumos y conteos)
 #   dia_cerrado                               -> Caja (marcar una noche sin apertura)
 #   pull                                      -> traer ventas de Bistrosoft (cerrar la noche)
+#   caja_venta                                -> cobrar por la caja de respaldo (/caja, el celular)
 # Quedan afuera, y son 403 aunque se fuercen a mano desde la consola del navegador:
 #   opex_save / opex_vigencia  -> OPEX (incluye sueldos)
 #   receta / combo / producto / pour / precio_lista -> Recetas y Rentabilidad
 #   sospechoso                 -> marca del dueño sobre precios/costos
 #   config                     -> credenciales de Bistrosoft
+#   backup_excluir             -> la válvula que saca una noche del cómputo. Es admin a
+#     propósito: a diferencia de `dia_cerrado` (que solo dice "no abrió"), esta borra ventas
+#     reales de los totales. Quien la toca decide qué factura el bar esa noche.
 POST_CAJERO = frozenset({"logout", "precio", "costos_bulk", "stock", "stock_bulk",
-                         "dia_cerrado", "pull"})
+                         "dia_cerrado", "pull", "caja_venta"})
 
 
 def normalizar_rol(rol):

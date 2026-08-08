@@ -250,12 +250,140 @@ def _producto(data, sb):
     sb.table("maestro_extra").upsert({"pos": norm(pos), "data": entry}).execute()
 
 
+# ---------------------------------------------------------------- caja de respaldo
+# Medios de pago del POS -> campos de la caja (mismo criterio que bistro.parse_items, que
+# clasifica por subcadena sobre el paymentMethod de Bistrosoft).
+def _campo_pago(medio):
+    pm = str(medio or "").upper()
+    if "EFECT" in pm:
+        return "efectivo"
+    if "TARJ" in pm or "DEBITO" in pm or "CREDITO" in pm:
+        return "tarjetas"
+    if "QR" in pm:
+        return "qr"
+    return "otros_pago"          # transferencia y cualquier otro
+
+
+def _num(x, default=0.0):
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return default
+    return default if v != v or v in (float("inf"), float("-inf")) else v
+
+
+def _caja_vacia():
+    """Misma forma que bistro._nuevo_dia(). Se replica en vez de importar bistro para no
+    arrastrar `requests` a este módulo; si allá se agrega un campo, agregarlo acá."""
+    return {"total_vendido": 0.0, "efectivo": 0.0, "tarjetas": 0.0, "qr": 0.0, "otros_pago": 0.0,
+            "comensales": 0, "descuentos": 0.0, "retiros": 0.0, "depositos": 0.0,
+            "detalle_retiros": [], "detalle_descuentos": []}
+
+
+def _derivar_caja(iso, tickets):
+    """Arma la caja de la noche sumando TODOS sus tickets. Se recalcula entera en cada POST en
+    vez de acumular: así reintentar un ticket (mala señal desde el celu) no cuenta doble."""
+    v = _caja_vacia()
+    for t in tickets:
+        d = t.get("data") or {}
+        for linea in (d.get("lineas") or []):
+            if linea.get("anulada"):
+                continue
+            v["total_vendido"] += _num(linea.get("monto"))
+        # el descuento va aparte, NO restado dentro del producto (igual que "- ITEM DESCUENTO")
+        desc = _num(d.get("descuento"))
+        if desc:
+            v["descuentos"] += desc
+            v["detalle_descuentos"].append({
+                "concepto": str(d.get("descuento_concepto") or "")[:50], "monto": desc,
+                "user": str(d.get("user") or ""), "hora": str(d.get("hora") or "")})
+        v["total_vendido"] -= desc          # total_vendido = neto cobrado
+        for p in (d.get("pagos") or []):
+            v[_campo_pago(p.get("medio"))] += _num(p.get("monto"))
+        try:
+            v["comensales"] += int(_num(d.get("comensales")))
+        except (TypeError, ValueError):
+            pass
+    v["fecha"] = _ddmm(iso); v["fecha_dia"] = v["fecha"]
+    v["fecha_iso"] = iso; v["fecha_key"] = iso
+    v["archivo"] = "Caja respaldo"
+    return v
+
+
+def _ddmm(iso):
+    try:
+        return datetime.date.fromisoformat(iso).strftime("%d-%m")
+    except Exception:
+        return iso
+
+
+def _caja_venta(data, sb):
+    """Registra una venta cobrada por la caja de respaldo.
+
+    Escribe el ticket entero (fuente de verdad) + su espejo plano en ventas_backup, y RECALCULA
+    la caja de esa noche sobre todos sus tickets. Idempotente por `ticket`: un reintento desde el
+    celular reescribe lo mismo y la caja da igual, no suma dos veces.
+    """
+    ticket = str(data.get("ticket") or "").strip()
+    if not ticket:
+        return "Falta el id del ticket"
+    iso = str(data.get("iso") or "").strip()
+    if not ISO_RE.match(iso):
+        return "Fecha de la noche inválida"
+
+    lineas = data.get("lineas") or []
+    vivas = [l for l in lineas if not l.get("anulada")]
+    if not vivas:
+        return "El ticket no tiene líneas"
+
+    # una fila por producto (agregando si el mismo producto vino en dos líneas del ticket):
+    # ventas_backup tiene unique(ticket, nombre) y un upsert con dos filas iguales se pisa a sí mismo
+    agg = {}
+    for l in vivas:
+        nombre = str(l.get("nombre") or "").strip()   # CRUDO: lo normaliza el motor
+        if not nombre:
+            return "Una línea vino sin nombre de producto"
+        u, m = _num(l.get("unidades")), _num(l.get("monto"))
+        if u < 0 or m < 0:
+            return "Cantidades o montos negativos"
+        a = agg.setdefault(nombre, [0.0, 0.0])
+        a[0] += u; a[1] += m
+
+    ddmm = _ddmm(iso)
+    sb.table("tickets_backup").upsert({"ticket": ticket, "iso": iso, "data": data}).execute()
+    sb.table("ventas_backup").upsert(
+        [{"ticket": ticket, "nombre": n, "fecha": ddmm, "iso": iso,
+          "unidades": u, "monto": round(m, 2)} for n, (u, m) in agg.items()],
+        on_conflict="ticket,nombre").execute()
+
+    # sobran las filas de un producto que ya no está (ticket corregido y reenviado)
+    vivos = list(agg)
+    sb.table("ventas_backup").delete().eq("ticket", ticket).not_.in_("nombre", vivos).execute()
+
+    tickets = sb.table("tickets_backup").select("data").eq("iso", iso).execute().data or []
+    sb.table("cajas_backup").upsert({"fecha_key": iso, "data": _derivar_caja(iso, tickets)}).execute()
+
+
+def _backup_excluir(data, sb):
+    """Válvula anti doble conteo: marca una noche como 'ya volcada a Bistrosoft'. Saca del
+    cómputo las ventas Y la caja de respaldo de esa noche (las dos, ver fusionar_backup)."""
+    iso = str(data.get("iso") or "").strip()
+    if not ISO_RE.match(iso):
+        return "Fecha inválida"
+    if data.get("excluir"):
+        sb.table("backup_excluido").upsert(
+            {"iso": iso, "motivo": str(data.get("motivo") or "") or "Volcado a Bistrosoft"}).execute()
+    else:
+        sb.table("backup_excluido").delete().eq("iso", iso).execute()
+
+
 # nombre de endpoint -> función apply (todas recalculan tras aplicar)
 ROUTES = {
     "precio": _precio, "receta": _receta, "precio_lista": _precio_lista, "pour": _pour,
     "combo": _combo, "sospechoso": _sospechoso, "dia_cerrado": _dia_cerrado, "stock": _stock,
     "stock_bulk": _stock_bulk, "costos_bulk": _costos_bulk, "opex_save": _opex_save,
     "opex_vigencia": _opex_vigencia, "producto": _producto,
+    "caja_venta": _caja_venta, "backup_excluir": _backup_excluir,
 }
 
 # POST que NO recalcula y no aplica en la nube (no hay filesystem persistente donde dejar el Excel).

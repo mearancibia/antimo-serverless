@@ -77,6 +77,56 @@ create table if not exists cajas (
   data jsonb not null
 );
 
+-- ================= CAJA DE RESPALDO (segunda caja de cobro) =================
+-- Fuente de ventas INDEPENDIENTE de Bistrosoft, para cuando el cajero del POS no da abasto.
+--
+-- ⚠️ Por qué tablas nuevas y no `ventas`/`cajas`: el pull de Bistrosoft (sl_common.write_pull)
+-- BORRA el mes entero de `ventas` antes de reinsertar, y hace upsert por `fecha_key` en `cajas`.
+-- Una venta de respaldo escrita ahí se perdería en el próximo pull (ventas) o pisaría el cierre
+-- de Bistrosoft (cajas). Acá quedan aparte y `sources.py` las SUMA al armar `src`.
+
+-- tickets_backup es la FUENTE DE VERDAD: un ticket cobrado, entero. Las otras dos tablas se
+-- derivan de acá. Tenerlo permite que reintentar un POST sea idempotente de verdad: el mismo
+-- ticket upserta la misma fila y la caja de la noche se RECALCULA sobre el conjunto, en vez de
+-- acumular sumas (que contarían doble ante un reintento por mala señal desde el celular).
+create table if not exists tickets_backup (
+  ticket text primary key,      -- id generado en el celular (uuid), único por cobro
+  iso text not null,            -- noche de caja (corte 08:00, hora LOCAL)
+  data jsonb not null,          -- {lineas, pagos, descuento, comensales, ts, user}
+  creado_ts timestamptz not null default now()
+);
+create index if not exists tickets_backup_iso_idx on tickets_backup (iso);
+
+-- ventas_backup: espejo plano del ranking de Bistrosoft (una fila por producto y noche).
+-- `nombre` va CRUDO: el motor lo normaliza con norm()+UNIFICAR al leer, igual que el de la API.
+-- Normalizarlo acá desdoblaría el producto en dos filas del tablero.
+create table if not exists ventas_backup (
+  id bigint generated always as identity primary key,
+  ticket text not null references tickets_backup (ticket) on delete cascade,
+  nombre text not null,
+  fecha text,                   -- "DD-MM"
+  iso text,                     -- "YYYY-MM-DD"
+  unidades numeric,
+  monto numeric,                -- en PESOS (no centavos)
+  unique (ticket, nombre)
+);
+create index if not exists ventas_backup_iso_idx on ventas_backup (iso);
+
+-- cajas_backup: cierre por noche, MISMA forma que bistro._nuevo_dia(). Derivada de los tickets.
+create table if not exists cajas_backup (
+  fecha_key text primary key,   -- ISO de la noche
+  data jsonb not null
+);
+
+-- Válvula anti doble conteo: si una noche se volcó a mano al POS de Bistrosoft, sus datos ya
+-- vienen por la API y el respaldo tiene que salir del cómputo. Excluye la noche ENTERA (ventas
+-- Y caja): sacar solo una de las dos contaría los productos doble aunque los totales cerraran.
+create table if not exists backup_excluido (
+  iso text primary key,
+  motivo text,
+  updated_at timestamptz not null default now()
+);
+
 -- ================= OVERRIDES (ediciones del dueño) =================
 create table if not exists precios_override (
   insumo text primary key, precio numeric not null, updated_at timestamptz not null default now()
@@ -151,6 +201,7 @@ begin
     'antimo_data','app_meta','costo_base','lista_precios','recetas','maestro_productos',
     'opex_base','ventas','cajas','precios_override','recetas_extra','precio_lista_override',
     'pours_extra','maestro_extra','insumos_extra','combos_extra','sospechosos','dias_cerrados','stock',
+    'tickets_backup','ventas_backup','cajas_backup','backup_excluido',
     'users','audit_log'
   ] loop
     execute format('alter table %I enable row level security;', t);

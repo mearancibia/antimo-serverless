@@ -15,6 +15,63 @@ import os, re, json, glob, base64, mimetypes, tempfile, zipfile, shutil, context
 from engine import norm
 
 
+# ================================================================ CAJA DE RESPALDO (fusión)
+# Campos de una caja que se SUMAN al fusionar dos fuentes de la misma noche, y los que se
+# concatenan. Espejo de bistro._nuevo_dia(): si se agrega un campo allá, agregarlo acá.
+_CAJA_SUMAR = ("total_vendido", "efectivo", "tarjetas", "qr", "otros_pago",
+               "comensales", "descuentos", "retiros", "depositos")
+_CAJA_CONCAT = ("detalle_retiros", "detalle_descuentos")
+
+
+def _caja_key(c):
+    return str(c.get("fecha_key") or c.get("fecha_iso") or c.get("fecha") or "")
+
+
+def fusionar_backup(ventas, cajas, ventas_bk, cajas_bk, excluidos):
+    """Suma la caja de respaldo a los datos de Bistrosoft. Devuelve (ventas, cajas) nuevas.
+
+    Son dos fuentes INDEPENDIENTES que se suman, no un merge con resolución de conflictos:
+    una venta se cobra en Bistrosoft O en la caja de respaldo, nunca en las dos (§ válvula).
+
+    - ventas: se concatenan las filas y listo. El motor agrupa por (norm(nombre), iso) y suma,
+      así que un producto que ya vendió Bistrosoft esa noche cae en la MISMA fila. Por eso el
+      nombre tiene que viajar crudo desde el cliente: normalizarlo antes lo desdoblaría.
+    - cajas: se suman ACÁ, antes del motor, para que engine._dedup_cajas siga recibiendo una
+      sola caja por noche y no haya que tocarlo. La caja fusionada conserva el `archivo` de la
+      fuente Bistrosoft, así la preferencia del dedupe frente al PDF queda intacta.
+
+    `excluidos` (set de ISO) es la válvula: saca del cómputo ventas Y caja de esa noche. Las dos
+    juntas — sacar solo la caja dejaría los productos contados doble.
+    """
+    ex = set(excluidos or ())
+    ventas = list(ventas or []) + [v for v in (ventas_bk or []) if str(v.get("iso") or "") not in ex]
+
+    bk = {}
+    for c in (cajas_bk or []):
+        k = _caja_key(c)
+        if k and k not in ex:
+            bk[k] = c
+    if not bk:
+        return ventas, list(cajas or [])
+
+    out = []
+    for c in (cajas or []):
+        k = _caja_key(c)
+        b = bk.pop(k, None)
+        if b is None:
+            out.append(c)
+            continue
+        m = dict(c)
+        for f in _CAJA_SUMAR:
+            m[f] = (c.get(f) or 0) + (b.get(f) or 0)
+        for f in _CAJA_CONCAT:
+            m[f] = list(c.get(f) or []) + list(b.get(f) or [])
+        out.append(m)          # conserva fecha/fecha_key/archivo de la fuente Bistrosoft
+    # noches que SOLO tienen caja de respaldo (el bar cobró todo por la segunda caja)
+    out += list(bk.values())
+    return ventas, out
+
+
 # ================================================================ LOCAL (Excel + archivos)
 class LocalSource:
     def __init__(self, base=None):
@@ -168,6 +225,16 @@ class LocalSource:
         # ---- cajas (API json) ----
         cajas = self._load_json("cajas_api.json", [])
 
+        # ---- caja de respaldo (opcional: en local casi siempre no existe) ----
+        # Se leen igual que en la nube para que el gate de verificación (compute(LocalSource) ==
+        # compute(SupabaseSource)) siga comparando lo mismo. Sin archivos → listas vacías → la
+        # fusión es un no-op y el DATA queda idéntico a antes.
+        ventas, cajas = fusionar_backup(
+            ventas, cajas,
+            self._load_json("ventas_backup.json", []),
+            self._load_json("cajas_backup.json", []),
+            self._load_json("backup_excluido.json", []))
+
         # ---- OPEX json (editable) ----
         opex_json = self._load_json("opex.json", None)
 
@@ -219,7 +286,7 @@ class SupabaseSource:
         # (>1000 filas) se leía truncada y se perdían los meses más nuevos EN SILENCIO. Se pagina
         # con .range() hasta agotar. Sin ordenar explícito, PostgREST puede repetir/saltear filas
         # entre páginas, así que ordenamos por la PK de cada tabla (o por una columna estable).
-        order_col = {"ventas": "id", "opex_base": "id"}.get(table)
+        order_col = {"ventas": "id", "opex_base": "id", "ventas_backup": "id"}.get(table)
         out = []; start = 0; PAGE = 1000
         while True:
             q = self.sb.table(table).select(cols)
@@ -269,6 +336,14 @@ class SupabaseSource:
                   for r in self._rows("ventas")]
 
         cajas = [r["data"] for r in self._rows("cajas")]
+
+        # ---- caja de respaldo: se SUMA a lo de Bistrosoft (ver fusionar_backup) ----
+        ventas_bk = [{"nombre": r.get("nombre"), "fecha": r.get("fecha"), "iso": r.get("iso"),
+                      "unidades": r.get("unidades"), "monto": r.get("monto")}
+                     for r in self._rows("ventas_backup")]
+        cajas_bk = [r["data"] for r in self._rows("cajas_backup")]
+        excluidos = [r["iso"] for r in self._rows("backup_excluido")]
+        ventas, cajas = fusionar_backup(ventas, cajas, ventas_bk, cajas_bk, excluidos)
 
         # override tables (dicts/lists)
         maestro_extra = [r["data"] for r in self._rows("maestro_extra")]
