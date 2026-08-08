@@ -1,0 +1,463 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<title>ANTIMO · Caja de respaldo</title>
+<style>
+/* Mismos tokens que el dashboard (index.html): esto es el mismo producto, otra pantalla.
+   Mobile-first a propósito: se usa parado, con una mano, en pleno rush. El dashboard de
+   escritorio no se toca. */
+:root{
+ --bg:#0f1419;--card:#1a222c;--card2:#212b37;--ink:#e8edf2;--mut:#9caabb;--line:#2b3644;
+ --accent:#e8834a;--pos:#4a9d7f;--neg:#c85a54;--int:#5a8fd6;
+ --sh2:0 2px 4px rgba(0,0,0,.28),0 8px 24px rgba(0,0,0,.30);
+ --tap:48px;               /* mínimo táctil cómodo */
+ --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);
+ font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ overscroll-behavior-y:contain}
+button,input,select{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer}
+
+/* ---------- barra superior ---------- */
+header{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line);
+ padding:10px 14px;display:flex;align-items:center;gap:10px}
+header h1{font-size:15px;font-weight:600;letter-spacing:.2px;flex:1}
+header h1 small{display:block;font-size:11px;color:var(--mut);font-weight:400}
+.chip{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+.chip.on{color:var(--pos);border-color:var(--pos)}
+.chip.off{color:var(--neg);border-color:var(--neg)}
+#devbanner{background:var(--accent);color:#1a1005;text-align:center;font-size:12px;
+ font-weight:700;padding:5px;letter-spacing:.4px}
+
+/* ---------- buscador + categorías ---------- */
+.tools{position:sticky;top:52px;z-index:15;background:var(--bg);padding:10px 14px 6px}
+#q{width:100%;height:var(--tap);border-radius:10px;border:1px solid var(--line);
+ background:var(--card2);padding:0 14px}
+#q:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.cats{display:flex;gap:7px;overflow-x:auto;padding:9px 0 3px;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cats button{white-space:nowrap;padding:8px 13px;border-radius:999px;background:var(--card2);
+ border:1px solid var(--line);color:var(--mut);font-size:13px}
+.cats button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#1a1005;font-weight:600}
+
+/* ---------- grilla de productos ---------- */
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:9px;
+ padding:6px 14px 20px}
+.prod{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px;
+ text-align:left;min-height:76px;display:flex;flex-direction:column;justify-content:space-between;
+ gap:6px;transition:transform .06s}
+.prod:active{transform:scale(.96)}
+.prod .n{font-size:13px;line-height:1.3;font-weight:500}
+.prod .p{font-size:15px;font-weight:700;color:var(--accent)}
+.prod.sinprecio{opacity:.5}
+.prod.sinprecio .p{color:var(--neg);font-size:12px;font-weight:600}
+.empty{grid-column:1/-1;text-align:center;color:var(--mut);padding:36px 10px;font-size:14px}
+
+/* ---------- ticket (panel inferior) ---------- */
+#bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);
+ border-top:1px solid var(--line);box-shadow:var(--sh2);padding:10px 14px calc(10px + var(--safe-b))}
+#bar .row{display:flex;align-items:center;gap:12px}
+#bar .tot{flex:1;font-size:20px;font-weight:700}
+#bar .tot small{display:block;font-size:11px;color:var(--mut);font-weight:400}
+.btn{height:var(--tap);padding:0 20px;border-radius:11px;font-weight:700;font-size:15px}
+.btn.pri{background:var(--accent);color:#1a1005}
+.btn.pri:disabled{opacity:.35}
+.btn.sec{background:var(--card2);border:1px solid var(--line)}
+
+/* ---------- hoja modal ---------- */
+dialog{border:0;padding:0;background:transparent;max-width:100%;max-height:100%;width:100%}
+dialog::backdrop{background:rgba(0,0,0,.65)}
+.sheet{background:var(--card);border-radius:16px 16px 0 0;padding:16px 14px calc(16px + var(--safe-b));
+ position:fixed;left:0;right:0;bottom:0;max-height:92vh;overflow:auto}
+.sheet h2{font-size:16px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sheet h2 button{margin-left:auto;color:var(--mut);font-size:22px;line-height:1;padding:4px 8px}
+.line{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.line .nm{flex:1;font-size:14px}
+.line .nm small{display:block;color:var(--mut);font-size:11.5px}
+.qty{display:flex;align-items:center;gap:2px}
+.qty button{width:34px;height:34px;border-radius:8px;background:var(--card2);border:1px solid var(--line);
+ font-size:17px;font-weight:700}
+.qty span{min-width:30px;text-align:center;font-weight:700}
+.line .sub{min-width:78px;text-align:right;font-weight:600;font-size:14px}
+label{display:block;font-size:12px;color:var(--mut);margin:12px 0 5px}
+input[type=number],input[type=text],select{width:100%;height:var(--tap);border-radius:10px;
+ border:1px solid var(--line);background:var(--card2);padding:0 12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pagos .pg{display:grid;grid-template-columns:1.2fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px}
+.pg button{color:var(--neg);font-size:20px;padding:0 8px}
+.resumen{background:var(--card2);border-radius:11px;padding:12px;margin-top:14px;font-size:14px}
+.resumen div{display:flex;justify-content:space-between;padding:3px 0}
+.resumen .big{font-size:18px;font-weight:700;border-top:1px solid var(--line);margin-top:6px;padding-top:8px}
+.warn{color:var(--neg)}.ok{color:var(--pos)}
+#msg{position:fixed;left:14px;right:14px;bottom:calc(80px + var(--safe-b));z-index:60;
+ background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:12px 14px;
+ font-size:14px;box-shadow:var(--sh2);display:none}
+#msg.show{display:block}
+#msg.bad{border-color:var(--neg)}#msg.good{border-color:var(--pos)}
+.pend{background:var(--card2);border:1px solid var(--accent);border-radius:10px;padding:10px 12px;
+ margin:0 14px 10px;font-size:13px;display:none}
+.pend.show{display:block}
+</style></head><body>
+
+<div id="devbanner" hidden>⚠️ ENTORNO DE DESARROLLO</div>
+<header>
+  <h1>Caja de respaldo<small id="sub">cargando…</small></h1>
+  <span class="chip" id="net">···</span>
+</header>
+
+<div class="pend" id="pend"></div>
+
+<div class="tools">
+  <input id="q" type="search" placeholder="Buscar producto…" autocomplete="off" enterkeyhint="search">
+  <div class="cats" id="cats"></div>
+</div>
+
+<div id="grid"><div class="empty">Cargando productos…</div></div>
+<div style="height:96px"></div>
+
+<div id="bar">
+  <div class="row">
+    <button class="btn sec" id="verTicket">🧾 <span id="nItems">0</span></button>
+    <div class="tot">$<span id="total">0</span><small id="totSub">ticket vacío</small></div>
+    <button class="btn pri" id="cobrar" disabled>Cobrar</button>
+  </div>
+</div>
+
+<div id="msg"></div>
+
+<dialog id="dlgTicket"><div class="sheet">
+  <h2>Ticket <button onclick="dlgTicket.close()">✕</button></h2>
+  <div id="lineas"></div>
+  <button class="btn sec" style="width:100%;margin-top:14px" id="vaciar">Vaciar ticket</button>
+</div></dialog>
+
+<dialog id="dlgCobro"><div class="sheet">
+  <h2>Cobrar <button onclick="dlgCobro.close()">✕</button></h2>
+  <div class="grid2">
+    <div><label for="comensales">Comensales</label>
+      <input id="comensales" type="number" min="0" step="1" value="1" inputmode="numeric"></div>
+    <div><label for="descuento">Descuento $</label>
+      <input id="descuento" type="number" min="0" step="1" value="0" inputmode="numeric"></div>
+  </div>
+  <label for="descConcepto">Motivo del descuento</label>
+  <input id="descConcepto" type="text" placeholder="opcional" maxlength="50">
+
+  <label>Medios de pago</label>
+  <div class="pagos" id="pagos"></div>
+  <button class="btn sec" style="width:100%" id="addPago">+ Otro medio</button>
+
+  <label for="recibido">Efectivo recibido (para el vuelto)</label>
+  <input id="recibido" type="number" min="0" step="1" placeholder="opcional" inputmode="numeric">
+
+  <div class="resumen" id="resumen"></div>
+  <button class="btn pri" style="width:100%;margin-top:14px" id="confirmar">Confirmar cobro</button>
+</div></dialog>
+
+<script>
+"use strict";
+/* ================================================================= utilidades */
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => Math.round(n).toLocaleString("es-AR");
+
+/** Noche de caja: corte 08:00 en hora LOCAL, igual que bistro.business_ddmm_ym.
+ *  Lo que pasa entre 00:00 y 07:59 cuenta para la noche que cerró esa madrugada; de 08:00 en
+ *  adelante, para la que cierra mañana. Un cobro de las 2am NO va al día siguiente. */
+function nocheISO(d) {
+  d = d || new Date();
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (d.getHours() >= 8) x.setDate(x.getDate() + 1);
+  const p = n => String(n).padStart(2, "0");
+  return x.getFullYear() + "-" + p(x.getMonth() + 1) + "-" + p(x.getDate());
+}
+
+function uuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return "t-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+}
+
+let msgT;
+function aviso(txt, kind) {
+  const m = $("#msg");
+  m.textContent = txt;
+  m.className = "show " + (kind || "");
+  clearTimeout(msgT);
+  msgT = setTimeout(() => m.className = "", kind === "bad" ? 7000 : 3500);
+}
+
+/* ================================================================= estado */
+const st = { prods: [], cat: "all", q: "", ticket: [] };
+const MEDIOS = ["EFECTIVO", "TARJETA", "QR", "TRANSFERENCIA"];
+
+/* ================================================================= catálogo */
+async function cargar() {
+  let r;
+  try {
+    r = await fetch("/api/me", { credentials: "same-origin" });
+  } catch (e) { return aviso("Sin conexión. No puedo cargar el catálogo.", "bad"); }
+  if (r.status === 401) { location.href = "/login"; return; }
+  const me = await r.json();
+  if (me.env === "dev") $("#devbanner").hidden = false;
+  $("#sub").textContent = me.user + " · noche " + nocheISO();
+
+  const d = await fetch("/api/data", { credentials: "same-origin" });
+  if (!d.ok) return aviso("No pude traer los productos.", "bad");
+  const DATA = await d.json();
+
+  // El catálogo son los productos que ANTIMO ya conoce (los mismos que muestra Recetas), para
+  // que el nombre que se emite caiga en la misma fila del ranking al normalizar. No se inventan
+  // nombres nuevos: uno que no matchee aparecería como un producto aparte en el tablero.
+  st.prods = (DATA.productos || [])
+    .map(p => ({ pos: p.pos, cat: p.cat || "(sin categoría)", precio: p.precio_lista || 0 }))
+    .sort((a, b) => a.pos.localeCompare(b.pos, "es"));
+
+  const sin = st.prods.filter(p => !p.precio).length;
+  if (sin) {
+    const e = $("#pend");
+    e.className = "pend show";
+    e.innerHTML = "⚠️ <b>" + sin + " producto(s) sin precio de lista.</b> Aparecen en gris y no se " +
+      "pueden cobrar hasta que cargues su precio en el tablero (Rentabilidad → columna «Lista»).";
+  }
+  pintarCats();
+  pintar();
+}
+
+function pintarCats() {
+  const cats = [...new Set(st.prods.map(p => p.cat))].sort((a, b) => a.localeCompare(b, "es"));
+  $("#cats").innerHTML = ['<button data-c="all" aria-pressed="true">Todo</button>']
+    .concat(cats.map(c => `<button data-c="${esc(c)}" aria-pressed="false">${esc(c)}</button>`))
+    .join("");
+}
+
+function pintar() {
+  const q = st.q.trim().toLowerCase();
+  const list = st.prods.filter(p =>
+    (st.cat === "all" || p.cat === st.cat) && (!q || p.pos.toLowerCase().includes(q)));
+  $("#grid").innerHTML = list.length
+    ? list.map((p, i) => `<button class="prod${p.precio ? "" : " sinprecio"}" data-i="${i}"
+         ${p.precio ? "" : "disabled"}>
+         <span class="n">${esc(p.pos)}</span>
+         <span class="p">${p.precio ? "$" + fmt(p.precio) : "sin precio"}</span></button>`).join("")
+    : '<div class="empty">Nada que coincida con la búsqueda.</div>';
+  $("#grid")._list = list;
+}
+
+/* ================================================================= ticket */
+function agregar(p) {
+  const l = st.ticket.find(x => x.nombre === p.pos);
+  if (l) l.unidades++;
+  else st.ticket.push({ nombre: p.pos, unidades: 1, precio: p.precio });
+  if (navigator.vibrate) navigator.vibrate(12);
+  refrescar();
+}
+
+const totalTicket = () => st.ticket.reduce((s, l) => s + l.unidades * l.precio, 0);
+
+function refrescar() {
+  const n = st.ticket.reduce((s, l) => s + l.unidades, 0), t = totalTicket();
+  $("#nItems").textContent = n;
+  $("#total").textContent = fmt(t);
+  $("#totSub").textContent = n ? n + " ítem" + (n === 1 ? "" : "s") : "ticket vacío";
+  $("#cobrar").disabled = !n;
+}
+
+function pintarLineas() {
+  $("#lineas").innerHTML = st.ticket.length
+    ? st.ticket.map((l, i) => `<div class="line">
+        <span class="nm">${esc(l.nombre)}<small>$${fmt(l.precio)} c/u</small></span>
+        <span class="qty"><button data-d="-1" data-i="${i}">−</button>
+          <span>${l.unidades}</span>
+          <button data-d="1" data-i="${i}">+</button></span>
+        <span class="sub">$${fmt(l.unidades * l.precio)}</span></div>`).join("")
+    : '<div class="empty">El ticket está vacío.</div>';
+}
+
+/* ================================================================= cobro */
+function pintarPagos(reset) {
+  const c = $("#pagos");
+  if (reset) c.innerHTML = "";
+  if (!c.children.length) agregarPago(totalTicket());
+  pintarResumen();
+}
+
+function agregarPago(monto) {
+  const d = document.createElement("div");
+  d.className = "pg";
+  d.innerHTML = `<select>${MEDIOS.map(m => `<option>${m}</option>`).join("")}</select>
+    <input type="number" min="0" step="1" inputmode="numeric" value="${monto ? Math.round(monto) : ""}"
+      placeholder="monto">
+    <button title="Quitar">✕</button>`;
+  d.querySelector("button").onclick = () => { d.remove(); pintarResumen(); };
+  d.querySelector("input").oninput = pintarResumen;
+  d.querySelector("select").onchange = pintarResumen;
+  $("#pagos").appendChild(d);
+  pintarResumen();
+}
+
+const leerPagos = () => [...$("#pagos").children].map(d => ({
+  medio: d.querySelector("select").value,
+  monto: +d.querySelector("input").value || 0
+})).filter(p => p.monto > 0);
+
+function pintarResumen() {
+  const bruto = totalTicket();
+  const desc = Math.max(0, +$("#descuento").value || 0);
+  const neto = bruto - desc;
+  const pg = leerPagos(), sum = pg.reduce((s, p) => s + p.monto, 0);
+  const rec = +$("#recibido").value || 0;
+  const vuelto = rec ? rec - (pg.find(p => p.medio === "EFECTIVO") || { monto: 0 }).monto : 0;
+  const dif = +(sum - neto).toFixed(2);
+
+  let h = `<div><span>Bruto</span><b>$${fmt(bruto)}</b></div>`;
+  if (desc) h += `<div><span>Descuento</span><b class="warn">−$${fmt(desc)}</b></div>`;
+  h += `<div class="big"><span>A cobrar</span><span>$${fmt(neto)}</span></div>`;
+  h += `<div><span>Pagos cargados</span><b>$${fmt(sum)}</b></div>`;
+  if (dif) h += `<div><span>${dif > 0 ? "Sobra" : "Falta"}</span>
+                 <b class="warn">$${fmt(Math.abs(dif))}</b></div>`;
+  if (rec && vuelto > 0) h += `<div><span>Vuelto</span><b class="ok">$${fmt(vuelto)}</b></div>`;
+  $("#resumen").innerHTML = h;
+
+  // Se exige que los pagos cuadren con el neto: si no, la caja de la noche no cierra contra
+  // lo vendido y el descuadre aparecería recién en el tablero, sin saber de qué ticket vino.
+  $("#confirmar").disabled = !(neto > 0 && Math.abs(dif) < 0.5);
+  $("#confirmar").textContent = dif ? (dif > 0 ? "Sobran $" + fmt(dif) : "Faltan $" + fmt(-dif))
+    : "Confirmar cobro $" + fmt(neto);
+}
+
+async function confirmarCobro() {
+  const bruto = totalTicket();
+  const desc = Math.max(0, +$("#descuento").value || 0);
+  const venta = {
+    ticket: uuid(),
+    iso: nocheISO(),                     // se calcula al COBRAR, no al abrir la app
+    comensales: Math.max(0, parseInt($("#comensales").value, 10) || 0),
+    descuento: desc,
+    descuento_concepto: $("#descConcepto").value.slice(0, 50),
+    hora: new Date().toTimeString().slice(0, 5),
+    // nombre CRUDO y monto en PESOS. El motor normaliza el nombre; convertir acá desdoblaría
+    // el producto, y mandar centavos lo inflaría 100 veces.
+    lineas: st.ticket.map(l => ({
+      nombre: l.nombre, unidades: l.unidades, monto: l.unidades * l.precio
+    })),
+    pagos: leerPagos()
+  };
+  $("#confirmar").disabled = true;
+  const r = await enviar(venta);
+  if (r !== "error") {
+    st.ticket = [];
+    refrescar();
+    $("#dlgCobro").close();
+    // El cobro está hecho en los dos casos, pero se dice CUÁL de los dos: si quedó en cola, el
+    // cajero tiene que saber que todavía no llegó al servidor (por si el celular se apaga).
+    if (r === "cola") aviso("📤 Cobrado $" + fmt(bruto - desc) +
+      " — sin conexión, queda guardado y se envía solo.", "bad");
+    else aviso("✅ Cobrado $" + fmt(bruto - desc), "good");
+  }
+  pintarResumen();
+}
+
+/* ---------------- envío con cola: un cobro NUNCA se pierde por falta de señal --------------
+ * Versión mínima sobre localStorage. El offline-first completo (IndexedDB + service worker)
+ * viene después; esto ya evita perder una venta si la red se corta a mitad del rush. */
+const COLA = "antimo_caja_cola";
+const leerCola = () => { try { return JSON.parse(localStorage.getItem(COLA)) || []; } catch (e) { return []; } };
+const guardarCola = c => localStorage.setItem(COLA, JSON.stringify(c));
+
+async function postVenta(v) {
+  const r = await fetch("/api/caja_venta", {
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },   // obliga al preflight (chequeo de origen)
+    body: JSON.stringify(v)
+  });
+  if (r.status === 401) { location.href = "/login"; throw new Error("sin sesión"); }
+  if (r.status === 403) throw new Error("Tu usuario no tiene permiso para cobrar.");
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || "error del servidor");
+  return true;
+}
+
+/** "ok" (llegó) | "cola" (guardado local, se reintenta) | "error" (no se cobró). */
+async function enviar(v) {
+  try {
+    await postVenta(v);
+    return "ok";
+  } catch (e) {
+    // Un 403/401 NO va a la cola: reintentarlo mil veces tampoco lo va a aceptar, y dejarlo
+    // ahí haría creer que el cobro está hecho cuando el servidor lo rechazó.
+    if (/permiso|sesión/i.test(e.message)) { aviso(e.message, "bad"); return "error"; }
+    const c = leerCola(); c.push(v); guardarCola(c);
+    pintarPend();
+    return "cola";             // para el cajero el cobro está hecho: no se pierde
+  }
+}
+
+async function drenar() {
+  const c = leerCola();
+  if (!c.length) return;
+  const quedan = [];
+  for (const v of c) {
+    try { await postVenta(v); }          // idempotente por `ticket`: reenviar no duplica
+    catch (e) { quedan.push(v); }
+  }
+  guardarCola(quedan);
+  pintarPend();
+  if (c.length && !quedan.length) aviso("✅ Se sincronizaron " + c.length + " cobro(s) pendientes.", "good");
+}
+
+function pintarPend() {
+  const n = leerCola().length, e = $("#pend");
+  if (!n) { if (e.textContent.includes("pendiente")) e.className = "pend"; return; }
+  e.className = "pend show";
+  e.innerHTML = "📤 <b>" + n + " cobro(s) sin enviar.</b> Se mandan solos al volver la conexión.";
+}
+
+function red() {
+  const on = navigator.onLine, c = $("#net");
+  c.textContent = on ? "en línea" : "sin red";
+  c.className = "chip " + (on ? "on" : "off");
+  if (on) drenar();
+}
+
+/* ================================================================= eventos */
+$("#grid").onclick = e => {
+  const b = e.target.closest(".prod");
+  if (b && !b.disabled) agregar($("#grid")._list[+b.dataset.i]);
+};
+$("#cats").onclick = e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  st.cat = b.dataset.c;
+  [...$("#cats").children].forEach(x => x.setAttribute("aria-pressed", x === b));
+  pintar();
+};
+$("#q").oninput = e => { st.q = e.target.value; pintar(); };
+$("#verTicket").onclick = () => { pintarLineas(); $("#dlgTicket").showModal(); };
+$("#lineas").onclick = e => {
+  const b = e.target.closest("button[data-i]");
+  if (!b) return;
+  const l = st.ticket[+b.dataset.i];
+  l.unidades += +b.dataset.d;
+  if (l.unidades <= 0) st.ticket.splice(+b.dataset.i, 1);
+  pintarLineas(); refrescar();
+};
+$("#vaciar").onclick = () => { st.ticket = []; pintarLineas(); refrescar(); $("#dlgTicket").close(); };
+$("#cobrar").onclick = () => {
+  $("#descuento").value = 0; $("#descConcepto").value = ""; $("#recibido").value = "";
+  pintarPagos(true);
+  $("#dlgCobro").showModal();
+};
+$("#addPago").onclick = () => agregarPago(0);
+$("#descuento").oninput = pintarResumen;
+$("#recibido").oninput = pintarResumen;
+$("#confirmar").onclick = confirmarCobro;
+addEventListener("online", red);
+addEventListener("offline", red);
+
+red();
+pintarPend();
+cargar();
+</script></body></html>
