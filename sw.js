@@ -12,7 +12,7 @@
 "use strict";
 
 // Subir la versión invalida la caché vieja. Cambiarla en cada deploy que toque caja.html.
-const VERSION = "caja-v1";
+const VERSION = "caja-v2";
 // Sólo la ruta que la app usa de verdad. No se lista además /caja.html: es el mismo archivo por
 // otro nombre y duplicarlo sólo agrega una cosa más que puede fallar.
 const SHELL = ["/caja", "/manifest.webmanifest", "/caja-icon.svg"];
@@ -69,7 +69,23 @@ self.addEventListener("fetch", e => {
   // haría creer que hay sesión cuando ya venció.
   if (url.pathname.startsWith("/api/")) return;
 
-  // Archivos de la app: caché primero (arranque instantáneo), y se refresca por atrás.
+  // ⚠️ La PÁGINA va a la red primero, con la caché de red de emergencia.
+  // Con caché-primero (como estaba), después de cada deploy había que recargar DOS veces para
+  // ver la versión nueva: la primera servía la vieja y recién ahí bajaba la nueva por atrás.
+  // Para un cajero eso es "los cambios no llegaron"; para quien la programa, perseguir bugs ya
+  // arreglados. El costo es unos ms de espera con red — y sin red, la caché responde igual.
+  if (req.mode === "navigate" || url.pathname === "/caja" || url.pathname === "/caja.html") {
+    e.respondWith(
+      fetch(req).then(r => {
+        if (r.ok) { const copia = r.clone(); caches.open(VERSION).then(c => c.put("/caja", copia)); }
+        return r;
+      }).catch(() => caches.match("/caja").then(r => r || Response.error()))
+    );
+    return;
+  }
+
+  // El resto (ícono, manifest): caché primero, que sí conviene — cambian casi nunca y hacen
+  // al arranque instantáneo. Se refrescan por atrás.
   e.respondWith(caches.match(req).then(hit => {
     const red = fetch(req).then(r => {
       if (r.ok) { const copia = r.clone(); caches.open(VERSION).then(c => c.put(req, copia)); }

@@ -14,6 +14,14 @@
 :root{
  --bg:#0f1419;--card:#1a222c;--card2:#212b37;--ink:#e8edf2;--mut:#9caabb;--line:#2b3644;
  --accent:#e8834a;--pos:#4a9d7f;--neg:#c85a54;--int:#5a8fd6;
+ /* Contrastes medidos, no elegidos a ojo (fondo de control = --card2 #212b37):
+    --borde 3.45:1  → WCAG 1.4.11 pide 3:1 para el contorno de un control. El --line de
+                      #2b3644 daba 1.17:1: los campos se fundían con el fondo y no se veía
+                      dónde tocar. Es LO que estaba mal, no el texto (que ya pasaba AA).
+    --lab   9.06:1  → etiquetas
+    --ok    5.96:1 · --mal 4.67:1 → AA para texto chico; los --pos/--neg originales daban
+                      4.38 y 3.44, justo por debajo. */
+ --borde:#6a7e98;--lab:#b8c4d2;--ok:#5cb894;--mal:#e0736c;
  --sh2:0 2px 4px rgba(0,0,0,.28),0 8px 24px rgba(0,0,0,.30);
  --tap:48px;               /* mínimo táctil cómodo */
  --safe-b:env(safe-area-inset-bottom,0px);
@@ -74,36 +82,84 @@ header h1 small{display:block;font-size:11px;color:var(--mut);font-weight:400}
 
 /* ---------- hoja modal ---------- */
 dialog{border:0;padding:0;background:transparent;max-width:100%;max-height:100%;width:100%}
-dialog::backdrop{background:rgba(0,0,0,.65)}
-.sheet{background:var(--card);border-radius:16px 16px 0 0;padding:16px 14px calc(16px + var(--safe-b));
- position:fixed;left:0;right:0;bottom:0;max-height:92vh;overflow:auto}
-.sheet h2{font-size:16px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.sheet h2 button{margin-left:auto;color:var(--mut);font-size:22px;line-height:1;padding:4px 8px}
+dialog::backdrop{background:rgba(0,0,0,.72)}
+/* Tope de ancho: es una hoja pensada para el celular. Sin esto, en una pantalla de 2000px los
+   chips de descuento medían 300px cada uno y el campo del monto cruzaba media pantalla — todo
+   separadísimo y sin relación visual entre las partes. Centrada queda igual en los dos lados. */
+.sheet{background:var(--card);border-radius:16px 16px 0 0;
+ padding:18px 16px calc(18px + var(--safe-b));
+ position:fixed;left:0;right:0;bottom:0;margin-inline:auto;width:100%;max-width:560px;
+ max-height:92vh;overflow:auto;border:1px solid var(--line);border-bottom:0}
+@media(min-width:600px){
+ /* En escritorio deja de ser una "hoja pegada abajo" y pasa a ser una tarjeta centrada. */
+ .sheet{bottom:auto;top:50%;transform:translateY(-50%);border-radius:16px;border-bottom:1px solid var(--line)}
+}
+.sheet h2{font-size:17px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.sheet h2 button{margin-left:auto;color:var(--lab);font-size:20px;line-height:1;
+ width:36px;height:36px;border-radius:9px;border:1px solid var(--line)}
+.sheet h2 button:hover{background:var(--card2);color:var(--ink)}
 .line{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
 .line .nm{flex:1;font-size:14px}
 .line .nm small{display:block;color:var(--mut);font-size:11.5px}
 .qty{display:flex;align-items:center;gap:2px}
-.qty button{width:34px;height:34px;border-radius:8px;background:var(--card2);border:1px solid var(--line);
- font-size:17px;font-weight:700}
+.qty button{width:36px;height:36px;border-radius:8px;background:var(--card2);
+ border:1.5px solid var(--borde);font-size:17px;font-weight:700}
 .qty span{min-width:30px;text-align:center;font-weight:700}
 .line .sub{min-width:78px;text-align:right;font-weight:600;font-size:14px}
-label{display:block;font-size:12px;color:var(--mut);margin:12px 0 5px}
+
+/* Etiquetas: versalitas con más peso y color propio (9:1). Antes eran gris apagado a 12px y
+   se leían como texto secundario, cuando son el título de cada bloque. */
+label,.lab{display:block;font-size:11px;font-weight:700;color:var(--lab);
+ letter-spacing:.7px;text-transform:uppercase;margin:16px 0 7px}
+.sheet>*:first-of-type+label,.sheet h2+label{margin-top:14px}
+
+/* Controles: borde de 1.5px a 3.45:1. Con el --line anterior (1.17:1) no se distinguía dónde
+   empezaba un campo — ESE era el problema de contraste, no el texto. */
 input[type=number],input[type=text],select{width:100%;height:var(--tap);border-radius:10px;
- border:1px solid var(--line);background:var(--card2);padding:0 12px}
+ border:1.5px solid var(--borde);background:var(--card2);padding:0 12px;color:var(--ink)}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+select{appearance:none;-webkit-appearance:none;padding-right:34px;
+ background-image:linear-gradient(45deg,transparent 50%,var(--lab) 50%),
+                  linear-gradient(135deg,var(--lab) 50%,transparent 50%);
+ background-position:calc(100% - 18px) 21px,calc(100% - 13px) 21px;
+ background-size:5px 5px,5px 5px;background-repeat:no-repeat}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-/* Grilla en vez de flex-wrap: con 6 opciones, el último chip que sobra se estiraba a lo ancho
-   de su fila y parecía otro control. Así quedan 3+3 parejos en el celu y 6 en una fila si entra. */
-.descs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-@media(min-width:560px){.descs{grid-template-columns:repeat(6,1fr)}}
+
+/* Descuento: grilla de 3 (6 si entra). Con flex-wrap el sexto quedaba solo y estirado. */
+.descs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(min-width:520px){.descs{grid-template-columns:repeat(6,1fr)}}
 .descs button{height:var(--tap);border-radius:10px;background:var(--card2);
- border:1px solid var(--line);color:var(--mut);font-size:14px;font-weight:600}
-.descs button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#1a1005}
-.pagos .pg{display:grid;grid-template-columns:1.2fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px}
-.pg button{color:var(--neg);font-size:20px;padding:0 8px}
-.resumen{background:var(--card2);border-radius:11px;padding:12px;margin-top:14px;font-size:14px}
-.resumen div{display:flex;justify-content:space-between;padding:3px 0}
-.resumen .big{font-size:18px;font-weight:700;border-top:1px solid var(--line);margin-top:6px;padding-top:8px}
-.warn{color:var(--neg)}.ok{color:var(--pos)}
+ border:1.5px solid var(--borde);color:var(--ink);font-size:14px;font-weight:600}
+.descs button:hover{background:#293446}
+.descs button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);
+ color:#1a1005;font-weight:800;box-shadow:0 0 0 3px rgba(232,131,74,.22)}
+.descs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Medios de pago: cada fila es un grupo, con su caja, para que se lea como una unidad y no
+   como tres controles sueltos flotando. */
+.pagos .pg{display:grid;grid-template-columns:1.35fr 1fr auto;gap:8px;align-items:center;
+ margin-bottom:8px}
+.pg .quitar{width:40px;height:var(--tap);border-radius:9px;border:1.5px solid var(--borde);
+ color:var(--mal);font-size:17px;line-height:1}
+.pg .quitar:hover{background:rgba(224,115,108,.14);border-color:var(--mal)}
+#addPago{border:1.5px dashed var(--borde);background:none;color:var(--lab);font-weight:600}
+#addPago:hover{background:var(--card2);color:var(--ink)}
+
+/* Resumen: la plata a cobrar tiene que ganarle a todo lo demás de un vistazo. */
+.resumen{background:var(--card2);border:1px solid var(--line);border-radius:12px;
+ padding:14px;margin-top:16px;font-size:14px}
+.resumen div{display:flex;justify-content:space-between;gap:12px;padding:4px 0;color:var(--lab)}
+.resumen div b{color:var(--ink);font-variant-numeric:tabular-nums}
+.resumen .big{font-size:22px;font-weight:800;color:var(--ink);
+ border-top:1px solid var(--borde);margin-top:8px;padding-top:10px}
+.resumen .big span:last-child{font-variant-numeric:tabular-nums}
+.warn{color:var(--mal)}.ok{color:var(--ok)}
+
+/* El botón de cobrar queda PEGADO abajo de la hoja mientras se scrollea. En un teléfono de
+   667px de alto (un iPhone SE) caía fuera de la pantalla: había que scrollear para poder
+   cobrar, justo en el momento de apuro. La sombra tapa el contenido que pasa por debajo. */
+#confirmar{position:sticky;bottom:0;z-index:2;
+ box-shadow:0 -14px 18px -6px var(--card),0 2px 10px rgba(0,0,0,.4)}
 #msg{position:fixed;left:14px;right:14px;bottom:calc(80px + var(--safe-b));z-index:60;
  background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:12px 14px;
  font-size:14px;box-shadow:var(--sh2);display:none}
@@ -359,7 +415,7 @@ function agregarPago(monto) {
   d.innerHTML = `<select>${MEDIOS.map(m => `<option>${m}</option>`).join("")}</select>
     <input type="number" min="0" step="1" inputmode="numeric" value="${monto ? Math.round(monto) : ""}"
       placeholder="monto">
-    <button title="Quitar">✕</button>`;
+    <button class="quitar" title="Quitar este medio de pago" aria-label="Quitar medio de pago">✕</button>`;
   d.querySelector("button").onclick = () => { d.remove(); pintarResumen(); };
   d.querySelector("input").oninput = pintarResumen;
   d.querySelector("select").onchange = pintarResumen;
