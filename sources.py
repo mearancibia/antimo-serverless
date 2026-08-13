@@ -98,14 +98,31 @@ class LocalSource:
         return sorted(out)
 
     def _load_json(self, name, default):
+        """Un archivo ilegible ABORTA la corrida. No devuelve el default.
+
+        Invariante 3 del CLAUDE.md, mismo criterio que `app_antimo._load(estricto=True)`.
+        Tragarse la excepción y seguir con el default tenía dos consecuencias, las dos mudas:
+
+        - Con `opex.json` corrupto, el motor lo veía como "nunca sembrado" y el driver escribía
+          la siembra ENCIMA: el archivo dañado (recuperable desde datos/_backups/) se perdía
+          para siempre y el tablero pasaba a mostrar el OPEX de julio como si fuera el de hoy.
+        - Con cualquier otro override corrupto, sus datos desaparecían del tablero sin aviso:
+          los márgenes seguían mostrando números creíbles, calculados sin esos overrides.
+
+        Parar y decir qué archivo es siempre mejor que seguir con números equivocados.
+        """
         p = os.path.join(self.DATOS, name)
         if not os.path.exists(p):
             return default
         try:
             with open(p, encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
-            return default
+        except Exception as e:
+            raise SystemExit(
+                "ERROR: datos/%s está corrupto (%s).\n"
+                "No se recalculó nada, para no pisarlo con datos incompletos.\n"
+                "Hay copias de las últimas 20 versiones en datos/_backups/ — restaurá la más "
+                "reciente que abra bien y volvé a correr." % (name, e))
 
     @contextlib.contextmanager
     def _ranking_reparado(self, src):

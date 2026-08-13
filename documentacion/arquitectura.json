@@ -98,8 +98,8 @@
       "desc": "Da de alta un usuario. La contraseña se tipea con getpass (no se ve, no queda en el historial) y se guarda hasheada. Nunca pasa por el código ni por el repositorio.", "detalles": [] },
     { "id": "excel", "label": "datos_general.xlsx", "sub": "maestro original", "layer": "local", "file": "datos/datos_general.xlsx", "lines": null,
       "desc": "El Excel del que salió todo: recetas, costos, lista de precios y OPEX. Sigue siendo la fuente de los maestros. NUNCA se escribe por código (romper sus fórmulas cacheadas fue un bug real).", "detalles": [] },
-    { "id": "app_local", "label": "App local", "sub": "sigue viva", "layer": "local", "file": "app_antimo.py", "lines": 485,
-      "desc": "La versión original de doble clic: app_antimo.py + actualizar_antimo.py + dashboard_tpl.html. Sigue funcionando sin cambios y es la única que genera el Excel completo.", "detalles": ["app_antimo.py — 485 líneas", "actualizar_antimo.py — 797 líneas", "conector_bistrosoft.py — 224 líneas"] }
+    { "id": "app_local", "label": "App local", "sub": "mismo motor y front que la nube", "layer": "local", "file": "app_antimo.py", "lines": 490,
+      "desc": "La versión de doble clic. Ya NO es un sistema paralelo: desde el 13-08-2026 comparte el motor (engine.py) y el front (index.html) con la nube — app_antimo.py los sirve en 127.0.0.1:8733 y actualizar_antimo.py quedó como driver de 79 líneas. Antes duplicaba las dos cosas (un motor de 797 líneas y el front dashboard_tpl.html), y los arreglos hechos en una versión no aparecían en la otra. Sigue siendo la única que genera el Excel completo.", "detalles": ["app_antimo.py — 490 líneas", "actualizar_antimo.py — 79 líneas (driver)", "engine.py — 816 líneas (motor compartido)", "conector_bistrosoft.py — 224 líneas"] }
   ],
 
   "edges": [

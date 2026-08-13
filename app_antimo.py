@@ -221,8 +221,13 @@ class H(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         path=urllib.parse.urlparse(self.path).path
         if path in ("/","/index.html"):
-            f=os.path.join(BASE,"dashboard_ANTIMO.html")
-            if os.path.exists(f):
+            # index.html: EL MISMO front que sirve Vercel (ver vercel.json). Antes acá se servía
+            # dashboard_ANTIMO.html, el tablero viejo generado desde dashboard_tpl.html — o sea
+            # que la app local mostraba una interfaz distinta de la de producción, y un arreglo
+            # hecho en una no aparecía en la otra. Archivado el 13-08-2026 en _archivo/viejo/.
+            # index.html no lleva datos embebidos: los pide por /api/data, que este server sirve.
+            f=os.path.join(BASE,"index.html")
+            if os.path.exists(f) and os.path.exists(os.path.join(BASE,"datos_dashboard.json")):
                 with open(f,encoding="utf-8") as fh: return self._send(200,fh.read(),"text/html")
             # Instalacion nueva: todavia no hay ventas, asi que el tablero no existe. Antes esto
             # devolvia "no dashboard" y el usuario quedaba sin ningun lugar donde configurar la

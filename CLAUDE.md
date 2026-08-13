@@ -21,6 +21,25 @@ gratis y local.
 
 ---
 
+## 1 bis. DESARROLLO y LIVE — dónde se trabaja (REGLA, no sugerencia)
+
+En `~/Desktop/ANTIMO/DASHBOARD/` hay **dos árboles**:
+
+| | qué es |
+|---|---|
+| `DESARROLLO/` | donde se trabaja. **Todo cambio va acá primero, sin excepción.** |
+| `LIVE/` | lo publicado (Vercel + Supabase). Repo git. |
+
+**Nunca sincronizar los dos árboles por cuenta propia.** Promover DESARROLLO → LIVE es un paso
+aparte que decide el dueño. Para eso existe la separación: si un arreglo se copia a LIVE apenas
+está escrito, entra a producción sin revisar.
+
+No alcanza con que el archivo sea idéntico hoy: los árboles **divergen a propósito**. Ejemplo
+real — `sources.py` de DESARROLLO tiene la fusión de caja de respaldo y LIVE no, porque el schema
+de Supabase de LIVE todavía no tiene esas tablas; copiarlo habría roto el serverless.
+
+---
+
 ## 2. Cómo se usa (local, Chrome, MacBook)
 
 - **`run_ANTIMO_app.command`** (doble clic) → arranca `app_antimo.py`, un servidor local con la
@@ -29,13 +48,14 @@ gratis y local.
   "✏️ Modo edición"). La ventana de Terminal debe quedar abierta; cerrarla apaga la app.
 - **`actualizar_ANTIMO.command`** (doble clic) → corre el conector (trae ventas de Bistrosoft) y
   regenera el tablero, sin levantar el servidor. Modo rápido.
-- Abrir `dashboard_ANTIMO.html` directo (sin la app) → funciona en **modo lectura** (sin editar).
+- **Ya no existe el "abrir el HTML suelto"**: el tablero (`index.html`) no lleva datos adentro,
+  los pide por `/api/data`. Sin servidor no hay tablero — usá `run_ANTIMO_app.command`.
 - Requisitos en la Mac: Python 3 (Command Line Tools) + `pip install --user openpyxl requests
   pdfplumber` (los `.command` lo hacen solos). La API de Bistrosoft necesita internet normal.
 
-**Detección de modo:** el tablero, al cargar, hace `fetch('/api/ping')`. Si responde
-`{app:true}` → modo edición y trae datos de `/api/data`. Si falla (archivo abierto directo) →
-modo lectura con los datos embebidos.
+**Arranque del tablero:** `index.html` pide `GET /api/me` (permisos por rol; si falla, sigue
+como admin) y después `GET /api/data`. Si `/api/data` devuelve 401 redirige a `/login` — eso pasa
+en la nube, no con la app local, que no tiene sesión.
 
 **Carpeta `_archivo/`:** todo lo que ningún script lee, agrupado y sacado del camino (no se borra
 nada, por las dudas). `_archivo/viejo/` = legado de antes de que existiera esta versión de ANTIMO.
@@ -69,14 +89,41 @@ Cuatro reglas que salieron de bugs reales y **no hay que volver a romper**:
 
 - **Backend:** `app_antimo.py`, solo librería estándar de Python (`http.server`,
   `socketserver`). Sin Flask ni dependencias web.
-- **Motor:** `actualizar_antimo.py`, un único script autocontenido (~500 líneas). Usa `openpyxl`
-  (Excel), `pdfplumber` (PDF de caja, opcional), `datetime`, `json`, `re`. **Editar este archivo
-  directamente.**
+- **Motor:** `engine.py` — costeo **puro**, `compute(src) -> (DATA, opex_seed)`, sin I/O.
+  **Es el único motor: editar acá toda la lógica de costeo.**
+  - `sources.py` arma el `src`: `LocalSource` (Excel + `entrada/` + `datos/*.json`, usa
+    `openpyxl`) y `SupabaseSource` (las tablas de la nube). Las dos producen el MISMO dict.
+  - `actualizar_antimo.py` (~85 líneas) es el **driver local**: arma las fuentes, llama al motor
+    y escribe `datos_dashboard.json`. No tiene lógica de costeo ni genera HTML.
+    Su espejo en la nube es `sl_common.recompute()` — si tocás uno, mirá el otro.
+
+  ⚠️ **Hasta el 13-08-2026 había DOS motores**: `actualizar_antimo.py` era un monolito de 797
+  líneas que duplicaba `engine.py`, y cada uno corría por su lado (local vs serverless). Cada
+  bug había que arreglarlo dos veces y el que se olvidara quedaba en producción — pasó con tres
+  arreglos de matemática. Se unificó: el monolito quedó en
+  `_archivo/viejo/actualizar_antimo_monolito.py` solo como referencia histórica. **No volver a
+  meter lógica de costeo en el driver.** Verificado al unificar: sobre los datos reales
+  (64 noches, 133 productos) el DATA nuevo es idéntico campo por campo al del monolito.
+
+  Lo único que se perdió: la lectura de **PDFs de cierre de caja** (`parse_caja`/`pdfplumber`).
+  `LocalSource` no los lee. No afecta a los datos actuales (la API ya trae esas noches, el PDF
+  sobrevivía a la deduplicación 0 veces y los archivos están en `_archivo/datos_sin_uso/`). Si
+  hiciera falta, hay que portar `parse_caja()` a `LocalSource.build()`, no resucitar el monolito.
 - **Conector:** `conector_bistrosoft.py`, usa `requests`.
-- **Frontend:** `dashboard_tpl.html` — un solo archivo con HTML + CSS + **JavaScript vanilla**
-  (sin React, sin librerías, sin CDN). Se genera `dashboard_ANTIMO.html` reemplazando el token
-  `@@DATA@@` por el JSON de datos. **Editar la plantilla `dashboard_tpl.html`, no el HTML
-  generado.**
+- **Frontend:** `index.html` — un solo archivo con HTML + CSS + **JavaScript vanilla** (sin
+  React, sin librerías, sin CDN), más `login.html`, `caja.html` y `actividad.html`. Trae auth y
+  roles (`PERM`). Es el MISMO archivo en la nube (ver `vercel.json`) y en la app local
+  (`app_antimo.py` lo sirve en `/`). **Editar acá todo el front.**
+
+  ⚠️ **Antes había DOS frontends.** `dashboard_tpl.html` → `dashboard_ANTIMO.html` (plantilla con
+  el token `@@DATA@@` reemplazado por los datos) era el tablero que servía la app local, mientras
+  la nube ya servía `index.html`. Un arreglo hecho en uno no aparecía en el otro: el 13-08-2026
+  se corrigió matemática en el viejo creyéndole a este archivo, y el tablero real siguió con los
+  bugs. Archivados en `_archivo/viejo/dashboard_tpl_viejo.html` y `dashboard_ANTIMO_viejo.html`.
+
+  **Regla que salió de ahí: antes de editar front, verificá qué archivo sirve cada ruta** —
+  `vercel.json` para la nube, el `do_GET()` de `app_antimo.py` para local. No lo asumas de esta
+  documentación.
 - **Reglas de oro (respetarlas siempre):**
   1. **Regla #0 — honestidad de datos:** nunca inventar costos ni márgenes. Si a un producto le
      falta receta o costo → queda **N/D** (no se fuerza a la matriz, no se recomienda eliminarlo).
@@ -124,15 +171,17 @@ datos/datos_general.xlsx (maestro: recetas, costos, OPEX base)
         + entrada/api_ventas_*.xlsx + datos/cajas_api.json
                           │
                           ▼
-              actualizar_antimo.py  (motor de costeo)
+     actualizar_antimo.py (driver) → sources.LocalSource → engine.compute()
                           │
-          ┌───────────────┴───────────────┐
-          ▼                               ▼
-  datos_dashboard.json            dashboard_ANTIMO.html
-  (DATA calculada)                (plantilla + DATA embebida)
+                          ▼
+                 datos_dashboard.json
+                   (DATA calculada)
+                          │
+                          ▼  GET /api/data
+                     index.html
 ```
 
-`app_antimo.py` orquesta: sirve el HTML, expone la API de edición, y cada edición **escribe el
+`app_antimo.py` orquesta: sirve `index.html`, expone la API de edición, y cada edición **escribe el
 override correspondiente y vuelve a correr `actualizar_antimo.py`** (subproceso), devolviendo la
 DATA nueva.
 
@@ -184,7 +233,7 @@ sentido comercial habitual (Precio de Venta al Público) — complementario al *
 venta** que se calcula de las ventas (`byday`, columna "Prom. venta" en las tablas) — no lo
 reemplaza.
 
-**Match en dos pasos** (`precio_lista_de()` en `actualizar_antimo.py`), **nunca fuzzy** (Regla #0
+**Match en dos pasos** (`precio_lista_de()` en `engine.py`), **nunca fuzzy** (Regla #0
 — no adivinar a qué producto corresponde un precio):
 1. Por nombre normalizado **exacto**.
 2. Si no hay, por nombre **aplanado** (`_aplanar()`): mismas letras y dígitos ignorando espacios,
@@ -268,7 +317,7 @@ propósito** (`NO_BACKUP`): es el único archivo con credenciales en claro y no 
 Si el respaldo falla, avisa por Terminal pero nunca bloquea el guardado.
 
 **Precios sospechosos:** el tablero **sugiere** revisar todo producto con margen ≥ `SUSP_THR` (90%, constante en
-`dashboard_tpl.html`), pero solo el dueño **confirma** (`estado:"si"`) o **descarta** (`estado:"no"`) desde el modal.
+`index.html`), pero solo el dueño **confirma** (`estado:"si"`) o **descarta** (`estado:"no"`) desde el modal.
 Coherente con la Regla #0: la marca **no altera ningún costo, margen, KPI ni el P&L** — solo etiqueta y, con el
 toggle "⚠️ Sin sospechosos", saca los confirmados de la tabla de Rentabilidad, la matriz BCG y las alertas
 (se excluyen *antes* de `classify()` para no correr los promedios del BCG). La causa puede ser el precio del POS
@@ -299,7 +348,7 @@ abstracto — más accionable: de un vistazo se sabe si alcanza hasta la próxim
 seguridad: 180 noches simuladas: si no se agota en ese horizonte, muestra "sin quiebre a la vista".
 
 Como el `restante` se desactualiza si compran sin recontar, siempre se muestra "hace cuántas noches
-fue el último conteo". Ver `STOCK_UMBRAL_DEFAULT` (3 noches) en `dashboard_tpl.html`, ajustable por
+fue el último conteo". Ver `STOCK_UMBRAL_DEFAULT` (3 noches) en `index.html`, ajustable por
 insumo — `critico` compara contra las noches simuladas hasta el quiebre, no contra un cociente plano.
 
 **`stock.json["cant"]` está en UNIDADES DE PRESENTACIÓN, no en la unidad base con la que se
@@ -342,7 +391,7 @@ no debe borrar un insumo que sí se estaba vigilando; para dejar de vigilar hay 
 (que sigue sirviendo para cargar/recontar un insumo a la vez). El parser de CSV (`parseCSV()`)
 espera el mismo formato que ya generan `exportCSV()`/`exportStockCSV()`: BOM + `;` + comillas.
 
-## 7. Motor de costeo (dentro de `actualizar_antimo.py`)
+## 7. Motor de costeo (`engine.py`)
 
 Cada producto vendido se busca en el Maestro por su nombre POS → `Tipo_venta`:
 - **receta**: suma ingredientes × costo por unidad base (convierte unidades no métricas).
@@ -573,7 +622,8 @@ menor ya sugerida como tarea aparte: el endpoint `/api/opex` sin uso (§9).
 
 Mantené y extendé este sistema **sin romper las reglas de oro** (sección 3). Cualquier cambio debe
 seguir funcionando **local, con doble clic y Chrome en la MacBook**, sin dependencias nuevas ni
-servicios en la nube. Cuando edites el tablero, tocá `dashboard_tpl.html` (no el HTML generado) y
-validá el JavaScript. Cuando edites el motor, tocá `actualizar_antimo.py`. Después de cualquier
+servicios en la nube. Cuando edites el tablero, tocá `index.html` (verificá antes qué sirve cada
+ruta, ver §3) y
+validá el JavaScript. Cuando edites el motor, tocá `engine.py` (nunca el driver). Después de cualquier
 cambio, corré `python3 actualizar_antimo.py` para verificar que genera bien, y probá los endpoints
 levantando `python3 app_antimo.py`. Nunca escribas `datos/datos_general.xlsx` por código.

@@ -20,6 +20,7 @@ echo "2/2 Calculando y generando el tablero..."
 python3 actualizar_antimo.py
 if [ $? -ne 0 ]; then echo ""; echo "ERROR al generar el tablero."; read -p "Enter para cerrar..."; exit 1; fi
 echo ""
-echo "Listo! Abriendo el tablero..."
-open dashboard_ANTIMO.html
+echo "Listo! Datos actualizados."
+echo "Para VER el tablero, usa run_ANTIMO_app.command (el tablero ya no es un archivo"
+echo "suelto: pide los datos al servidor local, igual que en la nube)."
 read -p "Todo OK. Enter para cerrar esta ventana..."

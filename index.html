@@ -735,7 +735,7 @@ const fFecha=iso=>iso<='2000-01-01'?'siempre':iso.slice(8,10)+'-'+iso.slice(5,7)
 function prodAgg(p,ds){let u=0,m=0;ds.forEach(d=>{const bd=p.byday[DK(d)];if(bd){u+=bd[0];m+=bd[1];}});return {u,m};}
 // productos con métricas para el rango actual + filtros
 function prodView(ds){
- return explotarCombos(DATA.productos.map(p=>{const a=prodAgg(p,ds);const v={pos:p.pos,key:p.key,susp:p.susp,susp_motivo:p.susp_motivo,cat:p.cat,grupo:p.grupo,nd:p.nd,motivo:p.motivo,falta:p.falta,donde:p.donde,tipo:p.tipo,costo:p.costo,nota:p.nota,breakdown:p.breakdown,receta_nombre:p.receta_nombre,receta_ings:p.receta_ings,combo_comp:p.combo_comp,editable:p.editable,precioLista:p.precio_lista,u:a.u,monto:a.m};
+ return explotarCombos(DATA.productos.map(p=>{const a=prodAgg(p,ds);const v={pos:p.pos,key:p.key,susp:p.susp,susp_motivo:p.susp_motivo,cat:p.cat,grupo:p.grupo,nd:p.nd,motivo:p.motivo,falta:p.falta,donde:p.donde,tipo:p.tipo,costo:p.costo,nota:p.nota,breakdown:p.breakdown,sin_consumo:p.sin_consumo,receta_nombre:p.receta_nombre,receta_ings:p.receta_ings,combo_comp:p.combo_comp,editable:p.editable,precioLista:p.precio_lista,u:a.u,monto:a.m};
   // p.costo puede no venir: al cajero el servidor le recorta el costo (RBAC). Eso NO lo vuelve
   // N/D — simplemente no hay margen para calcular, y se deja sin calcular antes que inventar un
   // 0 que se leería como "margen 100%" (Regla #0). Las solapas que muestran margen no se
@@ -1099,12 +1099,19 @@ function renderBeq(){
  // con filtro activo se usa el OPEX prorrateado (mismo share que totals), si no el equilibrio
  // de una categoría se calcularía contra el OPEX del bar entero y siempre daría "no cubre".
  const opexMes=opexMesEfectivo(st.desde,st.hasta)*(t.share||1);
- const mgpct=t.mgpct/100||0;const beMes=mgpct>0?opexMes/mgpct:0;const beDia=beMes/30;const ventasDia=t.ventas/dd;
- const cubre=ventasDia>=beDia;
+ // Con margen <=0 el equilibrio NO EXISTE: vender mas no acerca a cubrir el OPEX, lo aleja.
+ // Antes beMes quedaba en 0 y el estado daba "✓ cubre" en verde — justo en el unico caso donde
+ // el aviso importa. Ahora se dice que no hay punto de equilibrio y el estado es siempre ✗.
+ const mgpct=t.mgpct/100||0;const sinEq=!(mgpct>0);
+ const beMes=sinEq?null:opexMes/mgpct;const beDia=sinEq?null:beMes/30;const ventasDia=t.ventas/dd;
+ const cubre=!sinEq&&ventasDia>=beDia;
  const cruza=or_.periodos.length>1?` <span class="mut">(promedio de ${or_.periodos.length} vigencias en el período)</span>`:'';
  const prorr=t.opexProrrateado?` <span class="mut">— prorrateado al ${(t.share*100).toFixed(1)}% por el filtro activo</span>`:'';
- host.innerHTML=`<div style="font-size:13px">Para cubrir el OPEX (${f0(opexMes)}/mes)${cruza}${prorr} con tu margen de <b>${t.mgpct.toFixed(1)}%</b>, tenés que vender:</div>
-  <div class="mini"><div><span class="ml">Por mes</span><div class="mv">${fM(beMes)}</div></div><div><span class="ml">Por día</span><div class="mv">${fM(beDia)}</div></div>
+ const bev=v=>v==null?'<span class="mut">no existe</span>':fM(v);
+ host.innerHTML=`<div style="font-size:13px">${sinEq
+   ?`Con un margen de <b style="color:var(--neg)">${t.mgpct.toFixed(1)}%</b> <b>no hay punto de equilibrio</b>: cada venta suma pérdida, así que ningún volumen alcanza a cubrir el OPEX (${f0(opexMes)}/mes)${cruza}${prorr}. Hay que subir precios o bajar el costo de los insumos.`
+   :`Para cubrir el OPEX (${f0(opexMes)}/mes)${cruza}${prorr} con tu margen de <b>${t.mgpct.toFixed(1)}%</b>, tenés que vender:`}</div>
+  <div class="mini"><div><span class="ml">Por mes</span><div class="mv">${bev(beMes)}</div></div><div><span class="ml">Por día</span><div class="mv">${bev(beDia)}</div></div>
    <div><span class="ml">Vendés/día (real)</span><div class="mv">${fM(ventasDia)}</div></div><div><span class="ml">Estado</span><div class="mv" style="color:${cubre?'var(--pos)':'var(--neg)'}">${cubre?'✓ cubre':'✗ no cubre'}</div></div></div>
   <div class="legend">Punto de equilibrio = OPEX ÷ margen%. ${or_.pend?'OPEX aún provisorio.':''}${or_.sinOpex?' <span style="color:var(--neg)">'+or_.sinOpex+' días del período no tienen OPEX declarado (cuentan $0).</span>':''}</div>`;
 }
@@ -1115,18 +1122,27 @@ function renderBeq(){
 // noche real, esto lo deriva solo restando un dia.
 const FINDES=new Set(['Vie','Sab','Dom']);  // OJO: 'Sab' sin tilde, igual que DOWN
 function nocheReal(iso){const d=dOf(iso);d.setDate(d.getDate()-1);return DOWN[d.getDay()];}
+// Cuantas NOCHES ABIERTAS tiene un mes tipico segun el patron real de apertura (5 de 7 dias ->
+// ~21,4 noches, no 30). Es el divisor correcto para repartir un costo MENSUAL entre las noches
+// que efectivamente lo tienen que pagar.
+function nochesPorMes(){const p=patronApertura();const n=DOWN.filter(w=>p.abre[w]).length;return n?30*n/7:30;}
 function beqSemanaRows(){
  const ds=rangeDias(st.desde,st.hasta);
  const buckets={Findes:[],Semana:[]};
  // con filtro activo el OPEX/día se prorratea igual que en totals(), si no la comparación
  // findes/semana daría siempre negativa al mirar una sola categoría. Se calcula una sola vez.
  const share=totals(st.desde,st.hasta).share||1;
+ // OJO: acá se reparte entre NOCHES ABIERTAS, no entre dias calendario. `ds` son solo las noches
+ // con ventas (~21/mes): dividir el OPEX por 30 le cargaba a cada noche apenas el 70% de lo que
+ // realmente cuesta, y el veredicto "cubre" salia optimista. En el P&L (opexRango) si
+ // corresponde /30, porque ahi se itera dia calendario por dia calendario.
+ const nMes=nochesPorMes();
  ds.forEach(d=>{
   if(!d.iso)return;
   const bal=FINDES.has(nocheReal(d.iso))?'Findes':'Semana';
   let ventas=0,margen=0;
   DATA.productos.forEach(p=>{if(p.nd||!passF(p))return;const bd=p.byday[DK(d)];if(bd){ventas+=bd[1];margen+=(bd[1]-p.costo*bd[0]);}});
-  const per=opexPeriodo(d.iso),opexDia=(per?per.opex/30:0)*share;
+  const per=opexPeriodo(d.iso),opexDia=(per?per.opex/nMes:0)*share;
   buckets[bal].push({ventas,margen,opexDia});
  });
  return ['Findes','Semana'].map(k=>{
@@ -1144,10 +1160,10 @@ function renderBeqSemana(){
  if(st.cmp)return;
  const rows=beqSemanaRows();
  if(rows.every(r=>!r.n)){host.innerHTML='<div class="mut">Sin datos en el rango.</div>';return;}
- host.innerHTML=`<table><tr><th></th><th class="n">Noches</th><th class="n">Ventas/noche</th><th class="n">Margen/noche</th><th class="n">Mg%</th><th class="n">OPEX/día</th><th class="n">Resultado/noche</th><th>Estado</th></tr>`+
+ host.innerHTML=`<table><tr><th></th><th class="n">Noches</th><th class="n">Ventas/noche</th><th class="n">Margen/noche</th><th class="n">Mg%</th><th class="n">OPEX/noche</th><th class="n">Resultado/noche</th><th>Estado</th></tr>`+
   rows.map(r=>r.n?`<tr><td><b>${r.grupo}</b></td><td class="n">${r.n}</td><td class="n">${f0(r.ventas)}</td><td class="n">${f0(r.margen)}</td><td class="n">${r.mgpct.toFixed(1)}%</td><td class="n">${f0(r.opexDia)}</td><td class="n" style="color:${r.resultado>=0?'var(--pos)':'var(--neg)'}">${f0(r.resultado)}</td><td>${r.cubre?'✓ cubre':'✗ no cubre'}</td></tr>`
    :`<tr><td><b>${r.grupo}</b></td><td colspan="6" class="mut">Sin noches en el rango elegido.</td></tr>`).join('')+
-  `</table><div class="legend">OPEX/día prorrateado por vigencia (igual para ambos grupos, no varía por día). El margen de cada grupo es lo único que cambia.</div>`;
+  `</table><div class="legend">OPEX/noche = el OPEX mensual de la vigencia repartido entre las <b>${nochesPorMes().toFixed(0)} noches</b> que el bar abre en un mes (no entre 30 días: los días cerrados no venden, pero el alquiler se paga igual). Es igual para ambos grupos; el margen de cada uno es lo único que cambia.</div>`;
 }
 let _alertAcc=[];
 // Las alertas son accionables: cada una lleva al lugar exacto donde se corrige. Cambia de solapa
@@ -1308,6 +1324,8 @@ function rowComp(ins,cant,un){return `<tr><td><input class="cin" list="inslist" 
 function collectIngs(bodyId){return [...document.querySelectorAll('#'+bodyId+' tr')].map(tr=>({n:tr.querySelector('.edn').value.trim(),q:(tr.querySelector('.edq').value||'').trim(),u:tr.querySelector('.edu').value})).filter(r=>r.n&&(r.q!==''||r.u==='a gusto')).map(r=>[r.n,r.u==='a gusto'?'A gusto':(r.q+' '+r.u)]);}
 function rewireRm(host){host.querySelectorAll('.rmrow').forEach(el=>el.onclick=()=>el.closest('tr').remove());}
 function showModal(x,allowEdit){
+ // Costea pero no descuenta insumos: el desglose vacío de abajo no es un olvido, tiene motivo.
+ const avisoSC=x.sin_consumo?`<div class="warn" style="margin-top:10px">⚠️ <b>Este producto no descuenta insumos.</b> Tiene costo y margen, pero el motor no puede saber QUÉ consume (${esc(x.sin_consumo)}), así que no entra en Compras ni descuenta stock.</div>`:'';
  let rows='';(x.breakdown||[]).forEach(b=>{rows+=`<tr><td>${esc(b.insumo)}</td><td class="n">${b.qty} ${esc(b.unidad)}</td><td class="n">${f0(b.cxu)}</td><td class="n">${f0(b.sub)}</td></tr>`;});
  const insOpts=Object.keys(DATA.insumos||{}).sort().map(n=>`<option value="${esc(n)}">`).join('');
  let editHtml='';
@@ -1353,6 +1371,7 @@ function showModal(x,allowEdit){
   ${x.nd?'':`<div class="mini" style="grid-template-columns:repeat(3,1fr)"><div><span class="ml">Prom. venta</span><div class="mv">${f0(x.pv)}</div></div><div><span class="ml">Costo</span><div class="mv">${f0(x.costo)}</div></div><div><span class="ml">Margen</span><div class="mv" style="color:${x.mgu<0?'var(--neg)':'var(--pos)'}">${f0(x.mgu)} (${x.mgpct}%)</div></div></div>
   <div class="h3" style="margin-top:14px">Desglose de costo (por unidad)</div>
   <table><tr><th>Insumo</th><th class="n">Cantidad</th><th class="n">$/unidad</th><th class="n">Subtotal</th></tr>${rows||'<tr><td colspan=4 class="mut">Sin receta.</td></tr>'}<tr style="font-weight:700"><td>Costo total</td><td></td><td></td><td class="n">${f0(x.costo)}</td></tr></table>`}
+  ${avisoSC}
   ${x.nota&&!x.nd?`<div class="warn" style="margin-top:10px">⚠️ ${esc(x.nota)}</div>`:''}
   ${suspHtml}
   ${editHtml}
@@ -1600,6 +1619,21 @@ function comprasCols(esRepo){
    val:r=>esRepo?r.valorComprar:r.valor,celda:r=>f0(esRepo?r.valorComprar:r.valor)});
  return cols;
 }
+// Productos que SÍ se costean pero que el motor no puede explotar en insumos (`sin_consumo`):
+// tienen margen normal y consumen CERO. Esta tabla los estaría ignorando sin decirlo, así que
+// pediría de menos — el mismo pecado que "hay stock" cuando no hay. Se avisa acá, que es donde
+// el número sale mal, con el motivo que da el motor.
+function sinConsumoEnRango(){
+ const ds=rangeDias(st.desde,st.hasta);
+ return DATA.productos.filter(p=>p.sin_consumo&&passF(p)&&prodAgg(p,ds).u>0);
+}
+function avisoSinConsumo(){
+ const l=sinConsumoEnRango();if(!l.length)return '';
+ const det=l.slice(0,6).map(p=>`<b>${esc(p.pos)}</b> <span class="mut">(${esc(p.sin_consumo)})</span>`).join(' · ');
+ return `<div class="warn" style="margin-top:8px">⚠️ <b>${l.length} producto${l.length>1?'s se vendieron':' se vendió'} pero no descuenta${l.length>1?'n':''} insumos</b>, así que no está${l.length>1?'n':''} contado${l.length>1?'s':''} en esta tabla — lo que hay que comprar es <b>más</b> que lo que dice acá.
+  <div class="legend" style="margin-top:4px">${det}${l.length>6?' … y '+(l.length-6)+' más':''}</div>
+  <div class="legend" style="margin-top:4px">Tienen costo y margen (por eso no figuran como N/D), pero les falta el dato que permite saber QUÉ consumen. Completalo en Costos o en la receta del producto.</div></div>`;
+}
 function renderCompras(){
  document.getElementById('mReal').classList.toggle('on',st.compras==='real');document.getElementById('mRepo').classList.toggle('on',st.compras==='repo');
  const rows=comprasRows();
@@ -1614,6 +1648,7 @@ function renderCompras(){
   ?'Cuánto comprar para cubrir un ciclo completo de apertura ('+nOpen+' noches), ponderando el consumo por día de semana del período elegido. Las noches se cuentan por fecha de cierre. '
     +(nVig?'<b>Se resta el stock cargado</b> de los '+nVig+' insumos vigilados.':'Ningún insumo tiene stock cargado todavía — cargalo en Costos para que se descuente de lo que hay que comprar.')
   :'Consumo real del período elegido ('+ddmmOf(st.desde)+'→'+ddmmOf(st.hasta)+'). <b>No es una lista de compras</b>: es lo que ya se consumió en esos '+calDaysRange(st.desde,st.hasta)+' días. Para saber cuánto comprar, usá "Reposición".';
+ document.getElementById('comprasnote').innerHTML+=avisoSinConsumo();
  const g={};rows.forEach(r=>{(g[r.cb_cat]||(g[r.cb_cat]=[])).push(r);});
  // agrupado por rubro SIEMPRE; dentro de cada rubro, orden por columna (default = como llega
  // de comprasRows(), ya ordenado por valor desc).

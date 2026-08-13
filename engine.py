@@ -172,30 +172,72 @@ def _grupo_cat(cat):
     return "COMIDA" if str(cat).upper() in FOOD_CATS else "BEBIDA"
 
 
+def num_es(s):
+    """Número escrito por una planilla en español. Devuelve float o None si no se puede leer.
+
+    Gemelo exacto de `parseNumES()` en index.html — mismas reglas, mismos casos. Si se
+    toca uno, tocar el otro.
+
+    El parser viejo hacía `replace(",", ".")` sobre la coma y nada con el punto. Dos bugs:
+      - `"1.234,5"` -> `"1.234.5"` -> ValueError, que NO estaba atrapado: reventaba compute()
+        entero y el dueño se quedaba sin tablero.
+      - `"1.500 g"` -> 1.5 g. Mil veces menos, **sin ningún error visible**: el costo de ese
+        ingrediente cae a ~0 y el margen del producto se va a ~100%. Este es el peligroso.
+    """
+    s = str("" if s is None else s).strip().replace(" ", "").replace("$", "")
+    if not s:
+        return None
+    hay_punto, hay_coma = "." in s, "," in s
+    if hay_punto and hay_coma:
+        # conviven los dos: el ÚLTIMO es el decimal ("1.234,5" es-AR · "1,234.5" en-US)
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif hay_coma:
+        s = s.replace(",", ".", 1) if s.count(",") == 1 else s.replace(",", "")
+    elif hay_punto:
+        # solo punto: ambiguo. Grupos de 3 dígitos = separador de miles ("1.500" -> 1500,
+        # "1.234.567" -> 1234567). Una receta no lleva milésimas, así que es seguro; y con
+        # menos de 3 dígitos ("0.5", "1.25") es decimal, que es como lo escribe el editor.
+        p = s.split(".")
+        if len(p) > 2 or (len(p) == 2 and len(p[1]) == 3):
+            s = "".join(p)
+    try:
+        n = float(s)
+    except (TypeError, ValueError):
+        return None
+    return n if math.isfinite(n) else None
+
+
 def parse_qty(qty):
     if qty is None:
         return None
     s = str(qty).strip().lower()
-    m = re.match(r"^([\d.,]+)\s*(ml|cc)\b", s)
-    if m:
-        return (float(m.group(1).replace(",", ".")), "ml")
-    m = re.match(r"^([\d.,]+)\s*(g|gr|gramos)\b", s)
-    if m:
-        return (float(m.group(1).replace(",", ".")), "g")
-    m = re.match(r"^([\d.,]+)\s*unidad", s)
-    if m:
-        return (float(m.group(1).replace(",", ".")), "u")
+    # Un número ilegible devuelve None (= "cant no parseada" -> el producto queda N/D con motivo
+    # visible), nunca una excepción que voltee el pipeline ni un número inventado. Regla #0.
+    for rx, unidad in ((r"^([\d.,]+)\s*(?:ml|cc)\b", "ml"),
+                       (r"^([\d.,]+)\s*(?:g|gr|gramos)\b", "g"),
+                       (r"^([\d.,]+)\s*unidad", "u")):
+        m = re.match(rx, s)
+        if m:
+            n = num_es(m.group(1))
+            return None if n is None else (n, unidad)
     m = re.match(r"^([\d.,]+)\s*lata", s)
     if m:
-        return ("LATA", float(m.group(1).replace(",", ".")))
+        n = num_es(m.group(1))
+        return None if n is None else ("LATA", n)
     for key, (val, ub) in EQUI.items():
         if key in s:
             m2 = re.match(r"^([\d.,]+)", s)
-            n = float(m2.group(1).replace(",", ".")) if m2 else 1.0
-            return (n * val, ub)
+            if m2 is None:
+                return (val, ub)                      # "1 cucharada" implícita: sin número = 1
+            n = num_es(m2.group(1))
+            return None if n is None else (n * val, ub)
     m = re.match(r"^([\d.,]+)$", s)
     if m:
-        return (float(m.group(1).replace(",", ".")), "u")
+        n = num_es(m.group(1))
+        return None if n is None else (n, "u")
     return None
 
 
@@ -412,6 +454,11 @@ def compute(src):
             return (None, None, None, f"cant:{qty}")
         ub_i = COSTO[insumo]["unidad"]
         if p[0] == "LATA":
+            # mismo chequeo que costo_ingrediente: sin cant_base la multiplicación reventaba con
+            # TypeError y se llevaba puesto el compute() entero, en vez de dejar este producto
+            # sin explotar y seguir.
+            if COSTO[insumo]["cant_base"] is None:
+                return (None, None, None, f"insumo sin cantidad base:{insumo}")
             return (insumo, p[1] * COSTO[insumo]["cant_base"], ub_i, None)
         val, ub = p
         if ub == "u":
@@ -428,67 +475,90 @@ def compute(src):
             return (None, None, None, f"pieza sin peso:{ing}")
         return (insumo, val, ub_i, None)
 
+    # Devuelve (lista_de_consumo, motivo). En éxito, motivo=None; en fallo, lista=None y el
+    # motivo dice por qué — NUNCA una lista parcial ni un None pelado.
+    #
+    # Por qué el motivo importa: costear y explotar responden preguntas distintas ("¿cuánto
+    # cuesta?" vs "¿qué consume?") y por eso necesitan datos distintos — una botella se cuesta
+    # con `precio` pero se explota con `cant_base`. Esa asimetría es legítima, pero cuando
+    # explotar fallaba devolviendo None a secas, el producto quedaba con margen normal y
+    # consumo CERO: Compras decía "comprá 0" y stockCalc nunca le restaba nada, o sea una
+    # alerta que dice "hay stock" cuando no hay — el escenario que §6 del CLAUDE.md declara
+    # peor que no tener alerta. Ahora el motivo sube hasta el producto (`sin_consumo`) y se ve.
     def explotar_producto(k, _visitados=None):
         m = MAESTRO.get(k)
         if not m:
-            return None
+            return (None, "no está en Maestro")
         t = m["tipo"]; out = []
         if t == "sin_datos":
-            return None
+            return (None, "sin_datos")
         if t == "combo":
             if k not in COMBOS:
-                return None
+                return (None, "combo sin composición")
             _visitados = (_visitados or set()) | {k}
             for ins, cant, u in COMBOS[k]:
                 if u == "producto":
                     pk = norm(ins)
                     if pk in _visitados:
-                        return None
-                    sub = explotar_producto(pk, _visitados)
+                        return (None, f"combo circular:{ins}")
+                    sub, err = explotar_producto(pk, _visitados)
                     if sub is None:
-                        return None
+                        return (None, f"componente sin consumo:{ins} ({err})")
                     for i2, q2, u2 in sub:
                         out.append((i2, q2 * cant, u2))
                     continue
                 if ins not in COSTO:
-                    return None
+                    return (None, f"insumo no encontrado:{ins}")
                 if u == "ml":
                     out.append((ins, cant, COSTO[ins]["unidad"]))
                 elif u in ("lata", "unidad"):
+                    if COSTO[ins]["cant_base"] is None:
+                        return (None, f"insumo sin cantidad base:{ins}")
                     out.append((ins, cant * COSTO[ins]["cant_base"], COSTO[ins]["unidad"]))
-            return out
+                else:
+                    # Faltaba esta rama: un componente con unidad no soportada (ej. "g") se
+                    # omitía y el combo explotaba PARCIAL — consumo subestimado, sin aviso,
+                    # mientras costear_combo sí lo daba por N/D. Ahora fallan igual los dos.
+                    return (None, f"unidad no soportada:{u}")
+            return (out, None)
         if t in ("receta", "promo_2x1"):
             rec = norm(str(m["costeo"] or "").replace("Receta:", "").strip())
             ings = RECETAS.get(rec)
             if ings is None:
-                return None
+                return (None, f"receta no hallada:{rec}")
             f = (m.get("factor") or 1)
             for ing, qty in ings:
                 insumo, qb, ub, err = qty_ingrediente(ing, qty)
                 if err:
-                    return None
+                    return (None, err)
                 out.append((insumo, qb * f, ub))
-            return out
+            return (out, None)
         if t == "botella":
             ins = _insumo_pour(str(m["costeo"])); real = INSUMO_ALIAS.get(ins, ins)
             if real not in COSTO:
-                return None
-            return [(real, COSTO[real]["cant_base"], COSTO[real]["unidad"])]
+                return (None, f"botella no hallada:{ins}")
+            if COSTO[real]["cant_base"] is None:
+                return (None, f"botella sin cantidad base:{real}")
+            return ([(real, COSTO[real]["cant_base"], COSTO[real]["unidad"])], None)
         if t == "pour":
             ins = _insumo_pour(str(m["costeo"])); real = INSUMO_ALIAS.get(ins, ins)
-            if real not in COSTO or not m["rend"]:
-                return None
-            return [(real, m["rend"], COSTO[real]["unidad"])]
+            if real not in COSTO:
+                return (None, f"pour sin insumo:{ins}")
+            if not m["rend"]:
+                return (None, f"pour sin rendimiento:{real}")
+            return ([(real, m["rend"], COSTO[real]["unidad"])], None)
         if t == "directo":
             ins = _insumo_pour(str(m["costeo"])); real = INSUMO_ALIAS.get(ins, ins)
             if real not in COSTO:
-                return None
+                return (None, f"directo sin insumo:{ins}")
             q = m["rend"] if m["rend"] else COSTO[real]["cant_base"]
-            return [(real, q, COSTO[real]["unidad"])]
-        return None
+            if q is None:
+                return (None, f"directo sin rend ni cantidad base:{real}")
+            return ([(real, q, COSTO[real]["unidad"])], None)
+        return (None, f"tipo desconocido:{t}")
 
     def detalle_producto(k):
-        exp = explotar_producto(k)
+        exp, _err = explotar_producto(k)
         if not exp:
             return []
         out = []
@@ -523,13 +593,17 @@ def compute(src):
         return (motivo, "Revisar en datos_general.xlsx.")
 
     # ---- recolectar ventas en una línea de tiempo día a día ----
-    prods = {}; dias = {}; consumo_dia = {}; split = {}
+    prods = {}; dias = {}; consumo_dia = {}; split = {}; _expl = {}
     for v in (src.get("ventas") or []):
         nombre = v.get("nombre")
         if nombre is None:
             continue
+        # int() directo sobre "3.0" o "3,0" (grafías que el POS manda a veces) tiraba ValueError
+        # y dejaba u=0 CON el monto intacto: el producto desaparecía de Rentabilidad (prodView
+        # filtra u>0) mientras su plata seguía apareciendo en el gráfico de tendencia. Plata
+        # contada de un lado y no del otro, en silencio. float() primero cubre las dos grafías.
         try:
-            u = int(v.get("unidades") or 0)
+            u = int(float(str(v.get("unidades") or 0).strip().replace(",", ".")))
         except (TypeError, ValueError):
             u = 0
         try:
@@ -550,7 +624,12 @@ def compute(src):
         k = norm(nombre); k = UNIFICAR.get(k, k)
         p = prods.setdefault(k, {"raw": nombre, "byday": {}})
         bd = p["byday"].setdefault(dkey, [0, 0.0]); bd[0] += u; bd[1] += monto
-        exp = explotar_producto(k)
+        # se memoiza por producto: antes se re-explotaba la receta entera en CADA fila de venta
+        # (una por producto y por noche), y el motivo del fallo hace falta después, al armar el
+        # registro del producto.
+        if k not in _expl:
+            _expl[k] = explotar_producto(k)
+        exp, exp_err = _expl[k]
         if exp:
             g = _grupo_cat(MAESTRO.get(k, {}).get("cat", ""))
             cd = consumo_dia.setdefault(dkey, {})
@@ -575,6 +654,11 @@ def compute(src):
         else:
             base.update({"nd": False, "tipo": cc["tipo"], "costo": round(cc["costo"], 1),
                          "nota": MAESTRO.get(k, {}).get("nota", "") or "", "breakdown": detalle_producto(k)})
+            # Costea bien pero no se puede explotar en insumos: tiene margen, y consume CERO.
+            # Sin esta marca era invisible — Compras pedía 0 y el stock no bajaba nunca.
+            _ex, _exerr = _expl.get(k, (None, "no explotado"))
+            if _ex is None:
+                base["sin_consumo"] = _exerr or "no se pudo explotar en insumos"
             _m = MAESTRO.get(k, {}); _t = cc["tipo"]
             if _t in ("receta", "promo_2x1"):
                 _rn = str(_m.get("costeo") or "").replace("Receta:", "").strip()
@@ -659,7 +743,14 @@ def _compute_opex(opex_json, opex_base, cero_confirmado):
     seed = None
     raw = opex_json
 
-    if not raw:
+    # `is None` = el OPEX nunca se sembró (no existe datos/opex.json, ni la clave en Supabase).
+    # Una lista VACÍA es otra cosa: el dueño borró todos los rubros, y eso hay que respetarlo.
+    # Con el `if not raw:` de antes las dos cosas caían acá, así que vaciar el OPEX desde la
+    # solapa lo resucitaba en la corrida siguiente con los valores viejos de la hoja del Excel
+    # — un cambio deshecho solo, sin decir nada. La hoja "Costos FIJOS (OPEX)" de
+    # datos_general.xlsx es SOLO semilla inicial: se lee una vez en la vida del sistema y nunca
+    # más (opex.json viaja en git, así que ni una instalación nueva pasa por acá).
+    if raw is None:
         # sembrar de la hoja OPEX del Excel (una vez), preservando el total mensual estimado
         seed_items = []
         for r in (opex_base or []):
@@ -718,6 +809,8 @@ def _compute_opex(opex_json, opex_base, cero_confirmado):
     opex_total = _vig["opex"] if _vig else 0
     opex_pend = _vig["opex_pend"] if _vig else 0
     opex_detalle = _vig["opex_detalle"] if _vig else []
-    if not opex_detalle:
-        opex_total = 10460000
+    # Sin detalle de OPEX el total queda en 0, NO en una cifra inventada. Acá había un
+    # 10.460.000 hardcodeado que viajaba al P&L, al resultado operativo y al punto de equilibrio
+    # como si fuera un dato cargado: exactamente lo que prohíbe la Regla #0. Que dé 0 y se vea
+    # el hueco es mejor que un número creíble que nadie puede rastrear.
     return opex_total, opex_pend, opex_detalle, periodos, seed
