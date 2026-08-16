@@ -23,7 +23,7 @@
         "riesgo": "bajo"
       },
       {
-        "item": "/api/excel no aplica en la nube",
+        "item": "el Excel completo se retiró (13-08-2026)",
         "detalle": "No hay filesystem persistente donde dejar el archivo. Responde un mensaje claro; el Excel se genera desde la app local.",
         "riesgo": "ninguno, es por diseño"
       },

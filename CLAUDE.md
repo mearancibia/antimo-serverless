@@ -482,10 +482,13 @@ es promo de tragos sueltos — el precio es el que delata cuál es cuál.
 `GET /` (dashboard), `GET /api/data`, `GET /api/ping`, `GET /api/config`.
 `POST`: `/api/receta`, `/api/precio`, `/api/pour`, `/api/combo`, `/api/producto`, `/api/sospechoso`,
 `/api/dia_cerrado`, `/api/stock`, `/api/stock_bulk`, `/api/costos_bulk`, `/api/opex_save`, `/api/opex_vigencia`, `/api/config`,
-`/api/pull` (trae de Bistrosoft), `/api/excel` (genera `datos_general_actualizado.xlsx`). Cada POST escribe el
+`/api/pull` (trae de Bistrosoft). Cada POST escribe el
 override (con backup previo) y re-corre el motor.
-⚠️ `/api/opex` (escribe `opex_override.json`) quedó **sin uso** desde que se agregaron las vigencias
-de OPEX — el frontend ya solo llama `/api/opex_save`/`/api/opex_vigencia`. No se borró todavía.
+Retirados el 13-08-2026 por quedar sin uso: `/api/opex` (lo reemplazaron `/api/opex_save` y
+`/api/opex_vigencia` al aparecer las vigencias) y `/api/excel` + `generate_excel()`, que producía
+`datos_general_actualizado.xlsx` — una copia del maestro con los overrides aplicados. Su botón
+vivía en el tablero viejo y no sobrevivió a la migración a `index.html`, así que hacía más de un
+mes que no lo llamaba nadie. Si algún día hace falta el Excel completo, está en el historial.
 
 ---
 
@@ -614,7 +617,7 @@ la fila de "GIN BRIGTON" en `maestro_extra.json`, que quedó inalcanzable tras l
 - ✅ `git init` + carpeta reorganizada (`_archivo/`, ver sección 2).
 
 **Pendiente:** nada de código. Solo decisiones/datos del dueño (ver "N/D" arriba) y una limpieza
-menor ya sugerida como tarea aparte: el endpoint `/api/opex` sin uso (§9).
+menor, ya hecha: retirar los endpoints sin uso (§9).
 
 ---
 

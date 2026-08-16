@@ -78,60 +78,6 @@ def run_connector():
     return r.returncode==0, (r.stdout or "")+(r.stderr or "")
 
 
-def generate_excel():
-    import openpyxl, shutil, datetime
-    src=os.path.join(DATOS,"datos_general.xlsx"); dst=os.path.join(BASE,"datos_general_actualizado.xlsx")
-    if not os.path.exists(src): return None
-    wb=openpyxl.load_workbook(src)
-    pov=_load("precios_override.json",{})
-    if pov and "Costo items" in wb.sheetnames:
-        for row in wb["Costo items"].iter_rows(min_row=2):
-            if row[1].value in pov: row[2].value=pov[row[1].value]
-    opx=_load("opex.json",[])
-    if opx and "Costos FIJOS (OPEX)" in wb.sheetnames:
-        ws=wb["Costos FIJOS (OPEX)"]; existing={}
-        for row in ws.iter_rows(min_row=2):
-            if row[1].value: existing[str(row[1].value).strip().lower()]=row
-        for e in opx:
-            key=str(e.get("item","")).strip().lower(); cant=e.get("cantidad") or 0; unit=e.get("unitario") or 0; monto=round(cant*unit)
-            if key in existing:
-                r=existing[key]; r[2].value=cant; r[3].value=unit; r[5].value=monto
-            else:
-                ws.append([e.get("cat"),e.get("item"),cant,unit,"(agregado en app)",monto])
-    # hojas extra para no perder nada
-    def _sheet(name):
-        if name in wb.sheetnames: del wb[name]
-        return wb.create_sheet(name)
-    rex=_load("recetas_extra.json",{})
-    if rex:
-        def _n(x): return ' '.join(str(x).strip().upper().split()) if x else ''
-        rem=dict(rex)
-        for sheet,namecol,ingstart in [("Recetas Bebidas",0,1),("Recetas Comida",1,2)]:
-            if sheet not in wb.sheetnames: continue
-            ws=wb[sheet]
-            for row in ws.iter_rows(min_row=2):
-                nm=_n(row[namecol].value)
-                for rk in list(rem.keys()):
-                    if _n(rk)==nm:
-                        ings=rem.pop(rk); r=row[0].row; ci=ingstart
-                        for ig in ings:
-                            ws.cell(row=r,column=ci+1,value=ig[0]); ws.cell(row=r,column=ci+2,value=ig[1]); ci+=2
-                        for c in range(ci+1,ws.max_column+1): ws.cell(row=r,column=c,value=None)
-                        break
-        if rem:  # recetas nuevas que no estaban en las hojas
-            ws=_sheet("Recetas_nuevas"); ws.append(["Receta","Ingrediente","Cantidad"])
-            for nm,ings in rem.items():
-                for ig in ings: ws.append([nm,ig[0],ig[1]])
-    mex=_load("maestro_extra.json",[])
-    if mex:
-        ws=_sheet("Productos_agregados"); ws.append(["POS","Categoria","Canonico","Tipo","Factor","Rend","Costeo","Nota"])
-        for e in mex: ws.append([e.get("pos"),e.get("cat"),e.get("canon"),e.get("tipo"),e.get("factor"),e.get("rend"),e.get("costeo"),e.get("nota")])
-    iex=_load("insumos_extra.json",[])
-    if iex:
-        ws=_sheet("Insumos_agregados"); ws.append(["Nombre","Precio","Presentacion","Cant_base","Unidad","cxu"])
-        for e in iex: ws.append([e.get("nombre"),e.get("precio"),e.get("pres"),e.get("cant_base"),e.get("unidad"),e.get("cxu")])
-    wb.save(dst); return dst
-
 # Pantalla de primer arranque (instalacion nueva, sin ventas todavia). Mismo criterio que el
 # resto: un solo archivo, sin dependencias, sin nada externo.
 PAGINA_PRIMER_ARRANQUE="""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
@@ -272,8 +218,6 @@ class H(http.server.SimpleHTTPRequestHandler):
                 r=_load("recetas_extra.json",{},estricto=True); r[data["receta"]]=[[i[0],i[1]] for i in data["ingredientes"]]; _save("recetas_extra.json",r)
             elif path=="/api/precio":
                 p=_load("precios_override.json",{},estricto=True); p[data["insumo"]]=float(data["precio"]); _save("precios_override.json",p)
-            elif path=="/api/opex":
-                o=_load("opex_override.json",{},estricto=True); o[data["item"]]=float(data["monto"]); _save("opex_override.json",o)
             elif path=="/api/combo":
                 comp=data.get("componentes") or []
                 if not comp: return self._send(200,json.dumps({"ok":False,"error":"El combo quedó sin componentes"}))
@@ -448,9 +392,6 @@ class H(http.server.SimpleHTTPRequestHandler):
                     entry["costeo"]="Combo definido en app"
                     c=_load("combos_extra.json",{},estricto=True); c[pos]=[[x[0],float(x[1]),x[2]] for x in data.get("componentes",[])]; _save("combos_extra.json",c)
                 mex.append(entry); _save("maestro_extra.json",mex)
-            elif path=="/api/excel":
-                dst=generate_excel()
-                return self._send(200,json.dumps({"ok":bool(dst),"file":os.path.basename(dst) if dst else ""}))
             elif path=="/api/pull":
                 ok,log=run_connector()
                 if not ok: return self._send(200,json.dumps({"ok":False,"log":log}))

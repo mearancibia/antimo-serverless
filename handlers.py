@@ -423,5 +423,6 @@ ROUTES = {
 SIN_RECOMPUTE = {"print_test"}
 
 # POST que NO recalcula y no aplica en la nube (no hay filesystem persistente donde dejar el Excel).
-MSG_EXCEL = ("Generar el Excel completo se hace desde la app local (run_ANTIMO_app), no desde la nube.")
-NORECOMPUTE = {"excel": MSG_EXCEL}
+# Endpoints que responden un mensaje en vez de recalcular. Quedó vacío al retirar el
+# "Excel completo" (13-08-2026): se deja el mecanismo, que api/index.py sigue consultando.
+NORECOMPUTE = {}
